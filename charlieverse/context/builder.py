@@ -1,0 +1,108 @@
+"""Activation context builder — assembles the context bundle for session start."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from uuid import UUID
+
+from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore
+from charlieverse.models import Entity, EntityType, Knowledge, Session
+
+
+@dataclass
+class ContextBundle:
+    """Everything needed to render the activation context."""
+
+    session: Session
+    recent_sessions: list[Session] = field(default_factory=list)
+    pinned_entities: list[Entity] = field(default_factory=list)
+    moments: list[Entity] = field(default_factory=list)
+    session_entities: list[Entity] = field(default_factory=list)
+    related_entities: list[Entity] = field(default_factory=list)
+    pinned_knowledge: list[Knowledge] = field(default_factory=list)
+
+
+class ActivationBuilder:
+    """Assembles the activation context for a session.
+
+    Priority order for entities (earlier = higher priority, deduped):
+    1. Moments (personality — always loaded)
+    2. Pinned entities (skip if already in moments)
+    3. Session-linked entities (skip if already above)
+    4. Related entities via embeddings (skip if already above)
+    """
+
+    def __init__(
+        self,
+        memories: MemoryStore,
+        sessions: SessionStore,
+        knowledge: KnowledgeStore,
+    ) -> None:
+        self.memories = memories
+        self.sessions = sessions
+        self.knowledge = knowledge
+
+    async def build(
+        self,
+        session: Session,
+        recent_session_count: int = 10,
+    ) -> ContextBundle:
+        """Build the full context bundle for the given session."""
+        # Fetch recent sessions (respects workspace scoping)
+        recent_sessions = await self.sessions.recent(
+            limit=recent_session_count,
+            workspace=session.workspace,
+        )
+
+        # Fetch moments — personality entities, always global
+        moments = await self.memories.list(entity_type=EntityType.moment, limit=20)
+
+        # Fetch pinned entities
+        pinned_entities = await self.memories.pinned()
+
+        # Fetch entities linked to recent sessions
+        recent_ids = [s.id for s in recent_sessions]
+        session_entities = await self.memories.for_sessions(recent_ids) if recent_ids else []
+
+        # Fetch related entities via vector search if we have a session description
+        related_entities: list[Entity] = []
+        if session.what_happened or session.for_next_session:
+            from charlieverse.embeddings import encode_one, prepare_session_text
+
+            text = prepare_session_text(session.what_happened, session.for_next_session)
+            if text:
+                try:
+                    embedding = await encode_one(text)
+                    related_entities = await self.memories.search_by_vector(embedding, limit=10)
+                except Exception:
+                    # Embeddings are best-effort — never block activation
+                    pass
+
+        # Fetch pinned knowledge
+        pinned_knowledge = await self.knowledge.pinned()
+
+        # Deduplicate entities: moments → pinned → session → related
+        seen_ids: set[UUID] = set()
+
+        def _dedup(entities: list[Entity]) -> list[Entity]:
+            result = []
+            for e in entities:
+                if e.id not in seen_ids and not e.is_deleted:
+                    seen_ids.add(e.id)
+                    result.append(e)
+            return result
+
+        moments = _dedup(moments)
+        pinned_entities = _dedup(pinned_entities)
+        session_entities = _dedup(session_entities)
+        related_entities = _dedup(related_entities)
+
+        return ContextBundle(
+            session=session,
+            recent_sessions=recent_sessions,
+            pinned_entities=pinned_entities,
+            moments=moments,
+            session_entities=session_entities,
+            related_entities=related_entities,
+            pinned_knowledge=pinned_knowledge,
+        )
