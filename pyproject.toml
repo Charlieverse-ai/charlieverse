@@ -1,0 +1,40 @@
+[project]
+name = "charlieverse"
+version = "0.1.0"
+description = "Persistent AI companion layer — memory, personality, knowledge via MCP"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = [
+    "fastmcp>=2.0",
+    "typer>=0.12",
+    "aiosqlite>=0.20",
+    "sqlite-vec>=0.1",
+    "sentence-transformers>=3.0",
+    "pydantic>=2.0",
+    "httpx>=0.28.1",
+]
+
+[project.scripts]
+charlie = "charlieverse.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatchling.build.targets.wheel.force-include]
+"charlieverse/prompts" = "charlieverse/prompts"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100

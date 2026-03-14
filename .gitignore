@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# OS
+.DS_Store
+
+# Database (user data, not source)
+*.db
+*.db-wal
+*.db-shm
+
+# Embedding model cache
+.cache/
+
+# Logs
+*.log
+
+# PID files
+*.pid
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Coverage
+.coverage
+htmlcov/
+*.profraw
+
+# Claude
+.claude/
