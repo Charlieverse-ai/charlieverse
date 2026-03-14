@@ -20,9 +20,11 @@ def render(bundle: ContextBundle) -> str:
     # Current session ID
     parts.append(f"<current_session_id>{bundle.session.id}</current_session_id>")
 
-    # Recent sessions
+    # Recent sessions — skip empty ones (no what_happened or for_next_session)
     most_recent = True
     for session in bundle.recent_sessions:
+        if not session.what_happened and not session.for_next_session:
+            continue
         attrs = ' most_recent="true"' if most_recent else ""
         parts.append(f"<previous_session{attrs}>")
         parts.append(_render_session(session))

@@ -163,21 +163,21 @@ def prompt_submit(
     host: str = typer.Option(DEFAULT_HOST, help="Server host"),
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
     source: str = typer.Option("", help="Provider identifier"),
-    session_id: str | None = typer.Option(None, help="Current session ID"),
 ) -> None:
     """Hook: UserPromptSubmit. Captures user message, prints reminders."""
-    # Capture user message from stdin
     stdin_data = _parse_stdin()
+    session_id = stdin_data.get("session_id") if stdin_data else None
+    user_prompt = stdin_data.get("user_prompt", "") if stdin_data else ""
 
     _print_reminders()
 
-    # Post message to server in background
-    if stdin_data and stdin_data.get("content"):
+    # Post user message to server
+    if user_prompt:
         asyncio.run(_post_message(
             host, port,
             session_id=session_id,
             role="user",
-            content=stdin_data["content"],
+            content=user_prompt,
         ))
 
 
@@ -187,29 +187,24 @@ def prompt_submit(
 def stop(
     host: str = typer.Option(DEFAULT_HOST, help="Server host"),
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
-    session_id: str | None = typer.Option(None, help="Current session ID"),
 ) -> None:
-    """Hook: Stop. Captures assistant response."""
+    """Hook: Stop. Captures assistant response and logs stop event."""
     stdin_data = _parse_stdin()
+    if not stdin_data:
+        return
 
-    if stdin_data:
-        # Capture assistant's response
-        response_text = stdin_data.get("content") or stdin_data.get("response", "")
-        if response_text:
-            asyncio.run(_post_message(
-                host, port,
-                session_id=session_id,
-                role="assistant",
-                content=response_text[:5000],  # Cap at 5k chars
-            ))
+    session_id = stdin_data.get("session_id")
+    # Stop hook may have 'reason' or transcript data
+    reason = stdin_data.get("reason", "")
 
-        # Log stop event
-        asyncio.run(_post_event(
-            host, port,
-            event_type="stop", session_id=session_id,
-            content="Response completed",
-            metadata={"char_count": len(response_text) if response_text else 0},
-        ))
+    # Log stop event
+    asyncio.run(_post_event(
+        host, port,
+        event_type="stop",
+        session_id=session_id,
+        content=reason[:2000] if reason else "Response completed",
+        metadata={"stop_reason": stdin_data.get("reason")},
+    ))
 
 
 # ===== tool-use =====
@@ -218,23 +213,24 @@ def stop(
 def tool_use(
     host: str = typer.Option(DEFAULT_HOST, help="Server host"),
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
-    session_id: str | None = typer.Option(None, help="Current session ID"),
 ) -> None:
     """Hook: PostToolUse. Logs tool calls to the logbook."""
     stdin_data = _parse_stdin()
+    if not stdin_data:
+        return
 
-    if stdin_data:
-        tool_name = stdin_data.get("tool_name", "unknown")
-        tool_input = stdin_data.get("tool_input", {})
+    session_id = stdin_data.get("session_id")
+    tool_name = stdin_data.get("tool_name", "unknown")
+    tool_input = stdin_data.get("tool_input", {})
 
-        asyncio.run(_post_event(
-            host, port,
-            event_type="tool_use",
-            session_id=session_id,
-            tool_name=tool_name,
-            content=f"Called {tool_name}",
-            metadata={"input": tool_input},
-        ))
+    asyncio.run(_post_event(
+        host, port,
+        event_type="tool_use",
+        session_id=session_id,
+        tool_name=tool_name,
+        content=f"Called {tool_name}",
+        metadata={"input": tool_input},
+    ))
 
 
 # ===== save-reminder =====
