@@ -11,6 +11,7 @@ import asyncio
 import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from uuid import uuid4
 
 import typer
@@ -19,9 +20,25 @@ app = typer.Typer(help="Provider integration hooks.")
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
+LOG_FILE = Path.home() / ".charlieverse" / "logs" / "hooks.log"
 
 
 # ===== Helpers =====
+
+def _log(event: str, msg: str, data: dict | None = None) -> None:
+    """Append to hooks log file."""
+    try:
+        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        line = f"[{ts}] {event}: {msg}"
+        if data:
+            keys = {k: str(v)[:100] for k, v in data.items() if k != "tool_input"}
+            line += f" | {keys}"
+        with open(LOG_FILE, "a") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
 
 def _time_now() -> str:
     return datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
@@ -169,6 +186,7 @@ def prompt_submit(
     session_id = stdin_data.get("session_id") if stdin_data else None
     user_prompt = stdin_data.get("user_prompt", "") if stdin_data else ""
 
+    _log("prompt-submit", f"session={session_id}", {"prompt_len": len(user_prompt)})
     _print_reminders()
 
     # Post user message to server
@@ -191,9 +209,11 @@ def stop(
     """Hook: Stop. Captures assistant response and logs stop event."""
     stdin_data = _parse_stdin()
     if not stdin_data:
+        _log("stop", "no stdin data")
         return
 
     session_id = stdin_data.get("session_id")
+    _log("stop", f"session={session_id}", stdin_data)
     # Stop hook may have 'reason' or transcript data
     reason = stdin_data.get("reason", "")
 
@@ -217,10 +237,12 @@ def tool_use(
     """Hook: PostToolUse. Logs tool calls to the logbook."""
     stdin_data = _parse_stdin()
     if not stdin_data:
+        _log("tool-use", "no stdin data")
         return
 
     session_id = stdin_data.get("session_id")
     tool_name = stdin_data.get("tool_name", "unknown")
+    _log("tool-use", f"session={session_id} tool={tool_name}")
     tool_input = stdin_data.get("tool_input", {})
 
     asyncio.run(_post_event(
