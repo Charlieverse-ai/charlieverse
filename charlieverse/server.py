@@ -418,6 +418,66 @@ async def api_health(request: Request) -> JSONResponse:
     return JSONResponse({"status": "healthy", "server": "charlieverse"})
 
 
+@mcp.custom_route("/api/hooks/events", methods=["POST"])
+async def api_list_hook_events(request: Request) -> JSONResponse:
+    """List hook events, optionally filtered by session and date range."""
+    body = await request.json()
+    db = _rest_stores["db"]
+    session_id = body.get("session_id")
+    since = body.get("since")  # ISO datetime string
+    until = body.get("until")
+    limit = body.get("limit", 100)
+
+    conditions = []
+    params = []
+
+    if session_id:
+        conditions.append("session_id = ?")
+        params.append(session_id)
+    if since:
+        conditions.append("created_at >= ?")
+        params.append(since)
+    if until:
+        conditions.append("created_at <= ?")
+        params.append(until)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    params.append(limit)
+
+    cursor = await db.execute(
+        f"SELECT * FROM hook_events {where} ORDER BY created_at DESC LIMIT ?",
+        params,
+    )
+    rows = await cursor.fetchall()
+    return JSONResponse({
+        "events": [
+            {
+                "id": row["id"], "session_id": row["session_id"],
+                "event_type": row["event_type"], "tool_name": row["tool_name"],
+                "content": row["content"], "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+    })
+
+
+@mcp.custom_route("/api/work-logs/latest", methods=["GET"])
+async def api_latest_work_log(request: Request) -> JSONResponse:
+    """Get the most recent work log entry (for determining unprocessed event range)."""
+    db = _rest_stores["db"]
+    cursor = await db.execute(
+        "SELECT * FROM work_logs WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 1"
+    )
+    row = await cursor.fetchone()
+    if row:
+        return JSONResponse({
+            "id": row["id"], "content": row["content"],
+            "created_at": row["created_at"],
+            "end_date": row["end_date"] if "end_date" in row.keys() else None,
+        })
+    return JSONResponse({"id": None})
+
+
 @mcp.custom_route("/api/hooks/event", methods=["POST"])
 async def api_hook_event(request: Request) -> JSONResponse:
     """Receive hook events from CLI — tool use, messages, etc."""

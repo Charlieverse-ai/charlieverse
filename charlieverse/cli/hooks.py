@@ -184,9 +184,9 @@ def prompt_submit(
     """Hook: UserPromptSubmit. Captures user message, prints reminders."""
     stdin_data = _parse_stdin()
     session_id = stdin_data.get("session_id") if stdin_data else None
-    user_prompt = stdin_data.get("user_prompt", "") if stdin_data else ""
-
-    _log("prompt-submit", f"session={session_id}", {"prompt_len": len(user_prompt)})
+    # Log all keys to figure out the right field name
+    _log("prompt-submit", f"session={session_id}", {"keys": list(stdin_data.keys()) if stdin_data else [], "raw_snippet": str(stdin_data)[:300] if stdin_data else "none"})
+    user_prompt = stdin_data.get("user_prompt") or stdin_data.get("content") or stdin_data.get("prompt") or "" if stdin_data else ""
     _print_reminders()
 
     # Post user message to server
@@ -214,16 +214,25 @@ def stop(
 
     session_id = stdin_data.get("session_id")
     _log("stop", f"session={session_id}", stdin_data)
-    # Stop hook may have 'reason' or transcript data
-    reason = stdin_data.get("reason", "")
+
+    last_message = stdin_data.get("last_assistant_message", "")
+
+    # Save assistant message
+    if last_message:
+        asyncio.run(_post_message(
+            host, port,
+            session_id=session_id,
+            role="assistant",
+            content=last_message[:5000],
+        ))
 
     # Log stop event
     asyncio.run(_post_event(
         host, port,
         event_type="stop",
         session_id=session_id,
-        content=reason[:2000] if reason else "Response completed",
-        metadata={"stop_reason": stdin_data.get("reason")},
+        content=last_message[:500] if last_message else "Response completed",
+        metadata={"message_len": len(last_message) if last_message else 0},
     ))
 
 
