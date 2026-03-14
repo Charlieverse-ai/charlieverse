@@ -109,4 +109,39 @@ CREATE VIRTUAL TABLE IF NOT EXISTS work_logs_fts USING fts5(
     tokenize='porter unicode61'
 );
 
+-- Messages (captured from hooks — user prompts + assistant responses)
+CREATE TABLE IF NOT EXISTS messages (
+    id              TEXT PRIMARY KEY,
+    session_id      TEXT,
+    role            TEXT NOT NULL,  -- 'user' or 'assistant'
+    content         TEXT NOT NULL,
+    created_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+
+-- Messages FTS5 (external content)
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+    content,
+    content=messages,
+    content_rowid=rowid,
+    tokenize='porter unicode61'
+);
+
+-- Hook events (auto-populated logbook from provider hooks)
+CREATE TABLE IF NOT EXISTS hook_events (
+    id              TEXT PRIMARY KEY,
+    session_id      TEXT,
+    event_type      TEXT NOT NULL,  -- 'tool_use', 'tool_result', 'prompt', 'response', 'compact', 'subagent', etc
+    tool_name       TEXT,
+    content         TEXT,
+    metadata        TEXT,  -- JSON
+    created_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_hook_events_session_id ON hook_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_hook_events_event_type ON hook_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_hook_events_created_at ON hook_events(created_at);
+
 PRAGMA user_version = 1;

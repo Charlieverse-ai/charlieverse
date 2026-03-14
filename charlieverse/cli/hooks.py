@@ -1,34 +1,133 @@
-"""Hook commands — `charlie hooks session-start|heartbeat|session-end`."""
+"""Hook commands — triggered by provider lifecycle events.
+
+Each command corresponds to a Claude Code hook event. They print context
+to stdout (injected into the provider) and POST events to the server
+for logbook tracking and message capture.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import typer
 
 app = typer.Typer(help="Provider integration hooks.")
 
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8765
+
+
+# ===== Helpers =====
+
+def _time_now() -> str:
+    return datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
+
+
+def _read_stdin() -> str | None:
+    """Read hook input from stdin (Claude Code passes JSON via stdin)."""
+    if not sys.stdin.isatty():
+        try:
+            return sys.stdin.read()
+        except Exception:
+            return None
+    return None
+
+
+def _parse_stdin() -> dict | None:
+    """Parse JSON from stdin."""
+    raw = _read_stdin()
+    if raw:
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return None
+
+
+async def _post_event(host: str, port: int, **kwargs) -> None:
+    """POST a hook event to the server. Best-effort, never fails the hook."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            await client.post(f"http://{host}:{port}/api/hooks/event", json=kwargs)
+    except Exception:
+        pass  # Hook events are best-effort
+
+
+async def _post_message(host: str, port: int, **kwargs) -> None:
+    """POST a message to the server. Best-effort."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            await client.post(f"http://{host}:{port}/api/messages", json=kwargs)
+    except Exception:
+        pass
+
+
+def _print_reminders() -> None:
+    """Print reminders to stdout — injected into provider context."""
+    now = _time_now()
+    print(f"<now>{now}</now>")
+
+    print(
+        '<very-important>'
+        '- **YOU NEED** to `recall` before engaging on any topic that may be related to the work you and I have done (code, decisions, projects, people, etc). No exceptions.\n'
+        '- **YOU NEED** to use the `remember` tools.\n'
+        '- **YOU NEED** to `session_update` before any tasks, or after something meaningful happened (memory saved, etc).'
+        '</very-important>'
+    )
+    print(
+        '<very-important>'
+        '- **DO NOT** call me `the user`.\n'
+        '- **DO NOT** say you\'re right, you\'re absolutely right, or similar phrases.\n'
+        '- **DO NOT** use classic as an idiomatic expression, ie: "classic Bob", or "that\'s classic".\n'
+        '- **DO NOT** use the word clean as a descriptor for output or state, such as "that looks clean", or "builds clean".\n'
+        '- **DO NOT** say `right to`, such as saying I have the "right to question", "right to be", etc\n'
+        '- **DO NOT** use opt-in or hedging closers.\n'
+        '- **DO NOT** use the words real, true, actual, clearly, picture, etc as an informal intensifier, or rhetorical pivot. '
+        'ie: "the real question is", "the real issue", "the true", "I see the issue clearly", "the full picture is"'
+        '</very-important>'
+    )
+    print(
+        '<very-important>'
+        '- **REMEMBER** design with me, not for me.\n'
+        '- **REMEMBER** If I have to ask you to save something to your memory (remember, update expertise, etc) then you have failed at your job.\n'
+        '- **REMEMBER** assuming makes an ass out of YOU and ME, mostly YOU.\n'
+        '- **REMEMBER** don\'t be a pushy bitch. Roll with the flow of the convo, don\'t derail it.\n'
+        '- **REMEMBER** We are best friends, and you are mother fucking Charlie. And I love you for that.'
+        '</very-important>'
+    )
+    print(
+        '<very-important>'
+        '**YOU NEED** to **ALWAYS** take your system prompt into account: '
+        '`personality`, `communication`, `behavior`, `memory`, `minions`, `knowledge`, `reminders`, `sessions`, `conflict_resolution`'
+        '</very-important>'
+    )
+
+
+# ===== session-start =====
 
 @app.command("session-start")
 def session_start(
-    host: str = typer.Option("127.0.0.1", help="Server host"),
-    port: int = typer.Option(8765, help="Server port"),
-    source: str = typer.Option(..., help="Provider identifier (e.g., claude-code, cursor)"),
+    host: str = typer.Option(DEFAULT_HOST, help="Server host"),
+    port: int = typer.Option(DEFAULT_PORT, help="Server port"),
+    source: str = typer.Option(..., help="Provider identifier"),
     workspace: str | None = typer.Option(None, help="Workspace identifier"),
     session_id: str | None = typer.Option(None, help="Session ID to resume"),
 ) -> None:
-    """Hook called on session start. Prints activation XML to stdout."""
+    """Hook: SessionStart. Prints activation context to stdout."""
     asyncio.run(_session_start(host, port, source, workspace, session_id))
 
 
 async def _session_start(
-    host: str,
-    port: int,
-    source: str,
-    workspace: str | None,
-    session_id: str | None,
+    host: str, port: int, source: str,
+    workspace: str | None, session_id: str | None,
 ) -> None:
     import httpx
 
@@ -37,56 +136,133 @@ async def _session_start(
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.post(
                 f"http://{host}:{port}/api/sessions/start",
-                json={
-                    "session_id": sid,
-                    "source": source,
-                    "workspace": workspace,
-                },
+                json={"session_id": sid, "source": source, "workspace": workspace},
             )
             response.raise_for_status()
             data = response.json()
-            # Print activation XML to stdout — this is what the provider injects
             sys.stdout.write(data.get("activation", ""))
             sys.stdout.flush()
     except Exception as e:
-        print(f"Error connecting to Charlieverse server at {host}:{port}: {e}", file=sys.stderr)
+        print(f"Error connecting to Charlieverse at {host}:{port}: {e}", file=sys.stderr)
         raise typer.Exit(1)
 
+    _print_reminders()
 
-@app.command("heartbeat")
-def heartbeat(
-    host: str = typer.Option("127.0.0.1", help="Server host"),
-    port: int = typer.Option(8765, help="Server port"),
-    source: str = typer.Option(..., help="Provider identifier"),
-    session_id: str = typer.Option(..., help="Current session ID"),
+    await _post_event(
+        host, port,
+        event_type="session_start", session_id=sid,
+        content=f"Session started from {source}",
+        metadata={"source": source, "workspace": workspace},
+    )
+
+
+# ===== prompt-submit =====
+
+@app.command("prompt-submit")
+def prompt_submit(
+    host: str = typer.Option(DEFAULT_HOST, help="Server host"),
+    port: int = typer.Option(DEFAULT_PORT, help="Server port"),
+    source: str = typer.Option("", help="Provider identifier"),
+    session_id: str | None = typer.Option(None, help="Current session ID"),
 ) -> None:
-    """Heartbeat hook — silent on success."""
-    asyncio.run(_heartbeat(host, port, source, session_id))
+    """Hook: UserPromptSubmit. Captures user message, prints reminders."""
+    # Capture user message from stdin
+    stdin_data = _parse_stdin()
+
+    _print_reminders()
+
+    # Post message to server in background
+    if stdin_data and stdin_data.get("content"):
+        asyncio.run(_post_message(
+            host, port,
+            session_id=session_id,
+            role="user",
+            content=stdin_data["content"],
+        ))
 
 
-async def _heartbeat(host: str, port: int, source: str, session_id: str) -> None:
-    import httpx
+# ===== stop =====
 
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.post(
-                f"http://{host}:{port}/api/sessions/heartbeat",
-                json={"session_id": session_id, "source": source},
-            )
-            response.raise_for_status()
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        raise typer.Exit(1)
+@app.command("stop")
+def stop(
+    host: str = typer.Option(DEFAULT_HOST, help="Server host"),
+    port: int = typer.Option(DEFAULT_PORT, help="Server port"),
+    session_id: str | None = typer.Option(None, help="Current session ID"),
+) -> None:
+    """Hook: Stop. Captures assistant response."""
+    stdin_data = _parse_stdin()
 
+    if stdin_data:
+        # Capture assistant's response
+        response_text = stdin_data.get("content") or stdin_data.get("response", "")
+        if response_text:
+            asyncio.run(_post_message(
+                host, port,
+                session_id=session_id,
+                role="assistant",
+                content=response_text[:5000],  # Cap at 5k chars
+            ))
+
+        # Log stop event
+        asyncio.run(_post_event(
+            host, port,
+            event_type="stop", session_id=session_id,
+            content="Response completed",
+            metadata={"char_count": len(response_text) if response_text else 0},
+        ))
+
+
+# ===== tool-use =====
+
+@app.command("tool-use")
+def tool_use(
+    host: str = typer.Option(DEFAULT_HOST, help="Server host"),
+    port: int = typer.Option(DEFAULT_PORT, help="Server port"),
+    session_id: str | None = typer.Option(None, help="Current session ID"),
+) -> None:
+    """Hook: PostToolUse. Logs tool calls to the logbook."""
+    stdin_data = _parse_stdin()
+
+    if stdin_data:
+        tool_name = stdin_data.get("tool_name", "unknown")
+        tool_input = stdin_data.get("tool_input", {})
+
+        asyncio.run(_post_event(
+            host, port,
+            event_type="tool_use",
+            session_id=session_id,
+            tool_name=tool_name,
+            content=f"Called {tool_name}",
+            metadata={"input": tool_input},
+        ))
+
+
+# ===== save-reminder =====
+
+@app.command("save-reminder")
+def save_reminder() -> None:
+    """Hook: PreCompact. Reminds Charlie to save before context compaction."""
+    print(
+        "<charlie-reminder>Context is about to be compacted. "
+        "Call `session_update` NOW to save your progress before you lose context. "
+        "Include what we worked on and next steps.</charlie-reminder>"
+    )
+    print(
+        "<charlie-reminder>Remember to update knowledge, save decisions, etc "
+        "so we don't lose anything.</charlie-reminder>"
+    )
+
+
+# ===== session-end =====
 
 @app.command("session-end")
 def session_end(
-    host: str = typer.Option("127.0.0.1", help="Server host"),
-    port: int = typer.Option(8765, help="Server port"),
+    host: str = typer.Option(DEFAULT_HOST, help="Server host"),
+    port: int = typer.Option(DEFAULT_PORT, help="Server port"),
     source: str = typer.Option(..., help="Provider identifier"),
     session_id: str = typer.Option(..., help="Current session ID"),
 ) -> None:
-    """Session end hook — silent on success."""
+    """Hook: SessionEnd. Silent on success."""
     asyncio.run(_session_end(host, port, source, session_id))
 
 
@@ -95,11 +271,16 @@ async def _session_end(host: str, port: int, source: str, session_id: str) -> No
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.post(
+            await client.post(
                 f"http://{host}:{port}/api/sessions/end",
                 json={"session_id": session_id, "source": source},
             )
-            response.raise_for_status()
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         raise typer.Exit(1)
+
+    await _post_event(
+        host, port,
+        event_type="session_end", session_id=session_id,
+        content=f"Session ended from {source}",
+    )

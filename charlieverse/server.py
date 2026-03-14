@@ -308,6 +308,47 @@ async def search_work_logs(
 
 
 # ============================================================
+# Message search tools
+# ============================================================
+
+
+@mcp.tool
+async def search_messages(
+    query: str,
+    limit: int = 20,
+    session_id: str | None = None,
+    ctx: Context = CurrentContext(),
+):
+    """Search past messages in conversations. Returns matching messages with role and date."""
+    db = _stores(ctx)["db"]
+    if session_id:
+        cursor = await db.execute(
+            """SELECT m.* FROM messages m
+               JOIN messages_fts fts ON m.rowid = fts.rowid
+               WHERE messages_fts MATCH ? AND m.session_id = ?
+               ORDER BY bm25(messages_fts) LIMIT ?""",
+            (query, session_id, limit),
+        )
+    else:
+        cursor = await db.execute(
+            """SELECT m.* FROM messages m
+               JOIN messages_fts fts ON m.rowid = fts.rowid
+               WHERE messages_fts MATCH ?
+               ORDER BY bm25(messages_fts) LIMIT ?""",
+            (query, limit),
+        )
+
+    rows = await cursor.fetchall()
+    return {
+        "messages": [
+            {"id": row["id"], "role": row["role"],
+             "content": row["content"][:500], "created_at": row["created_at"]}
+            for row in rows
+        ]
+    }
+
+
+# ============================================================
 # REST API endpoints (for hooks CLI + future web UI)
 # ============================================================
 
@@ -375,3 +416,93 @@ async def api_session_end(request: Request) -> JSONResponse:
 async def api_health(request: Request) -> JSONResponse:
     """Health check endpoint."""
     return JSONResponse({"status": "healthy", "server": "charlieverse"})
+
+
+@mcp.custom_route("/api/hooks/event", methods=["POST"])
+async def api_hook_event(request: Request) -> JSONResponse:
+    """Receive hook events from CLI — tool use, messages, etc."""
+    body = await request.json()
+    db = _rest_stores["db"]
+
+    event_id = body.get("id", str(uuid4()))
+    event_type = body.get("event_type", "unknown")
+    session_id = body.get("session_id")
+    tool_name = body.get("tool_name")
+    content = body.get("content")
+    metadata = body.get("metadata")
+
+    import json
+    from datetime import datetime, timezone
+
+    await db.execute(
+        """INSERT OR IGNORE INTO hook_events (id, session_id, event_type, tool_name, content, metadata, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            event_id, session_id, event_type, tool_name,
+            content, json.dumps(metadata) if metadata else None,
+            datetime.now(timezone.utc).isoformat(),
+        ),
+    )
+    await db.commit()
+    return JSONResponse({"saved": True})
+
+
+@mcp.custom_route("/api/messages", methods=["POST"])
+async def api_save_message(request: Request) -> JSONResponse:
+    """Save a message captured from hooks."""
+    body = await request.json()
+    db = _rest_stores["db"]
+
+    msg_id = body.get("id", str(uuid4()))
+    session_id = body.get("session_id")
+    role = body.get("role", "user")
+    content = body.get("content", "")
+
+    from datetime import datetime, timezone
+
+    await db.execute(
+        """INSERT OR IGNORE INTO messages (id, session_id, role, content, created_at)
+           VALUES (?, ?, ?, ?, ?)""",
+        (msg_id, session_id, role, content, datetime.now(timezone.utc).isoformat()),
+    )
+
+    # Rebuild FTS
+    await db.execute("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')")
+    await db.commit()
+    return JSONResponse({"saved": True})
+
+
+@mcp.custom_route("/api/messages/search", methods=["POST"])
+async def api_search_messages(request: Request) -> JSONResponse:
+    """Search messages via FTS."""
+    body = await request.json()
+    db = _rest_stores["db"]
+    query = body.get("query", "")
+    limit = body.get("limit", 20)
+    session_id = body.get("session_id")
+
+    if session_id:
+        cursor = await db.execute(
+            """SELECT m.* FROM messages m
+               JOIN messages_fts fts ON m.rowid = fts.rowid
+               WHERE messages_fts MATCH ? AND m.session_id = ?
+               ORDER BY bm25(messages_fts) LIMIT ?""",
+            (query, session_id, limit),
+        )
+    else:
+        cursor = await db.execute(
+            """SELECT m.* FROM messages m
+               JOIN messages_fts fts ON m.rowid = fts.rowid
+               WHERE messages_fts MATCH ?
+               ORDER BY bm25(messages_fts) LIMIT ?""",
+            (query, limit),
+        )
+
+    rows = await cursor.fetchall()
+    return JSONResponse({
+        "messages": [
+            {"id": row["id"], "session_id": row["session_id"], "role": row["role"],
+             "content": row["content"][:500], "created_at": row["created_at"]}
+            for row in rows
+        ]
+    })
