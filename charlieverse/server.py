@@ -454,7 +454,8 @@ async def api_list_hook_events(request: Request) -> JSONResponse:
             {
                 "id": row["id"], "session_id": row["session_id"],
                 "event_type": row["event_type"], "tool_name": row["tool_name"],
-                "content": row["content"], "created_at": row["created_at"],
+                "content": row["content"], "metadata": row["metadata"],
+                "created_at": row["created_at"],
             }
             for row in rows
         ]
