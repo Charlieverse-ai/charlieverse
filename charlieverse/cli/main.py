@@ -2,7 +2,7 @@
 
 import typer
 
-from charlieverse.cli import hooks, init_cmd, server_cmd, events_cmd
+from charlieverse.cli import hooks, init_cmd, server_cmd, events_cmd, log_cmd
 
 app = typer.Typer(
     name="charlie",
@@ -14,3 +14,4 @@ app.add_typer(server_cmd.app, name="server")
 app.add_typer(hooks.app, name="hooks")
 app.command("init")(init_cmd.init)
 app.command("events")(events_cmd.events)
+app.command("log")(log_cmd.log)

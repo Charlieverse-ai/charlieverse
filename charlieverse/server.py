@@ -479,6 +479,31 @@ async def api_latest_work_log(request: Request) -> JSONResponse:
     return JSONResponse({"id": None})
 
 
+@mcp.custom_route("/api/log", methods=["POST"])
+async def api_log_work(request: Request) -> JSONResponse:
+    """Record a logbook entry via REST."""
+    body = await request.json()
+    from datetime import datetime, timezone
+
+    content = body.get("content", "")
+    session_id = body.get("session_id", str(uuid4()))
+    tags = body.get("tags")
+
+    entry_id = str(uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
+    db = _rest_stores["db"]
+    await db.execute(
+        """INSERT INTO work_logs (id, content, tags, created_session_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (entry_id, content, json.dumps(tags) if tags else None, session_id, now, now),
+    )
+    await db.execute("INSERT INTO work_logs_fts(work_logs_fts) VALUES('rebuild')")
+    await db.commit()
+
+    return JSONResponse({"id": entry_id})
+
+
 @mcp.custom_route("/api/hooks/event", methods=["POST"])
 async def api_hook_event(request: Request) -> JSONResponse:
     """Receive hook events from CLI — tool use, messages, etc."""
