@@ -246,52 +246,6 @@ async def update_knowledge(
         knowledge_store=_stores(ctx)["knowledge"],
     )
 
-
-# ============================================================
-# Work log tools
-# ============================================================
-
-
-@mcp.tool
-async def log_work(
-    content: str,
-    session_id: str | None = None,
-    tags: list[str] | None = None,
-    ctx: Context = CurrentContext(),
-):
-    """Log a work entry — captures technical details that sessions don't."""
-    return await work_log_tools.log_work(
-        content=content, session_id=session_id,
-        tags=tags, work_logs=_stores(ctx)["work_logs"],
-    )
-
-
-@mcp.tool
-async def list_work_logs(
-    session_id: str | None = None,
-    limit: int = 20,
-    ctx: Context = CurrentContext(),
-):
-    """List work log entries, optionally filtered by session."""
-    return await work_log_tools.list_work_logs(
-        session_id=session_id, limit=limit,
-        work_logs=_stores(ctx)["work_logs"],
-    )
-
-
-@mcp.tool
-async def search_work_logs(
-    query: str,
-    limit: int = 10,
-    ctx: Context = CurrentContext(),
-):
-    """Search work logs using full-text search."""
-    return await work_log_tools.search_work_logs(
-        query=query, limit=limit,
-        work_logs=_stores(ctx)["work_logs"],
-    )
-
-
 # ============================================================
 # Message search tools
 # ============================================================
