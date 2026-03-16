@@ -11,8 +11,11 @@ import asyncio
 import json
 import sys
 from datetime import datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import uuid4
+
+if TYPE_CHECKING:
+    from charlieverse.context.reminders.types import HookContext
 
 import typer
 
@@ -89,28 +92,19 @@ async def _post_message(host: str, port: int, **kwargs) -> None:
         pass
 
 
-PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
-REMINDERS_DIR = PROMPTS_DIR / "reminders"
+async def _build_reminders(ctx: HookContext) -> str:
+    """Run the reminders engine and return formatted output."""
+    from charlieverse.context.reminders import RemindersEngine
+
+    engine = RemindersEngine()
+    reminders = await engine.process(ctx)
+    return engine.format(reminders)
 
 
-def _load_reminders() -> list[str]:
-    """Load all reminder files from the prompts/reminders directory."""
-    reminders: list[str] = []
-    if not REMINDERS_DIR.exists():
-        return reminders
-    for file in sorted(REMINDERS_DIR.glob("*.md")):
-        content = file.read_text().strip()
-        if content:
-            reminders.append(content)
-    return reminders
-
-
-def _build_context(*parts: str) -> str:
-    """Build the context string from parts, adding timestamp and reminders."""
+def _build_context_static(*parts: str) -> str:
+    """Build context from static parts only (for hooks that don't use the engine)."""
     sections: list[str] = [f"<now>{_time_now()}</now>"]
     sections.extend(parts)
-    for reminder in _load_reminders():
-        sections.append(f"<very-important>{reminder}</very-important>")
     return "\n".join(sections)
 
 
@@ -166,7 +160,7 @@ async def _session_start(
         print(f"Error connecting to Charlieverse at {host}:{port}: {e}", file=sys.stderr)
         raise typer.Exit(1)
 
-    _output_context(_build_context(activation), hook_event="SessionStart")
+    _output_context(_build_context_static(activation), hook_event="SessionStart")
 
     await _post_event(
         host, port,
@@ -185,23 +179,74 @@ def prompt_submit(
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
     source: str = typer.Option("", help="Provider identifier"),
 ) -> None:
-    """Hook: UserPromptSubmit. Captures user message, prints reminders."""
+    """Hook: UserPromptSubmit. Captures user message, runs reminders engine."""
     stdin_data = _parse_stdin()
     session_id = stdin_data.get("session_id") if stdin_data else None
-    # Log all keys to figure out the right field name
-    _log("prompt-submit", f"session={session_id}", {"keys": list(stdin_data.keys()) if stdin_data else [], "raw_snippet": str(stdin_data)[:300] if stdin_data else "none"})
+    _log("prompt-submit", f"session={session_id}")
     user_prompt = stdin_data.get("user_prompt") or stdin_data.get("content") or stdin_data.get("prompt") or "" if stdin_data else ""
-    _output_context(_build_context())
+
+    asyncio.run(_prompt_submit(host, port, session_id, user_prompt))
+    typer.Exit(0)
+
+
+async def _prompt_submit(
+    host: str, port: int,
+    session_id: str | None, user_prompt: str,
+) -> None:
+    from charlieverse.context.reminders import HookContext
+
+    import httpx
+
+    # Build the hook context for the reminders engine
+    now = datetime.now()
+    metadata: dict = {}
+
+    # Pre-fetch timing data from the server (best-effort, never blocks)
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            # Session timing + last assistant message in parallel
+            session_resp, msg_resp = await asyncio.gather(
+                client.get(f"http://{host}:{port}/api/sessions/{session_id}"),
+                client.get(
+                    f"http://{host}:{port}/api/messages/latest",
+                    params={"session_id": session_id, "role": "assistant"},
+                ),
+                return_exceptions=True,
+            )
+
+            if not isinstance(session_resp, Exception) and session_resp.status_code == 200:
+                session_data = session_resp.json()
+                if session_data.get("created_at"):
+                    metadata["session_start"] = session_data["created_at"]
+                if session_data.get("updated_at"):
+                    metadata["last_session_save_at"] = session_data["updated_at"]
+
+            if not isinstance(msg_resp, Exception) and msg_resp.status_code == 200:
+                msg_data = msg_resp.json()
+                if msg_data.get("created_at"):
+                    metadata["last_assistant_response_at"] = msg_data["created_at"]
+    except Exception:
+        pass
+
+    ctx = HookContext(
+        event="UserPromptSubmit",
+        timestamp=now,
+        session_id=session_id,
+        message=user_prompt,
+        metadata=metadata,
+    )
+
+    reminders_output = await _build_reminders(ctx)
+    _output_context(reminders_output, hook_event="UserPromptSubmit")
 
     # Post user message to server
     if user_prompt:
-        asyncio.run(_post_message(
+        await _post_message(
             host, port,
             session_id=session_id,
             role="user",
             content=user_prompt,
-        ))
-    typer.Exit(0)
+        )
 
 # ===== stop =====
 

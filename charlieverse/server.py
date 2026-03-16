@@ -32,9 +32,12 @@ async def app_lifespan(server):
 
     db = await database.connect(db_path)
 
-    # Pre-warm the embedding model so first recall isn't slow
+    # Pre-warm models so first requests aren't slow
     from charlieverse.embeddings.service import _get_model
     _get_model()
+
+    from charlieverse.nlp.extractor import _get_nlp
+    _get_nlp()
 
     stores = {
         "db": db,
@@ -405,7 +408,6 @@ async def api_session_start(request: Request) -> JSONResponse:
     """Start or resume a session. Returns activation XML."""
     body = await request.json()
     session_id = body.get("session_id", str(uuid4()))
-    source = body.get("source", "unknown")
     workspace = body.get("workspace")
 
     sessions_store: SessionStore = _rest_stores["sessions"]
@@ -587,6 +589,155 @@ async def api_save_message(request: Request) -> JSONResponse:
     return JSONResponse({"saved": True})
 
 
+@mcp.custom_route("/api/messages/latest", methods=["GET"])
+async def api_latest_message(request: Request) -> JSONResponse:
+    """Get the most recent message for a session, optionally filtered by role."""
+    db = _rest_stores["db"]
+    session_id = request.query_params.get("session_id")
+    role = request.query_params.get("role")
+
+    query = "SELECT id, session_id, role, content, created_at FROM messages WHERE 1=1"
+    params: list = []
+
+    if session_id:
+        query += " AND session_id = ?"
+        params.append(session_id)
+    if role:
+        query += " AND role = ?"
+        params.append(role)
+
+    query += " ORDER BY created_at DESC LIMIT 1"
+
+    async with db.execute(query, params) as cursor:
+        row = await cursor.fetchone()
+
+    if not row:
+        return JSONResponse({})
+
+    return JSONResponse({
+        "id": row[0],
+        "session_id": row[1],
+        "role": row[2],
+        "content": row[3][:200],
+        "created_at": row[4],
+    })
+
+
+@mcp.custom_route("/api/context/enrich", methods=["POST"])
+async def api_context_enrich(request: Request) -> JSONResponse:
+    """Extract entities from text and search memories for matches.
+
+    Used by the reminders engine to inject relevant context on each prompt.
+    Returns found memories grouped by entity, plus entities with no matches.
+    """
+    body = await request.json()
+    text = body.get("text", "")
+    seen_ids = set(body.get("seen_ids", []))
+
+    if not text:
+        return JSONResponse({"entities": [], "found": [], "not_found": [], "stories": []})
+
+    from charlieverse.nlp import extract_entities, extract_temporal_refs
+
+    entities = extract_entities(text)
+    temporal_refs = extract_temporal_refs(text)
+
+    memories: MemoryStore = _rest_stores["memories"]
+    knowledge: KnowledgeStore = _rest_stores["knowledge"]
+
+    found: list[dict] = []
+    not_found: list[str] = []
+
+    for entity in entities:
+        # Search memories + knowledge for this entity
+        memory_results = await memories.search(entity, limit=3)
+        knowledge_results = await knowledge.search(entity, limit=2)
+
+        # Filter out already-seen items
+        new_memories = [m for m in memory_results if str(m.id) not in seen_ids]
+        new_knowledge = [k for k in knowledge_results if str(k.id) not in seen_ids]
+
+        if new_memories or new_knowledge:
+            found.append({
+                "entity": entity,
+                "memories": [
+                    {
+                        "id": str(m.id),
+                        "type": m.type.value,
+                        "content": m.content[:200],
+                        "tags": m.tags,
+                    }
+                    for m in new_memories
+                ],
+                "knowledge": [
+                    {
+                        "id": str(k.id),
+                        "topic": k.topic,
+                        "content": k.content[:200],
+                    }
+                    for k in new_knowledge
+                ],
+            })
+        else:
+            not_found.append(entity)
+
+    # Story search — FTS keywords + optional date range in one pass
+    # Story search — vector similarity (semantic) with optional date range
+    stories_result: list[dict] = []
+    story_store: StoryStore = _rest_stores["stories"]
+
+    if text and len(text.strip()) > 5:
+        from charlieverse.embeddings import encode_one
+        from charlieverse.nlp.snippets import extract_snippet
+
+        try:
+            query_embedding = await encode_one(text)
+
+            def _story_entry(story, query_emb, ref_text=None):
+                snippet = extract_snippet(story.content, query_emb)
+                entry = {
+                    "id": str(story.id),
+                    "title": story.title,
+                    "tier": story.tier.value,
+                    "content": snippet,
+                    "period_start": story.period_start,
+                    "period_end": story.period_end,
+                }
+                if ref_text:
+                    entry["ref"] = ref_text
+                return entry
+
+            if temporal_refs:
+                for ref in temporal_refs:
+                    matching = await story_store.search_by_vector(
+                        embedding=query_embedding,
+                        period_start=ref.start.isoformat(),
+                        period_end=ref.end.isoformat(),
+                        limit=3,
+                    )
+                    for story in matching:
+                        if str(story.id) not in seen_ids:
+                            seen_ids.add(str(story.id))
+                            stories_result.append(_story_entry(story, query_embedding, ref.text))
+            else:
+                matching = await story_store.search_by_vector(
+                    embedding=query_embedding,
+                    limit=3,
+                )
+                for story in matching:
+                    if str(story.id) not in seen_ids:
+                        stories_result.append(_story_entry(story, query_embedding))
+        except Exception:
+            pass  # Vector search is best-effort
+
+    return JSONResponse({
+        "entities": entities,
+        "found": found,
+        "not_found": not_found,
+        "stories": stories_result,
+    })
+
+
 @mcp.custom_route("/api/messages/search", methods=["POST"])
 async def api_search_messages(request: Request) -> JSONResponse:
     """Search messages via FTS."""
@@ -743,17 +894,10 @@ async def api_get_knowledge(request: Request) -> JSONResponse:
 
 
 def _fts_query(raw: str) -> str:
-    """Convert raw search input to FTS5 query with prefix matching.
+    """Convert raw search input to FTS5 query with prefix matching."""
+    from charlieverse.db.fts import sanitize_fts_query
 
-    Handles hyphens (FTS5 token separators) and adds prefix wildcards.
-    """
-    import re
-    # Split on non-alphanumeric, keep tokens
-    tokens = re.findall(r'[a-zA-Z0-9]+', raw)
-    if not tokens:
-        return raw
-    # Each token gets a prefix wildcard, joined with implicit AND
-    return ' '.join(f'"{t}"*' for t in tokens)
+    return sanitize_fts_query(raw)
 
 
 @mcp.custom_route("/api/search", methods=["POST"])
@@ -878,6 +1022,64 @@ async def api_get_story(request: Request) -> JSONResponse:
         return JSONResponse({"error": "Story not found"}, status_code=404)
 
     return JSONResponse(_serialize_story(story))
+
+
+@mcp.custom_route("/api/stories/rebuild", methods=["POST"])
+async def api_stories_rebuild(request: Request) -> JSONResponse:
+    """Rebuild both FTS index and embeddings for all stories."""
+    story_store: StoryStore = _rest_stores["stories"]
+
+    await story_store.rebuild_fts()
+    count = await _rebuild_story_embeddings(story_store)
+
+    return JSONResponse({"fts": "rebuilt", "embeddings": count})
+
+
+@mcp.custom_route("/api/stories/rebuild-fts", methods=["POST"])
+async def api_stories_rebuild_fts(request: Request) -> JSONResponse:
+    """Rebuild only the FTS index for stories."""
+    story_store: StoryStore = _rest_stores["stories"]
+    await story_store.rebuild_fts()
+    return JSONResponse({"fts": "rebuilt"})
+
+
+@mcp.custom_route("/api/stories/rebuild-embeddings", methods=["POST"])
+async def api_stories_rebuild_embeddings(request: Request) -> JSONResponse:
+    """Rebuild only embeddings for stories."""
+    story_store: StoryStore = _rest_stores["stories"]
+    count = await _rebuild_story_embeddings(story_store)
+    return JSONResponse({"embeddings": count})
+
+
+async def _rebuild_story_embeddings(story_store: StoryStore) -> int:
+    """Generate and store embeddings for all stories."""
+    from charlieverse.embeddings import encode_one
+
+    all_stories = await story_store.list(limit=1000)
+    db = _rest_stores["db"]
+    count = 0
+
+    for story in all_stories:
+        text = f"{story.title}\n{story.content}"
+        try:
+            embedding = await encode_one(text)
+            # Get rowid
+            cursor = await db.execute(
+                "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
+            )
+            row = await cursor.fetchone()
+            if row:
+                from sqlite_vec import serialize_float32
+                await db.execute(
+                    "INSERT OR REPLACE INTO stories_vec(rowid, embedding) VALUES(?, ?)",
+                    (row[0], serialize_float32(embedding)),
+                )
+                count += 1
+        except Exception:
+            continue
+
+    await db.commit()
+    return count
 
 
 # ============================================================
