@@ -75,19 +75,26 @@ async def _import(
 
     with open(output, "w") as out:
         for provider_name, provider_dir in providers:
-            finder, processor = PROVIDER_PROCESSORS.get(provider_name, (None, None))
-            if not finder or not processor:
+            spec = PROVIDER_PROCESSORS.get(provider_name)
+            if not spec:
                 continue
 
+            finder, default_processor = spec
             typer.echo(f"\n[{provider_name}] Scanning {provider_dir}")
-            jsonl_files = finder(provider_dir)
-            typer.echo(f"[{provider_name}] Found {len(jsonl_files)} files")
+            found = finder(provider_dir)
+            typer.echo(f"[{provider_name}] Found {len(found)} files")
 
             p_entries = 0
             p_sessions = 0
 
-            for i, jsonl_path in enumerate(jsonl_files):
-                entries = processor(jsonl_path)
+            for i, item in enumerate(found):
+                # Mixed-format providers return (path, processor) tuples
+                if isinstance(item, tuple):
+                    file_path, processor = item
+                else:
+                    file_path, processor = item, default_processor
+
+                entries = processor(file_path)
                 if entries:
                     p_sessions += 1
                     for entry in entries:
@@ -95,7 +102,7 @@ async def _import(
                         p_entries += 1
 
                 if (i + 1) % 100 == 0:
-                    typer.echo(f"[{provider_name}]   {i + 1}/{len(jsonl_files)} files...")
+                    typer.echo(f"[{provider_name}]   {i + 1}/{len(found)} files...")
 
             typer.echo(f"[{provider_name}] {p_sessions} sessions, {p_entries} entries")
             provider_stats[provider_name] = {"sessions": p_sessions, "entries": p_entries}
