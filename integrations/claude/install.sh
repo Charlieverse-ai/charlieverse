@@ -57,6 +57,15 @@ function setup_prompts() {
     cp -r "$PROMPTS_DIR/tools/" $TOOL_AGENT_DIR
 }
 
+function setup_skills() {
+    SKILLS_SRC="$INTEGRATIONS_DIR/skills"
+    SKILLS_DST="$PLUGIN_DIR/skills"
+    if [ -d "$SKILLS_SRC" ]; then
+        mkdir -p "$SKILLS_DST"
+        cp -r "$SKILLS_SRC"/* "$SKILLS_DST/"
+    fi
+}
+
 function setup_hooks_json() {
     HOOKS_DIR="$PLUGIN_DIR/hooks"
     mkdir -p "$HOOKS_DIR"
@@ -99,6 +108,7 @@ function update_claude_settings() {
 verify_env
 
 setup_prompts
+setup_skills
 setup_hooks_json
 setup_mcp_json
 
