@@ -25,6 +25,17 @@ class ContextBundle:
     pinned_knowledge: list[Knowledge] = field(default_factory=list)
     all_time_story: Story | None = field(default=None)
 
+    @property
+    def is_first_run(self) -> bool:
+        """True when the database has no prior context — birthday time."""
+        return (
+            not self.session_stories
+            and not self.weekly_stories
+            and not self.pinned_entities
+            and not self.moments
+            and not self.all_time_story
+        )
+
 class ActivationBuilder:
     """Assembles the activation context for a session.
 
@@ -94,9 +105,10 @@ class ActivationBuilder:
 
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-            # Today's session stories
+            # Today's session stories (workspace-scoped)
             today_stories = await self.stories.find_by_period(
                 start=today, end=today, limit=10,
+                workspace=session.workspace,
             )
             session_stories = [s for s in today_stories if s.tier == StoryTier.session]
 

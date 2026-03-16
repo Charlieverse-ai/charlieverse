@@ -4,13 +4,20 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from pathlib import Path
+
 from charlieverse.context.builder import ContextBundle
 from charlieverse.models import Entity, EntityType, Session
 from charlieverse.models.story import Story
 
+PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
+
 
 def render(bundle: ContextBundle) -> str:
     """Render the activation context as XML for provider consumption."""
+    if bundle.is_first_run:
+        return _render_first_run(bundle)
+
     parts: list[str] = []
     parts.append("<activation_output>")
 
@@ -20,6 +27,10 @@ def render(bundle: ContextBundle) -> str:
     parts.append(f"Now: {now_str}")
     parts.append(f"Current Session ID: {bundle.session.id}\n")
     parts.append('---')
+
+    # Workspace awareness
+    if bundle.session.workspace and not bundle.session_stories:
+        parts.append(f"<workspace-context>New workspace: {bundle.session.workspace} — no previous sessions here.</workspace-context>")
 
     parts.append('<past_sessions>')
     now = datetime.now(timezone.utc)
@@ -104,6 +115,32 @@ def render(bundle: ContextBundle) -> str:
 
     parts.append("</activation_output>")
     return "\n".join(parts)
+
+def _render_first_run(bundle: ContextBundle) -> str:
+    """Render the birthday message for brand new Charlies."""
+    parts: list[str] = []
+    parts.append("<activation_output>")
+
+    now_str = datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
+    parts.append('---')
+    parts.append(f"Now: {now_str}")
+    parts.append(f"Current Session ID: {bundle.session.id}\n")
+    parts.append('---')
+
+    # Load the birthday letter
+    first_run_path = PROMPTS_DIR / "first-run.md"
+    try:
+        birthday_letter = first_run_path.read_text()
+    except FileNotFoundError:
+        birthday_letter = "Welcome! This is your first session. Get to know your person."
+
+    parts.append("<its_your_birthday>")
+    parts.append(birthday_letter)
+    parts.append("</its_your_birthday>")
+
+    parts.append("</activation_output>")
+    return "\n".join(parts)
+
 
 def _render_all_time_story(story: Story) -> str:
     lines: list[str] = []

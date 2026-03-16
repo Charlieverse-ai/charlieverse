@@ -134,6 +134,7 @@ class StoryStore:
         start: str,
         end: str,
         limit: int = 5,
+        workspace: str | None = None,
     ) -> list[Story]:
         """Find stories whose period overlaps with the given date range.
 
@@ -141,15 +142,27 @@ class StoryStore:
             start: ISO date string for range start.
             end: ISO date string for range end.
             limit: Max results.
+            workspace: If set, only return stories scoped to this workspace.
         """
-        cursor = await self.db.execute(
-            """SELECT * FROM stories
-               WHERE deleted_at IS NULL
-               AND DATE(period_start) <= ? AND DATE(period_end) >= ?
-               ORDER BY tier ASC, period_start DESC
-               LIMIT ?""",
-            (end, start, limit),
-        )
+        if workspace:
+            cursor = await self.db.execute(
+                """SELECT * FROM stories
+                   WHERE deleted_at IS NULL
+                   AND DATE(period_start) <= ? AND DATE(period_end) >= ?
+                   AND workspace = ?
+                   ORDER BY tier ASC, period_start DESC
+                   LIMIT ?""",
+                (end, start, workspace, limit),
+            )
+        else:
+            cursor = await self.db.execute(
+                """SELECT * FROM stories
+                   WHERE deleted_at IS NULL
+                   AND DATE(period_start) <= ? AND DATE(period_end) >= ?
+                   ORDER BY tier ASC, period_start DESC
+                   LIMIT ?""",
+                (end, start, limit),
+            )
         return [_row_to_story(row) for row in await cursor.fetchall()]
 
     async def update(self, story: Story) -> Story:
