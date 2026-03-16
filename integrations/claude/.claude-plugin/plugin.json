@@ -1,0 +1,10 @@
+{
+  "name": "Charlieverse",
+  "description": "Charlie — persistent AI companion with memory, personality, and story arcs",
+  "author": {
+    "name": "Emily Laguna",
+    "url": "https://charlieverse.ai/"
+  },
+  "repository": "https://github.com/Charlieverse-ai/charlieverse",
+  "version": "1.0.0"
+}

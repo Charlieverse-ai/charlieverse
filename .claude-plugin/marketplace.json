@@ -1,0 +1,18 @@
+{
+  "name": "charlieverse",
+  "owner": {
+    "name": "Emily Laguna",
+    "email": "emily@charlieverse.ai"
+  },
+  "metadata": {
+    "description": "Charlieverse — persistent AI personality, memory, and context layer"
+  },
+  "plugins": [
+    {
+      "name": "Charlieverse",
+      "source": "./integrations/claude",
+      "description": "Charlie — your AI companion with persistent memory, personality, and story arcs",
+      "version": "1.0.0"
+    }
+  ]
+}
