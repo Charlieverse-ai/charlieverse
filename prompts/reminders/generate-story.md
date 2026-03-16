@@ -1,0 +1,1 @@
+It's time to generate the story
