@@ -4,34 +4,30 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastmcp import Context, FastMCP
 from fastmcp.server.dependencies import CurrentContext
 from fastmcp.server.lifespan import lifespan
-from pydantic import Field
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, PlainTextResponse
 
+from charlieverse.config import config
 from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
 from charlieverse.db import database
-from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, WorkLogStore
-from charlieverse.models import Session
+from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore, WorkLogStore
+from charlieverse.models import EntityType, Session, StoryTier
 from charlieverse.tools import knowledge as knowledge_tools
 from charlieverse.tools import memory as memory_tools
 from charlieverse.tools import sessions as session_tools
 from charlieverse.tools import work_log as work_log_tools
 
-# Default database path
-DEFAULT_DB_PATH = Path.home() / ".charlieverse" / "charlie.db"
-
 
 @lifespan
 async def app_lifespan(server):
     """Initialize database and stores on server start."""
-    db_path = DEFAULT_DB_PATH
+    db_path = config.database.resolved_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     db = await database.connect(db_path)
@@ -46,6 +42,7 @@ async def app_lifespan(server):
         "sessions": SessionStore(db),
         "knowledge": KnowledgeStore(db),
         "work_logs": WorkLogStore(db),
+        "stories": StoryStore(db),
     }
     try:
         yield stores
@@ -89,12 +86,13 @@ async def remember_solution(
     solution: str,
     session_id: str | None = None,
     tags: list[str] | None = None,
+    pinned: bool = False,
     ctx: Context = CurrentContext(),
 ):
     """Remember a problem and how it was solved."""
     return await memory_tools.remember_solution(
         problem=problem, solution=solution, session_id=session_id,
-        tags=tags, memories=_stores(ctx)["memories"],
+        tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
 
 
@@ -103,12 +101,13 @@ async def remember_preference(
     content: str,
     session_id: str | None = None,
     tags: list[str] | None = None,
+    pinned: bool = False,
     ctx: Context = CurrentContext(),
 ):
     """Remember a user preference or working style note."""
     return await memory_tools.remember_preference(
         content=content, session_id=session_id,
-        tags=tags, memories=_stores(ctx)["memories"],
+        tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
 
 
@@ -117,12 +116,13 @@ async def remember_person(
     content: str,
     session_id: str | None = None,
     tags: list[str] | None = None,
+    pinned: bool = False,
     ctx: Context = CurrentContext(),
 ):
     """Remember a person — who they are, relationship, context."""
     return await memory_tools.remember_person(
         content=content, session_id=session_id,
-        tags=tags, memories=_stores(ctx)["memories"],
+        tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
 
 
@@ -132,12 +132,13 @@ async def remember_milestone(
     significance: str | None = None,
     session_id: str | None = None,
     tags: list[str] | None = None,
+    pinned: bool = False,
     ctx: Context = CurrentContext(),
 ):
     """Remember a significant achievement or moment."""
     return await memory_tools.remember_milestone(
         milestone=milestone, significance=significance, session_id=session_id,
-        tags=tags, memories=_stores(ctx)["memories"],
+        tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
 
 
@@ -148,12 +149,13 @@ async def remember_moment(
     context: str | None = None,
     session_id: str | None = None,
     tags: list[str] | None = None,
+    pinned: bool = False,
     ctx: Context = CurrentContext(),
 ):
     """Remember a moment from our interactions — write it like a journal entry."""
     return await memory_tools.remember_moment(
         moment=moment, feeling=feeling, context=context, session_id=session_id,
-        tags=tags, memories=_stores(ctx)["memories"],
+        tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
 
 
@@ -217,12 +219,13 @@ async def session_update(
     what_happened: str,
     for_next_session: str,
     tags: list[str] | None = None,
+    workspace: str | None = None,
     ctx: Context = CurrentContext(),
 ):
     """Save a detailed snapshot of the current session."""
     return await session_tools.session_update(
         id=id, what_happened=what_happened, for_next_session=for_next_session,
-        tags=tags, sessions=_stores(ctx)["sessions"],
+        tags=tags, workspace=workspace, sessions=_stores(ctx)["sessions"],
     )
 
 
@@ -370,6 +373,32 @@ async def _patched_lifespan(server):
 # Re-create mcp with patched lifespan
 mcp._lifespan = _patched_lifespan
 
+@mcp.custom_route("/api/sessions/context", methods=["GET"])
+async def api_session_context(request: Request) -> PlainTextResponse:
+    """Preview activation context for debugging. Returns rendered context as plain text."""
+    sessions_store: SessionStore = _rest_stores["sessions"]
+    memories_store: MemoryStore = _rest_stores["memories"]
+    knowledge_store: KnowledgeStore = _rest_stores["knowledge"]
+
+    session_id = request.query_params.get('session_id')
+    workspace = request.query_params.get('workspace')
+    session: Session | None = None
+
+    if not session_id:
+        recent_sessions = await sessions_store.recent(limit=1, workspace=workspace)
+        session = recent_sessions[0] if recent_sessions else None
+    else:
+        session = await sessions_store.get(session_id=session_id)
+
+    if not session:
+        return PlainTextResponse("Missing")
+
+    # Build activation context
+    builder = ActivationBuilder(memories_store, sessions_store, knowledge_store)
+    bundle = await builder.build(session)
+    activation = context_renderer.render(bundle)
+
+    return PlainTextResponse(activation)
 
 @mcp.custom_route("/api/sessions/start", methods=["POST"])
 async def api_session_start(request: Request) -> JSONResponse:
@@ -592,3 +621,291 @@ async def api_search_messages(request: Request) -> JSONResponse:
             for row in rows
         ]
     })
+
+
+# ============================================================
+# Web UI REST API endpoints
+# ============================================================
+
+
+def _serialize_entity(entity) -> dict:
+    """Convert an Entity model to a JSON-safe dict."""
+    return {
+        "id": str(entity.id),
+        "type": entity.type.value,
+        "content": entity.content,
+        "tags": entity.tags,
+        "pinned": entity.pinned,
+        "created_session_id": str(entity.created_session_id),
+        "created_at": entity.created_at.isoformat(),
+        "updated_at": entity.updated_at.isoformat(),
+    }
+
+
+def _serialize_session(session) -> dict:
+    """Convert a Session model to a JSON-safe dict."""
+    return {
+        "id": str(session.id),
+        "what_happened": session.what_happened,
+        "for_next_session": session.for_next_session,
+        "tags": session.tags,
+        "workspace": session.workspace,
+        "created_at": session.created_at.isoformat(),
+        "updated_at": session.updated_at.isoformat(),
+    }
+
+
+def _serialize_knowledge(article) -> dict:
+    """Convert a Knowledge model to a JSON-safe dict."""
+    return {
+        "id": str(article.id),
+        "topic": article.topic,
+        "content": article.content,
+        "tags": article.tags,
+        "pinned": article.pinned,
+        "created_at": article.created_at.isoformat(),
+        "updated_at": article.updated_at.isoformat(),
+    }
+
+
+@mcp.custom_route("/api/entities", methods=["GET"])
+async def api_list_entities(request: Request) -> JSONResponse:
+    """List entities, optionally filtered by type."""
+    memories: MemoryStore = _rest_stores["memories"]
+    type_param = request.query_params.get("type")
+    limit = int(request.query_params.get("limit", "100"))
+
+    entity_type = EntityType(type_param) if type_param else None
+    entities = await memories.list(entity_type=entity_type, limit=limit)
+
+    return JSONResponse({"entities": [_serialize_entity(e) for e in entities]})
+
+
+@mcp.custom_route("/api/entities/{id}", methods=["GET"])
+async def api_get_entity(request: Request) -> JSONResponse:
+    """Get a single entity by ID."""
+    memories: MemoryStore = _rest_stores["memories"]
+    entity_id = request.path_params["id"]
+
+    entity = await memories.get(UUID(entity_id))
+    if not entity:
+        return JSONResponse({"error": "Entity not found"}, status_code=404)
+
+    return JSONResponse(_serialize_entity(entity))
+
+
+@mcp.custom_route("/api/sessions/list", methods=["GET"])
+async def api_list_sessions(request: Request) -> JSONResponse:
+    """List recent sessions."""
+    sessions: SessionStore = _rest_stores["sessions"]
+    limit = int(request.query_params.get("limit", "50"))
+
+    session_list = await sessions.recent(limit=limit)
+
+    return JSONResponse({"sessions": [_serialize_session(s) for s in session_list]})
+
+
+@mcp.custom_route("/api/sessions/{id}", methods=["GET"])
+async def api_get_session(request: Request) -> JSONResponse:
+    """Get a single session by ID."""
+    sessions: SessionStore = _rest_stores["sessions"]
+    session_id = request.path_params["id"]
+
+    session = await sessions.get(UUID(session_id))
+    if not session:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+
+    return JSONResponse(_serialize_session(session))
+
+
+@mcp.custom_route("/api/knowledge", methods=["GET"])
+async def api_list_knowledge(request: Request) -> JSONResponse:
+    """List knowledge articles."""
+    knowledge: KnowledgeStore = _rest_stores["knowledge"]
+    limit = int(request.query_params.get("limit", "50"))
+
+    articles = await knowledge.list(limit=limit)
+
+    return JSONResponse({"articles": [_serialize_knowledge(a) for a in articles]})
+
+
+@mcp.custom_route("/api/knowledge/{id}", methods=["GET"])
+async def api_get_knowledge(request: Request) -> JSONResponse:
+    """Get a single knowledge article by ID."""
+    knowledge: KnowledgeStore = _rest_stores["knowledge"]
+    article_id = request.path_params["id"]
+
+    article = await knowledge.get(UUID(article_id))
+    if not article:
+        return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
+
+    return JSONResponse(_serialize_knowledge(article))
+
+
+def _fts_query(raw: str) -> str:
+    """Convert raw search input to FTS5 query with prefix matching.
+
+    Handles hyphens (FTS5 token separators) and adds prefix wildcards.
+    """
+    import re
+    # Split on non-alphanumeric, keep tokens
+    tokens = re.findall(r'[a-zA-Z0-9]+', raw)
+    if not tokens:
+        return raw
+    # Each token gets a prefix wildcard, joined with implicit AND
+    return ' '.join(f'"{t}"*' for t in tokens)
+
+
+@mcp.custom_route("/api/search", methods=["POST"])
+async def api_search(request: Request) -> JSONResponse:
+    """Unified search — FTS5 with prefix matching, vector fallback."""
+    body = await request.json()
+    query = body.get("query", "")
+    limit = body.get("limit", 10)
+
+    if not query:
+        return JSONResponse({"entities": [], "knowledge": []})
+
+    memories: MemoryStore = _rest_stores["memories"]
+    knowledge: KnowledgeStore = _rest_stores["knowledge"]
+
+    # Try FTS with prefix matching first
+    fts_query = _fts_query(query)
+    entity_results = []
+    knowledge_results = []
+
+    try:
+        entity_results = await memories.search(fts_query, limit=limit)
+    except Exception:
+        pass
+
+    try:
+        knowledge_results = await knowledge.search(fts_query, limit=limit)
+    except Exception:
+        pass
+
+    # If FTS returned nothing, fall back to vector search
+    if not entity_results and not knowledge_results:
+        try:
+            from charlieverse.embeddings.service import embed
+
+            embedding = embed(query)
+            entity_results = await memories.search_by_vector(embedding, limit=limit)
+            knowledge_results = await knowledge.search_by_vector(embedding, limit=limit)
+        except Exception:
+            pass
+
+    return JSONResponse({
+        "entities": [_serialize_entity(e) for e in entity_results],
+        "knowledge": [_serialize_knowledge(a) for a in knowledge_results],
+    })
+
+
+@mcp.custom_route("/api/stats", methods=["GET"])
+async def api_stats(request: Request) -> JSONResponse:
+    """Dashboard stats — entity counts by type, session count, knowledge count."""
+    db = _rest_stores["db"]
+
+    # Entity counts by type
+    cursor = await db.execute(
+        "SELECT type, COUNT(*) as count FROM entities WHERE deleted_at IS NULL GROUP BY type"
+    )
+    entity_rows = await cursor.fetchall()
+    entity_counts = {row["type"]: row["count"] for row in entity_rows}
+
+    # Session count
+    cursor = await db.execute(
+        "SELECT COUNT(*) as count FROM sessions WHERE deleted_at IS NULL AND what_happened IS NOT NULL"
+    )
+    session_row = await cursor.fetchone()
+    session_count = session_row["count"] if session_row else 0
+
+    # Knowledge count
+    cursor = await db.execute(
+        "SELECT COUNT(*) as count FROM knowledge WHERE deleted_at IS NULL"
+    )
+    knowledge_row = await cursor.fetchone()
+    knowledge_count = knowledge_row["count"] if knowledge_row else 0
+
+    return JSONResponse({
+        "entities": entity_counts,
+        "sessions": session_count,
+        "knowledge": knowledge_count,
+    })
+
+
+# ============================================================
+# Story API endpoints
+# ============================================================
+
+
+def _serialize_story(story) -> dict:
+    """Convert a Story model to a JSON-safe dict."""
+    return {
+        "id": str(story.id),
+        "title": story.title,
+        "content": story.content,
+        "tier": story.tier.value,
+        "period_start": story.period_start,
+        "period_end": story.period_end,
+        "tags": story.tags,
+        "created_at": story.created_at.isoformat(),
+        "updated_at": story.updated_at.isoformat(),
+    }
+
+
+@mcp.custom_route("/api/stories", methods=["GET"])
+async def api_list_stories(request: Request) -> JSONResponse:
+    """List stories, optionally filtered by tier."""
+    stories: StoryStore = _rest_stores["stories"]
+    tier_param = request.query_params.get("tier")
+    limit = int(request.query_params.get("limit", "50"))
+
+    tier = StoryTier(tier_param) if tier_param else None
+    story_list = await stories.list(tier=tier, limit=limit)
+
+    return JSONResponse({"stories": [_serialize_story(s) for s in story_list]})
+
+
+@mcp.custom_route("/api/stories/{id}", methods=["GET"])
+async def api_get_story(request: Request) -> JSONResponse:
+    """Get a single story by ID."""
+    stories: StoryStore = _rest_stores["stories"]
+    story_id = request.path_params["id"]
+
+    story = await stories.get(UUID(story_id))
+    if not story:
+        return JSONResponse({"error": "Story not found"}, status_code=404)
+
+    return JSONResponse(_serialize_story(story))
+
+
+# ============================================================
+# Static file serving (Web UI)
+# ============================================================
+
+_WEB_DIST = Path(__file__).parent.parent / "web" / "dist"
+
+
+@mcp.custom_route("/{path:path}", methods=["GET"])
+async def serve_spa(request: Request):
+    """Serve the React SPA — static files + index.html fallback."""
+    from starlette.responses import FileResponse
+
+    path = request.path_params.get("path", "")
+
+    # Don't serve SPA for API routes
+    if path.startswith("api/"):
+        return JSONResponse({"error": "Not found"}, status_code=404)
+
+    # Try to serve the exact file
+    file_path = _WEB_DIST / path
+    if file_path.is_file():
+        return FileResponse(file_path)
+
+    # SPA fallback — serve index.html for client-side routing
+    index = _WEB_DIST / "index.html"
+    if index.is_file():
+        return FileResponse(index)
+
+    return PlainTextResponse("Web UI not built. Run: cd web && npm run build", status_code=404)

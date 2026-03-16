@@ -69,6 +69,7 @@ async def remember_solution(
     solution: str,
     session_id: str | None = None,
     tags: list[str] | None = None,
+    pinned: bool = False,
     *,
     memories: MemoryStore,
 ) -> IdResponse:
@@ -78,6 +79,7 @@ async def remember_solution(
         type=EntityType.solution,
         content=content,
         tags=tags,
+        pinned=pinned,
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
@@ -89,6 +91,7 @@ async def remember_preference(
     content: str,
     session_id: str | None = None,
     tags: list[str] | None = None,
+    pinned: bool = False,
     *,
     memories: MemoryStore,
 ) -> IdResponse:
@@ -97,6 +100,7 @@ async def remember_preference(
         type=EntityType.preference,
         content=content,
         tags=tags,
+        pinned=pinned,
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
@@ -108,6 +112,7 @@ async def remember_person(
     content: str,
     session_id: str | None = None,
     tags: list[str] | None = None,
+    pinned: bool = False,
     *,
     memories: MemoryStore,
 ) -> IdResponse:
@@ -116,6 +121,7 @@ async def remember_person(
         type=EntityType.person,
         content=content,
         tags=tags,
+        pinned=pinned,
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
@@ -128,6 +134,7 @@ async def remember_milestone(
     significance: str | None = None,
     session_id: str | None = None,
     tags: list[str] | None = None,
+    pinned: bool = False,
     *,
     memories: MemoryStore,
 ) -> IdResponse:
@@ -140,6 +147,7 @@ async def remember_milestone(
         type=EntityType.milestone,
         content=content,
         tags=tags,
+        pinned=pinned,
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
@@ -153,6 +161,7 @@ async def remember_moment(
     context: str | None = None,
     session_id: str | None = None,
     tags: list[str] | None = None,
+    pinned: bool = False,
     *,
     memories: MemoryStore,
 ) -> IdResponse:
@@ -167,6 +176,7 @@ async def remember_moment(
         type=EntityType.moment,
         content="\n".join(parts),
         tags=tags,
+        pinned=pinned,
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
