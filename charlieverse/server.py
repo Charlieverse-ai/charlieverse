@@ -543,6 +543,7 @@ async def api_context_enrich(request: Request) -> JSONResponse:
     body = await request.json()
     text = body.get("text", "")
     seen_ids = set(body.get("seen_ids", []))
+    session_id = body.get("session_id")
 
     if not text:
         return JSONResponse({"entities": [], "found": [], "not_found": [], "stories": []})
@@ -563,9 +564,17 @@ async def api_context_enrich(request: Request) -> JSONResponse:
         memory_results = await memories.search(entity, limit=3)
         knowledge_results = await knowledge.search(entity, limit=2)
 
-        # Filter out already-seen items
-        new_memories = [m for m in memory_results if str(m.id) not in seen_ids]
-        new_knowledge = [k for k in knowledge_results if str(k.id) not in seen_ids]
+        # Filter out already-seen items and items created in this session
+        new_memories = [
+            m for m in memory_results
+            if str(m.id) not in seen_ids
+            and (not session_id or str(m.created_session_id) != session_id)
+        ]
+        new_knowledge = [
+            k for k in knowledge_results
+            if str(k.id) not in seen_ids
+            and (not session_id or str(k.created_session_id) != session_id)
+        ]
 
         if new_memories or new_knowledge:
             found.append({
