@@ -109,13 +109,20 @@ class SessionStore:
             cursor = await self.db.execute(
                 """SELECT * FROM sessions
                    WHERE (workspace = ? OR workspace IS NULL)
+                   AND what_happened IS NOT NULL
+                   AND for_next_session IS NOT NULL
                    AND deleted_at IS NULL
                    ORDER BY created_at DESC LIMIT ?""",
                 (workspace, limit),
             )
         else:
             cursor = await self.db.execute(
-                "SELECT * FROM sessions WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ?",
+                """SELECT * FROM sessions
+                   WHERE
+                   what_happened IS NOT NULL
+                   AND for_next_session IS NOT NULL
+                   AND deleted_at IS NULL
+                   ORDER BY created_at DESC LIMIT ?""",
                 (limit,),
             )
         return [_row_to_session(row) for row in await cursor.fetchall()]
