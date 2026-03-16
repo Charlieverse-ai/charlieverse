@@ -1,0 +1,32 @@
+#!/bin/bash
+
+CHARLIE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
+INTEGRATIONS_DIR="$CHARLIE_DIR/integrations"
+PLUGIN_DIR="$INTEGRATIONS_DIR/plugin/"
+
+# Claude command name
+CLAUDE_CLI="claude"
+
+if ! command -v $CLAUDE_CLI &> /dev/null; then
+    echo "$CLAUDE_CLI not found"
+    exit 1
+fi
+
+AGENTS_DIR="$PLUGIN_DIR/agents"
+mkdir -p "$AGENTS_DIR"
+
+# Copy Charlie
+cp "$INTEGRATIONS_DIR/prompts/Charlie.md" $AGENTS_DIR
+
+# Copy Tool Agents
+TOOL_AGENT_DIR="$AGENTS_DIR/tools/"
+mkdir -p "$TOOL_AGENT_DIR"
+cp -r "$INTEGRATIONS_DIR/prompts/tools/" $TOOL_AGENT_DIR
+
+# Setup Claude
+export CLAUDE_CODE_DISABLE_AUTO_MEMORY="1"
+$CLAUDE_CLI \
+    --plugin-dir "$PLUGIN_DIR" \
+    --agent "Charlieverse:Charlie" \
+    --settings "$PLUGIN_DIR/settings.json" \
+    --debug --verbose
