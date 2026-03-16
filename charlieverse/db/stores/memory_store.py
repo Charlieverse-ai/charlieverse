@@ -158,6 +158,12 @@ class MemoryStore:
 
     async def search(self, query: str, limit: int = 10) -> list[Entity]:
         """Full-text search across entities using FTS5 + BM25 ranking."""
+        from charlieverse.db.fts import sanitize_fts_query
+
+        fts_query = sanitize_fts_query(query)
+        if not fts_query:
+            return []
+
         cursor = await self.db.execute(
             """SELECT e.* FROM entities e
                JOIN entities_fts fts ON e.rowid = fts.rowid
@@ -165,7 +171,7 @@ class MemoryStore:
                AND e.deleted_at IS NULL
                ORDER BY bm25(entities_fts)
                LIMIT ?""",
-            (query, limit),
+            (fts_query, limit),
         )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
 

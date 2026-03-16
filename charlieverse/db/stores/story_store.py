@@ -62,6 +62,7 @@ class StoryStore:
                 story.deleted_at.isoformat() if story.deleted_at else None,
             ),
         )
+        await self._sync_fts(story)
         await self.db.commit()
         return story
 
@@ -92,6 +93,29 @@ class StoryStore:
             )
         return [_row_to_story(row) for row in await cursor.fetchall()]
 
+    async def find_by_period(
+        self,
+        start: str,
+        end: str,
+        limit: int = 5,
+    ) -> list[Story]:
+        """Find stories whose period overlaps with the given date range.
+
+        Args:
+            start: ISO date string for range start.
+            end: ISO date string for range end.
+            limit: Max results.
+        """
+        cursor = await self.db.execute(
+            """SELECT * FROM stories
+               WHERE deleted_at IS NULL
+               AND period_start <= ? AND period_end >= ?
+               ORDER BY tier ASC, period_start DESC
+               LIMIT ?""",
+            (end, start, limit),
+        )
+        return [_row_to_story(row) for row in await cursor.fetchall()]
+
     async def update(self, story: Story) -> Story:
         """Update an existing story."""
         now = datetime.now(timezone.utc)
@@ -120,4 +144,117 @@ class StoryStore:
             "UPDATE stories SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
             (now.isoformat(), now.isoformat(), str(story_id)),
         )
+        await self.db.commit()
+
+    # --- FTS ---
+
+    async def _sync_fts(self, story: Story) -> None:
+        """Sync a story to the FTS index."""
+        # Get the rowid for this story
+        cursor = await self.db.execute(
+            "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return
+        rowid = row[0]
+        # Delete old entry, insert new
+        await self.db.execute(
+            "INSERT INTO stories_fts(stories_fts, rowid, title, content, tags) VALUES('delete', ?, ?, ?, ?)",
+            (rowid, story.title, story.content, _tags_json(story.tags) or ""),
+        )
+        await self.db.execute(
+            "INSERT INTO stories_fts(rowid, title, content, tags) VALUES(?, ?, ?, ?)",
+            (rowid, story.title, story.content, _tags_json(story.tags) or ""),
+        )
+
+    async def search(
+        self,
+        query: str,
+        period_start: str | None = None,
+        period_end: str | None = None,
+        limit: int = 5,
+    ) -> list[Story]:
+        """Search stories via FTS, optionally filtered by date range.
+
+        If both query and date range are provided, results must match both.
+        If only query, searches all stories. If only dates, falls back to find_by_period.
+        """
+        if not query and period_start and period_end:
+            return await self.find_by_period(period_start, period_end, limit)
+
+        if not query:
+            return []
+
+        from charlieverse.db.fts import sanitize_fts_query
+
+        fts_query = sanitize_fts_query(query)
+        if not fts_query:
+            return []
+
+        if period_start and period_end:
+            cursor = await self.db.execute(
+                """SELECT stories.*, stories_fts.rank
+                   FROM stories_fts
+                   JOIN stories ON stories.rowid = stories_fts.rowid
+                   WHERE stories_fts MATCH ?
+                   AND stories.period_start <= ? AND stories.period_end >= ?
+                   AND stories.deleted_at IS NULL
+                   ORDER BY stories_fts.rank
+                   LIMIT ?""",
+                (fts_query, period_end, period_start, limit),
+            )
+        else:
+            cursor = await self.db.execute(
+                """SELECT stories.*, stories_fts.rank
+                   FROM stories_fts
+                   JOIN stories ON stories.rowid = stories_fts.rowid
+                   WHERE stories_fts MATCH ?
+                   AND stories.deleted_at IS NULL
+                   ORDER BY stories_fts.rank
+                   LIMIT ?""",
+                (fts_query, limit),
+            )
+        return [_row_to_story(row) for row in await cursor.fetchall()]
+
+    async def search_by_vector(
+        self,
+        embedding: list[float],
+        period_start: str | None = None,
+        period_end: str | None = None,
+        limit: int = 5,
+    ) -> list[Story]:
+        """Search stories by vector similarity, optionally filtered by date range."""
+        from sqlite_vec import serialize_float32
+
+        if period_start and period_end:
+            # Get more candidates from vec, then filter by date in Python
+            # (sqlite-vec doesn't support WHERE clauses on joined tables in MATCH)
+            cursor = await self.db.execute(
+                """SELECT stories.*, v.distance FROM stories_vec v
+                   JOIN stories ON stories.rowid = v.rowid
+                   WHERE v.embedding MATCH ?
+                   AND v.k = ?
+                   AND stories.deleted_at IS NULL
+                   AND stories.period_start <= ? AND stories.period_end >= ?
+                   ORDER BY v.distance
+                   LIMIT ?""",
+                (serialize_float32(embedding), limit * 3, period_end, period_start, limit),
+            )
+        else:
+            cursor = await self.db.execute(
+                """SELECT stories.*, v.distance FROM stories_vec v
+                   JOIN stories ON stories.rowid = v.rowid
+                   WHERE v.embedding MATCH ?
+                   AND v.k = ?
+                   AND stories.deleted_at IS NULL
+                   ORDER BY v.distance
+                   LIMIT ?""",
+                (serialize_float32(embedding), limit, limit),
+            )
+        return [_row_to_story(row) for row in await cursor.fetchall()]
+
+    async def rebuild_fts(self) -> None:
+        """Rebuild the FTS index from scratch."""
+        await self.db.execute("INSERT INTO stories_fts(stories_fts) VALUES('rebuild')")
         await self.db.commit()

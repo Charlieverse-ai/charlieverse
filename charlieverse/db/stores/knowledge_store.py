@@ -146,6 +146,12 @@ class KnowledgeStore:
 
     async def search(self, query: str, limit: int = 10) -> list[Knowledge]:
         """Full-text search across knowledge using FTS5 + BM25 ranking."""
+        from charlieverse.db.fts import sanitize_fts_query
+
+        fts_query = sanitize_fts_query(query)
+        if not fts_query:
+            return []
+
         cursor = await self.db.execute(
             """SELECT k.* FROM knowledge k
                JOIN knowledge_fts fts ON k.rowid = fts.rowid
@@ -153,7 +159,7 @@ class KnowledgeStore:
                AND k.deleted_at IS NULL
                ORDER BY bm25(knowledge_fts)
                LIMIT ?""",
-            (query, limit),
+            (fts_query, limit),
         )
         return [_row_to_knowledge(row) for row in await cursor.fetchall()]
 
