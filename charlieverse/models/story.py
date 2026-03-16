@@ -17,7 +17,6 @@ class StoryTier(StrEnum):
     yearly = "yearly"
     all_time = "all-time"
 
-
 @dataclass
 class Story:
     id: UUID = field(default_factory=uuid4)

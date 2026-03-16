@@ -97,8 +97,16 @@ class StoryStore:
     async def get(self, story_id: UUID) -> Story | None:
         """Fetch a story by ID."""
         cursor = await self.db.execute(
-            "SELECT * FROM stories WHERE id = ? AND deleted_at IS NULL",
+            "SELECT * FROM stories WHERE id = ? AND deleted_at IS NULL LIMIT 1",
             (str(story_id),),
+        )
+        row = await cursor.fetchone()
+        return _row_to_story(row) if row else None
+
+    async def get_all_time(self) -> Story | None:
+        """Fetch a story by ID."""
+        cursor = await self.db.execute(
+            "SELECT * FROM stories WHERE tier = 'all-time' AND deleted_at IS NULL LIMIT 1"
         )
         row = await cursor.fetchone()
         return _row_to_story(row) if row else None
@@ -137,7 +145,7 @@ class StoryStore:
         cursor = await self.db.execute(
             """SELECT * FROM stories
                WHERE deleted_at IS NULL
-               AND period_start <= ? AND period_end >= ?
+               AND DATE(period_start) <= ? AND DATE(period_end) >= ?
                ORDER BY tier ASC, period_start DESC
                LIMIT ?""",
             (end, start, limit),

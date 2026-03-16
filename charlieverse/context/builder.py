@@ -17,12 +17,13 @@ class ContextBundle:
     session: Session
     recent_sessions: list[Session] = field(default_factory=list)
     session_stories: list[Story] = field(default_factory=list)
+    weekly_stories: list[Story] = field(default_factory=list)
     pinned_entities: list[Entity] = field(default_factory=list)
     moments: list[Entity] = field(default_factory=list)
     session_entities: list[Entity] = field(default_factory=list)
     related_entities: list[Entity] = field(default_factory=list)
     pinned_knowledge: list[Knowledge] = field(default_factory=list)
-
+    all_time_story: Story | None = field(default=None)
 
 class ActivationBuilder:
     """Assembles the activation context for a session.
@@ -82,19 +83,35 @@ class ActivationBuilder:
                     # Embeddings are best-effort — never block activation
                     pass
 
-        # Fetch session-tier stories for today (replaces raw session dumps)
+        # Fetch stories for activation context
+        # Today: session-tier (granular). Before today: weekly-tier (compressed arcs).
         session_stories: list[Story] = []
+        weekly_stories: list[Story] = []
+        all_time_story: Story | None = None
         if self.stories:
             from charlieverse.models.story import StoryTier
             from datetime import datetime, timezone
 
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            session_stories = await self.stories.find_by_period(
+
+            # Today's session stories
+            today_stories = await self.stories.find_by_period(
                 start=today, end=today, limit=10,
             )
-            # Filter to session tier only
-            session_stories = [s for s in session_stories if s.tier == StoryTier.session]
+            session_stories = [s for s in today_stories if s.tier == StoryTier.session]
 
+            # Weekly stories for context before today
+            weekly_stories = await self.stories.list(
+                tier=StoryTier.weekly, limit=4,
+            )
+            # Filter out any weekly that covers only today (edge case: week just started)
+            weekly_stories = [
+                s for s in weekly_stories
+                if s.period_start and s.period_start < today
+            ]
+
+            all_time_story = await self.stories.get_all_time()
+        
         # Fetch pinned knowledge
         pinned_knowledge = await self.knowledge.pinned()
 
@@ -118,9 +135,11 @@ class ActivationBuilder:
             session=session,
             recent_sessions=recent_sessions,
             session_stories=session_stories,
+            weekly_stories=weekly_stories,
             pinned_entities=pinned_entities,
             moments=moments,
             session_entities=session_entities,
             related_entities=related_entities,
             pinned_knowledge=pinned_knowledge,
+            all_time_story=all_time_story
         )

@@ -29,27 +29,26 @@ def render(bundle: ContextBundle) -> str:
         current_date_key: str | None = None
         most_recent = True
         for story in bundle.session_stories:
-            date_key = _date_group_key(story.updated_at, now)
+            # Use period_start for date grouping (when the session happened)
+            story_date = story.updated_at #_parse_period_date(story.period_end) or story.updated_at
+            date_key = _date_group_key(story_date, now)
             if date_key != current_date_key:
                 current_date_key = date_key
                 parts.append(f"# {date_key}")
             parts.append(_render_story_session(story, now, most_recent=most_recent))
             most_recent = False
-    else:
-        # Fallback to raw sessions if no stories exist yet
-        valid_sessions = [
-            s for s in bundle.recent_sessions
-            if s.what_happened or s.for_next_session
-        ]
-        most_recent = True
-        current_date_key = None
-        for session in valid_sessions:
-            date_key = _date_group_key(session.updated_at, now)
-            if date_key != current_date_key:
-                current_date_key = date_key
-                parts.append(f"# {date_key}")
-            parts.append(_render_session(session, now, most_recent=most_recent))
-            most_recent = False
+
+    # Weekly stories for before today
+    if bundle.weekly_stories:
+        for story in bundle.weekly_stories:
+            period_start = _parse_period_date(story.period_start)
+            period_end = _parse_period_date(story.period_end)
+            if period_start and period_end:
+                date_range = f"{period_start.strftime('%B %-d')} - {period_end.strftime('%B %-d')}"
+            else:
+                date_range = "recent"
+            parts.append(f"# Week of {date_range}")
+            parts.append(_render_story_weekly(story))
 
     parts.append('</past_sessions>')
 
@@ -100,24 +99,44 @@ def render(bundle: ContextBundle) -> str:
 
     parts.append('</related_session_memories>')
 
+    if bundle.all_time_story:
+        parts.append(_render_all_time_story(bundle.all_time_story))
+
     parts.append("</activation_output>")
     return "\n".join(parts)
+
+def _render_all_time_story(story: Story) -> str:
+    lines: list[str] = []
+    lines.append("<our_story_so_far>")
+    lines.append(f"{story.title}\n---")
+    lines.append(story.content)
+    lines.append("</our_story_so_far>\n")
+    
+    return "\n".join(lines)
+
+
+def _render_story_weekly(story: Story) -> str:
+    """Render a weekly story arc — summary only."""
+    lines: list[str] = []
+    lines.append(f"## {story.title}")
+    if story.summary:
+        lines.append(f"\n{story.summary}")
+    return "\n".join(lines)
 
 
 def _render_story_session(story: Story, now: datetime, most_recent: bool) -> str:
     """Render a session story in the activation context."""
     lines: list[str] = []
 
-    lines.append(f"## {_session_time(story.updated_at, now)}")
+    story_date = story.updated_at #_parse_period_date(story.period_end) or story.updated_at
+    lines.append(f"## {_session_time(story_date, now)} - {story.title}")
 
-    if story.workspace:
-        lines.append('---')
-        lines.append(f"Workspace: {story.workspace}")
-        lines.append('---')
+    # Body — summary is the session narrative
 
-    if most_recent and story.summary:
-        lines.append(f"\n{story.summary}")
-    elif story.summary:
+    # Most recent story gets a continuation section if there's a title
+    if story_date.date() == now.date():
+        lines.append(f"\n{story.content}")
+    else:
         lines.append(f"\n{story.summary}")
 
     return "\n".join(lines)
@@ -192,6 +211,19 @@ def _session_time(date: datetime, now: datetime) -> str:
             hours = total_seconds / 3600
             return "1 hour ago" if hours < 2 else f"{round(hours, 1)} hours ago"
     return d.strftime("%-I:%M %p")
+
+
+def _parse_period_date(period: str | None) -> datetime | None:
+    """Parse a period_start/end ISO string into a datetime, or None."""
+    if not period:
+        return None
+    try:
+        dt = datetime.fromisoformat(period)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
 
 
 # Convert a datetime object to a "pretty" relative date string
