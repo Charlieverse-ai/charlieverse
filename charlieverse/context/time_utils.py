@@ -6,10 +6,15 @@ from datetime import datetime, timezone
 
 
 def _normalize_tz(dt: datetime) -> datetime:
-    """Strip timezone info for safe arithmetic between naive and aware datetimes."""
-    if dt.tzinfo is not None:
-        return dt.replace(tzinfo=None)
-    return dt
+    """Normalize to UTC-aware for safe arithmetic between naive and aware datetimes.
+
+    Naive datetimes are assumed to be local time and get localized first.
+    Aware datetimes get converted to UTC.
+    """
+    if dt.tzinfo is None:
+        # Naive — assume local time, make aware, then convert to UTC
+        return dt.astimezone(timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def format_datetime(dt: datetime) -> str:
