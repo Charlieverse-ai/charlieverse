@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from charlieverse.context.builder import ContextBundle
-from charlieverse.models import Entity, EntityType, Knowledge, Session
+from charlieverse.models import Entity, EntityType, Session
 
 
 def render(bundle: ContextBundle) -> str:
@@ -163,25 +163,6 @@ def _session_time(date: datetime, now: datetime) -> str:
 
 # Convert a datetime object to a "pretty" relative date string
 def _relative_date(date: datetime) -> str:
-    now = datetime.now(timezone.utc)
-    diff = now - date.replace(tzinfo=timezone.utc)
-    total_seconds = diff.total_seconds()
+    from charlieverse.context.time_utils import relative_date
 
-    if total_seconds < 0:
-        return date.strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
-    elif total_seconds <= 1:
-        return 'just now'
-    elif total_seconds < 60:
-        return '{} seconds ago'.format(int(total_seconds))
-    elif total_seconds < 3600:
-        mins = total_seconds / 60
-        return '1 minute ago' if mins < 2 else '{} minutes ago'.format(round(mins, 2))
-    elif total_seconds < 86400:
-        hours = total_seconds / 3600
-        return '1 hour ago' if hours < 2 else '{} hours ago'.format(round(hours, 2))
-    elif total_seconds < 172800:
-        return '1 day ago'
-    elif total_seconds < 604800:
-        return '{} days ago'.format(int(total_seconds / 86400))
-    else:
-        return date.strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
+    return relative_date(date)
