@@ -17,7 +17,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 # --- Type mapping ---
 # OG Charlie had 90+ freeform types. We map them to our 6 entity types
@@ -160,7 +160,7 @@ async def migrate_og(old_path: str, new_path: str, dry_run: bool = False) -> Non
     # Counts
     entity_count = old_db.execute("SELECT COUNT(*) FROM entity_data").fetchone()[0]
     context_count = old_db.execute("SELECT COUNT(*) FROM contexts").fetchone()[0]
-    print(f"\nFound:")
+    print("\nFound:")
     print(f"  Entities:  {entity_count}")
     print(f"  Contexts:  {context_count} (handoff sessions)")
 
@@ -308,12 +308,12 @@ async def migrate_og(old_path: str, new_path: str, dry_run: bool = False) -> Non
 
     # Summary
     print(f"\n{'='*50}")
-    print(f"Migration complete!")
+    print("Migration complete!")
     print(f"  Sessions:  {migrated_sessions}")
     print(f"  Entities:  {migrated_entities}")
     print(f"  Knowledge: {migrated_knowledge}")
     print(f"  Duplicates removed: {duplicates}")
-    print(f"\nType breakdown:")
+    print("\nType breakdown:")
     for t, count in sorted(type_stats.items(), key=lambda x: -x[1]):
         _, is_k = _map_type(t) if t not in ("person", "decision", "solution", "preference", "milestone", "moment") else (t, False)
         dest = "knowledge" if t in KNOWLEDGE_TYPES or t not in ("person", "decision", "solution", "preference", "milestone", "moment") else "entity"

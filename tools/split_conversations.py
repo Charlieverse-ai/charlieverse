@@ -121,7 +121,7 @@ def main():
     print(f"  Output: {output_dir}/")
 
     # Summary
-    print(f"\nBreakdown:")
+    print("\nBreakdown:")
     for key in sorted(buckets.keys()):
         print(f"  {key}: {len(buckets[key])} entries")
 

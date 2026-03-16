@@ -529,7 +529,7 @@ def main():
             total_entries += provider_entries
             total_sessions += provider_sessions
 
-    print(f"\nDone.")
+    print("\nDone.")
     print(f"  Total sessions: {total_sessions}")
     print(f"  Total entries: {total_entries}")
     print(f"  Output: {output_file}")

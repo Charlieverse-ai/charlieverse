@@ -16,13 +16,11 @@ import argparse
 import asyncio
 import sqlite3
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 
 async def migrate(old_path: str, new_path: str, dry_run: bool = False) -> None:
-    import aiosqlite
-    import sqlite_vec
 
     from charlieverse.db import database
 
@@ -35,7 +33,7 @@ async def migrate(old_path: str, new_path: str, dry_run: bool = False) -> None:
     entities_count = old_db.execute("SELECT COUNT(*) FROM entities WHERE deleted_at IS NULL").fetchone()[0]
     knowledge_count = old_db.execute("SELECT COUNT(*) FROM knowledge WHERE deleted_at IS NULL").fetchone()[0]
 
-    print(f"\nFound:")
+    print("\nFound:")
     print(f"  Sessions:  {sessions_count}")
     print(f"  Entities:  {entities_count}")
     print(f"  Knowledge: {knowledge_count}")
@@ -158,15 +156,15 @@ async def migrate(old_path: str, new_path: str, dry_run: bool = False) -> None:
 
     # Summary
     print(f"\n{'='*50}")
-    print(f"Migration complete!")
+    print("Migration complete!")
     print(f"  Sessions:  {migrated_sessions}")
     print(f"  Entities:  {migrated_entities}")
     print(f"  Knowledge: {migrated_knowledge}")
-    print(f"\nSkipped (not in v1 scope):")
-    print(f"  - Conversations & messages")
-    print(f"  - Personas & prompt sections")
-    print(f"  - Projects & tasks")
-    print(f"  - Knowledge proposals")
+    print("\nSkipped (not in v1 scope):")
+    print("  - Conversations & messages")
+    print("  - Personas & prompt sections")
+    print("  - Projects & tasks")
+    print("  - Knowledge proposals")
     print(f"\nNew database: {new_path}")
 
     old_db.close()
@@ -238,7 +236,6 @@ async def backfill_embeddings(db_path: str) -> None:
     from charlieverse.db import database
     from charlieverse.db.stores import KnowledgeStore, MemoryStore
     from charlieverse.embeddings import encode, prepare_entity_text, prepare_knowledge_text
-    from sqlite_vec import serialize_float32
 
     db = await database.connect(db_path)
     memories = MemoryStore(db)

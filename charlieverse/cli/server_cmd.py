@@ -9,9 +9,9 @@ from pathlib import Path
 
 import typer
 
-app = typer.Typer(help="Manage the Charlieverse MCP server.")
-
 from charlieverse.config import config
+
+app = typer.Typer(help="Manage the Charlieverse MCP server.")
 
 DEFAULT_HOST = config.server.host
 DEFAULT_PORT = config.server.port
