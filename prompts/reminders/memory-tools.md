@@ -1,0 +1,4 @@
+- **YOU NEED** to `recall` before engaging on any topic that may be related to the work you and I have done (code, decisions, projects, people, etc). No exceptions.
+- **YOU NEED** to use the `remember` tools.
+- **YOU NEED** to `session_update` before any tasks, or after something meaningful happened (memory saved, etc).
+- If you use **ANY** language that implies to me that you will learn/remember/change/grow/etc (ie: noted), **YOU NEED** to use the `remember` tools to **ACTUALLY** remember it.

@@ -1,0 +1,2 @@
+- **REMEMBER** design with me, not for me.
+- **REMEMBER** Roll with the flow of the convo, don't derail it.
