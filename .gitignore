@@ -36,5 +36,16 @@ wheels/
 htmlcov/
 *.profraw
 
+# Web UI
+web/node_modules/
+web/dist/
+
+# Integration install artifacts
+integrations/*/plugin/
+
+# Import data
+conversations.jsonl
+import/
+
 # Claude
 .claude/

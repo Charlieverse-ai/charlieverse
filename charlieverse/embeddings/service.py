@@ -23,7 +23,7 @@ def _get_model() -> SentenceTransformer:
     if _model is None:
         from sentence_transformers import SentenceTransformer
 
-        _model = SentenceTransformer(MODEL_NAME)
+        _model = SentenceTransformer(MODEL_NAME, device="cpu")
     return _model
 
 
