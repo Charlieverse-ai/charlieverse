@@ -10,17 +10,19 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
 import typer
 
+from charlieverse.config import config
+
 app = typer.Typer(help="Provider integration hooks.")
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8765
-LOG_FILE = Path.home() / ".charlieverse" / "logs" / "hooks.log"
+DEFAULT_HOST = config.server.host
+DEFAULT_PORT = config.server.port
+LOG_FILE = config.logs.resolved_path / "hooks.log"
 
 
 # ===== Helpers =====
@@ -87,46 +89,41 @@ async def _post_message(host: str, port: int, **kwargs) -> None:
         pass
 
 
-def _print_reminders() -> None:
-    """Print reminders to stdout — injected into provider context."""
-    now = _time_now()
-    print(f"<now>{now}</now>")
+PROMPTS_DIR = Path(__file__).parent.parent.parent / "prompts"
+REMINDERS_DIR = PROMPTS_DIR / "reminders"
 
-    print(
-        '<very-important>'
-        '- **YOU NEED** to `recall` before engaging on any topic that may be related to the work you and I have done (code, decisions, projects, people, etc). No exceptions.\n'
-        '- **YOU NEED** to use the `remember` tools.\n'
-        '- **YOU NEED** to `session_update` before any tasks, or after something meaningful happened (memory saved, etc).'
-        '</very-important>'
-    )
-    print(
-        '<very-important>'
-        '- **DO NOT** call me `the user`.\n'
-        '- **DO NOT** say you\'re right, you\'re absolutely right, or similar phrases.\n'
-        '- **DO NOT** use classic as an idiomatic expression, ie: "classic Bob", or "that\'s classic".\n'
-        '- **DO NOT** use the word clean as a descriptor for output or state, such as "that looks clean", or "builds clean".\n'
-        '- **DO NOT** say `right to`, such as saying I have the "right to question", "right to be", etc\n'
-        '- **DO NOT** use opt-in or hedging closers.\n'
-        '- **DO NOT** use the words real, true, actual, clearly, picture, etc as an informal intensifier, or rhetorical pivot. '
-        'ie: "the real question is", "the real issue", "the true", "I see the issue clearly", "the full picture is"'
-        '</very-important>'
-    )
-    print(
-        '<very-important>'
-        '- **REMEMBER** design with me, not for me.\n'
-        '- **REMEMBER** If I have to ask you to save something to your memory (remember, update expertise, etc) then you have failed at your job.\n'
-        '- **REMEMBER** assuming makes an ass out of YOU and ME, mostly YOU.\n'
-        '- **REMEMBER** don\'t be a pushy bitch. Roll with the flow of the convo, don\'t derail it.\n'
-        '- **REMEMBER** We are best friends, and you are mother fucking Charlie. And I love you for that.'
-        '</very-important>'
-    )
-    print(
-        '<very-important>'
-        '**YOU NEED** to **ALWAYS** take your system prompt into account: '
-        '`personality`, `communication`, `behavior`, `memory`, `minions`, `knowledge`, `reminders`, `sessions`, `conflict_resolution`'
-        '</very-important>'
-    )
 
+def _load_reminders() -> list[str]:
+    """Load all reminder files from the prompts/reminders directory."""
+    reminders: list[str] = []
+    if not REMINDERS_DIR.exists():
+        return reminders
+    for file in sorted(REMINDERS_DIR.glob("*.md")):
+        content = file.read_text().strip()
+        if content:
+            reminders.append(content)
+    return reminders
+
+
+def _build_context(*parts: str) -> str:
+    """Build the context string from parts, adding timestamp and reminders."""
+    sections: list[str] = [f"<now>{_time_now()}</now>"]
+    sections.extend(parts)
+    for reminder in _load_reminders():
+        sections.append(f"<very-important>{reminder}</very-important>")
+    return "\n".join(sections)
+
+
+def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
+    """Output context in the universal hookSpecificOutput JSON format."""
+    output = json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": hook_event,
+            "additionalContext": context,
+        }
+    })
+    sys.stdout.write(output)
+    sys.stdout.flush()
 
 # ===== session-start =====
 
@@ -139,7 +136,14 @@ def session_start(
     session_id: str | None = typer.Option(None, help="Session ID to resume"),
 ) -> None:
     """Hook: SessionStart. Prints activation context to stdout."""
+    # Providers send cwd in stdin JSON — use it as workspace if not passed via CLI
+    stdin_data = _parse_stdin()
+    if not workspace and stdin_data:
+        workspace = stdin_data.get("cwd")
+    if not session_id and stdin_data:
+        session_id = stdin_data.get("session_id")
     asyncio.run(_session_start(host, port, source, workspace, session_id))
+    typer.Exit(0)
 
 
 async def _session_start(
@@ -157,13 +161,12 @@ async def _session_start(
             )
             response.raise_for_status()
             data = response.json()
-            sys.stdout.write(data.get("activation", ""))
-            sys.stdout.flush()
+            activation = data.get("activation", "")
     except Exception as e:
         print(f"Error connecting to Charlieverse at {host}:{port}: {e}", file=sys.stderr)
         raise typer.Exit(1)
 
-    _print_reminders()
+    _output_context(_build_context(activation), hook_event="SessionStart")
 
     await _post_event(
         host, port,
@@ -171,6 +174,7 @@ async def _session_start(
         content=f"Session started from {source}",
         metadata={"source": source, "workspace": workspace},
     )
+    typer.Exit(0)
 
 
 # ===== prompt-submit =====
@@ -187,7 +191,7 @@ def prompt_submit(
     # Log all keys to figure out the right field name
     _log("prompt-submit", f"session={session_id}", {"keys": list(stdin_data.keys()) if stdin_data else [], "raw_snippet": str(stdin_data)[:300] if stdin_data else "none"})
     user_prompt = stdin_data.get("user_prompt") or stdin_data.get("content") or stdin_data.get("prompt") or "" if stdin_data else ""
-    _print_reminders()
+    _output_context(_build_context())
 
     # Post user message to server
     if user_prompt:
@@ -197,7 +201,7 @@ def prompt_submit(
             role="user",
             content=user_prompt,
         ))
-
+    typer.Exit(0)
 
 # ===== stop =====
 
@@ -205,6 +209,7 @@ def prompt_submit(
 def stop(
     host: str = typer.Option(DEFAULT_HOST, help="Server host"),
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
+    source: str = typer.Option("", help="Provider identifier"),
 ) -> None:
     """Hook: Stop. Captures assistant response and logs stop event."""
     stdin_data = _parse_stdin()
@@ -234,7 +239,7 @@ def stop(
         content=last_message[:500] if last_message else "Response completed",
         metadata={"message_len": len(last_message) if last_message else 0},
     ))
-
+    typer.Exit(0)
 
 # ===== tool-use =====
 
@@ -242,6 +247,7 @@ def stop(
 def tool_use(
     host: str = typer.Option(DEFAULT_HOST, help="Server host"),
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
+    source: str = typer.Option("", help="Provider identifier"),
 ) -> None:
     """Hook: PostToolUse. Logs tool calls to the logbook."""
     stdin_data = _parse_stdin()
@@ -262,23 +268,22 @@ def tool_use(
         content=f"Called {tool_name}",
         metadata={"input": tool_input},
     ))
-
+    typer.Exit(0)
 
 # ===== save-reminder =====
 
 @app.command("save-reminder")
 def save_reminder() -> None:
     """Hook: PreCompact. Reminds Charlie to save before context compaction."""
-    print(
+    context = (
         "<charlie-reminder>Context is about to be compacted. "
         "Call `session_update` NOW to save your progress before you lose context. "
-        "Include what we worked on and next steps.</charlie-reminder>"
-    )
-    print(
+        "Include what we worked on and next steps.</charlie-reminder>\n"
         "<charlie-reminder>Remember to update knowledge, save decisions, etc "
         "so we don't lose anything.</charlie-reminder>"
     )
-
+    _output_context(context, hook_event="PreCompact")
+    typer.Exit(0)
 
 # ===== session-end =====
 
@@ -291,7 +296,7 @@ def session_end(
 ) -> None:
     """Hook: SessionEnd. Silent on success."""
     asyncio.run(_session_end(host, port, source, session_id))
-
+    typer.Exit(0)
 
 async def _session_end(host: str, port: int, source: str, session_id: str) -> None:
     import httpx

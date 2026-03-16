@@ -11,8 +11,10 @@ import typer
 
 app = typer.Typer(help="Manage the Charlieverse MCP server.")
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8765
+from charlieverse.config import config
+
+DEFAULT_HOST = config.server.host
+DEFAULT_PORT = config.server.port
 PID_FILE = Path.home() / ".charlieverse" / "run" / "charlie.pid"
 LOG_FILE = Path.home() / ".charlieverse" / "logs" / "charlie.log"
 
@@ -141,3 +143,11 @@ def restart(
 
     time.sleep(1)
     start(host=host, port=port, foreground=False, transport=transport)
+
+@app.command("url")
+def url(
+    host: str = typer.Option(DEFAULT_HOST, help="Host to bind to"),
+    port: int = typer.Option(DEFAULT_PORT, help="Port to listen on")
+) -> None:
+    """Print the server URL."""
+    typer.echo(f"http://{host}:{port}")

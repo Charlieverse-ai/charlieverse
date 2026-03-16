@@ -1,4 +1,4 @@
-"""Session tools — session_update, session_rotate."""
+"""Session tools — session_update"""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ async def session_update(
     what_happened: str,
     for_next_session: str,
     tags: list[str] | None = None,
+    workspace: str | None = None,
     *,
     sessions: SessionStore,
 ) -> AckResponse:
@@ -23,6 +24,8 @@ async def session_update(
         session.what_happened = what_happened
         session.for_next_session = for_next_session
         session.tags = tags
+        if workspace is not None:
+            session.workspace = workspace
         await sessions.update(session)
     else:
         session = Session(
@@ -30,25 +33,7 @@ async def session_update(
             what_happened=what_happened,
             for_next_session=for_next_session,
             tags=tags,
+            workspace=workspace,
         )
         await sessions.create(session)
-    return AckResponse()
-
-
-async def session_rotate(
-    id: str,
-    what_happened: str,
-    for_next_session: str,
-    tags: list[str] | None = None,
-    *,
-    sessions: SessionStore,
-) -> AckResponse:
-    """Save session and signal context rotation."""
-    await session_update(
-        id=id,
-        what_happened=what_happened,
-        for_next_session=for_next_session,
-        tags=tags,
-        sessions=sessions,
-    )
     return AckResponse()
