@@ -20,7 +20,6 @@ from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, St
 from charlieverse.models import EntityType, Session, StoryTier
 from charlieverse.tools import knowledge as knowledge_tools
 from charlieverse.tools import memory as memory_tools
-from charlieverse.tools import sessions as session_tools
 from charlieverse.tools import work_log as work_log_tools
 
 
@@ -211,26 +210,6 @@ async def pin(
     return await memory_tools.pin(id=id, pinned=pinned, memories=_stores(ctx)["memories"])
 
 
-# ============================================================
-# Session tools
-# ============================================================
-
-
-@mcp.tool
-async def session_update(
-    id: str,
-    what_happened: str,
-    for_next_session: str,
-    tags: list[str] | None = None,
-    workspace: str | None = None,
-    ctx: Context = CurrentContext(),
-):
-    """Save a detailed snapshot of the current session."""
-    return await session_tools.session_update(
-        id=id, what_happened=what_happened, for_next_session=for_next_session,
-        tags=tags, workspace=workspace, sessions=_stores(ctx)["sessions"],
-    )
-
 
 
 # ============================================================
@@ -397,7 +376,7 @@ async def api_session_context(request: Request) -> PlainTextResponse:
         return PlainTextResponse("Missing")
 
     # Build activation context
-    builder = ActivationBuilder(memories_store, sessions_store, knowledge_store)
+    builder = ActivationBuilder(memories_store, sessions_store, knowledge_store, stories=_rest_stores.get("stories"))
     bundle = await builder.build(session)
     activation = context_renderer.render(bundle)
 
@@ -421,7 +400,7 @@ async def api_session_start(request: Request) -> JSONResponse:
         await sessions_store.create(session)
 
     # Build activation context
-    builder = ActivationBuilder(memories_store, sessions_store, knowledge_store)
+    builder = ActivationBuilder(memories_store, sessions_store, knowledge_store, stories=_rest_stores.get("stories"))
     bundle = await builder.build(session)
     activation = context_renderer.render(bundle)
 
@@ -449,48 +428,6 @@ async def api_health(request: Request) -> JSONResponse:
     return JSONResponse({"status": "healthy", "server": "charlieverse"})
 
 
-@mcp.custom_route("/api/hooks/events", methods=["POST"])
-async def api_list_hook_events(request: Request) -> JSONResponse:
-    """List hook events, optionally filtered by session and date range."""
-    body = await request.json()
-    db = _rest_stores["db"]
-    session_id = body.get("session_id")
-    since = body.get("since")  # ISO datetime string
-    until = body.get("until")
-    limit = body.get("limit", 100)
-
-    conditions = []
-    params = []
-
-    if session_id:
-        conditions.append("session_id = ?")
-        params.append(session_id)
-    if since:
-        conditions.append("created_at >= ?")
-        params.append(since)
-    if until:
-        conditions.append("created_at <= ?")
-        params.append(until)
-
-    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    params.append(limit)
-
-    cursor = await db.execute(
-        f"SELECT * FROM hook_events {where} ORDER BY created_at DESC LIMIT ?",
-        params,
-    )
-    rows = await cursor.fetchall()
-    return JSONResponse({
-        "events": [
-            {
-                "id": row["id"], "session_id": row["session_id"],
-                "event_type": row["event_type"], "tool_name": row["tool_name"],
-                "content": row["content"], "metadata": row["metadata"],
-                "created_at": row["created_at"],
-            }
-            for row in rows
-        ]
-    })
 
 
 @mcp.custom_route("/api/work-logs/latest", methods=["GET"])
@@ -535,33 +472,6 @@ async def api_log_work(request: Request) -> JSONResponse:
     return JSONResponse({"id": entry_id})
 
 
-@mcp.custom_route("/api/hooks/event", methods=["POST"])
-async def api_hook_event(request: Request) -> JSONResponse:
-    """Receive hook events from CLI — tool use, messages, etc."""
-    body = await request.json()
-    db = _rest_stores["db"]
-
-    event_id = body.get("id", str(uuid4()))
-    event_type = body.get("event_type", "unknown")
-    session_id = body.get("session_id")
-    tool_name = body.get("tool_name")
-    content = body.get("content")
-    metadata = body.get("metadata")
-
-    import json
-    from datetime import datetime, timezone
-
-    await db.execute(
-        """INSERT OR IGNORE INTO hook_events (id, session_id, event_type, tool_name, content, metadata, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (
-            event_id, session_id, event_type, tool_name,
-            content, json.dumps(metadata) if metadata else None,
-            datetime.now(timezone.utc).isoformat(),
-        ),
-    )
-    await db.commit()
-    return JSONResponse({"saved": True})
 
 
 @mcp.custom_route("/api/messages", methods=["POST"])
@@ -801,6 +711,7 @@ def _serialize_session(session) -> dict:
         "for_next_session": session.for_next_session,
         "tags": session.tags,
         "workspace": session.workspace,
+        "transcript_path": session.transcript_path,
         "created_at": session.created_at.isoformat(),
         "updated_at": session.updated_at.isoformat(),
     }
@@ -988,14 +899,232 @@ def _serialize_story(story) -> dict:
     return {
         "id": str(story.id),
         "title": story.title,
+        "summary": story.summary,
         "content": story.content,
         "tier": story.tier.value,
         "period_start": story.period_start,
         "period_end": story.period_end,
+        "workspace": story.workspace,
+        "session_id": str(story.session_id) if story.session_id else None,
         "tags": story.tags,
         "created_at": story.created_at.isoformat(),
         "updated_at": story.updated_at.isoformat(),
     }
+
+
+@mcp.custom_route("/api/story-data/{session_id}", methods=["GET"])
+async def api_story_data_session(request: Request) -> JSONResponse:
+    """Get all data needed for the Storyteller to generate/update a session story.
+
+    Returns: messages, existing story, recent memories/knowledge since last save.
+    """
+    from datetime import datetime
+
+    session_id = request.path_params["session_id"]
+    db = _rest_stores["db"]
+    sessions_store: SessionStore = _rest_stores["sessions"]
+    story_store: StoryStore = _rest_stores["stories"]
+
+    # Get session
+    session = await sessions_store.get(UUID(session_id))
+    session_data = {
+        "id": session_id,
+        "workspace": session.workspace if session else None,
+        "transcript_path": session.transcript_path if session else None,
+        "created_at": session.created_at.isoformat() if session else None,
+    }
+
+    # Get existing session story
+    existing_story = await story_store.find_by_session(UUID(session_id))
+    existing_story_data = _serialize_story(existing_story) if existing_story else None
+
+    # Get the last story update time to only fetch new messages
+    last_update = existing_story.updated_at.isoformat() if existing_story else None
+
+    # Get messages for this session (since last story update, or all)
+    if last_update:
+        cursor = await db.execute(
+            """SELECT id, session_id, role, content, created_at
+               FROM messages
+               WHERE session_id = ? AND created_at > ?
+               ORDER BY created_at ASC""",
+            (session_id, last_update),
+        )
+    else:
+        cursor = await db.execute(
+            """SELECT id, session_id, role, content, created_at
+               FROM messages
+               WHERE session_id = ?
+               ORDER BY created_at ASC""",
+            (session_id,),
+        )
+    msg_rows = await cursor.fetchall()
+
+    # Build messages with seconds_between and localized times
+    messages = []
+    prev_time = None
+    for row in msg_rows:
+        created = datetime.fromisoformat(row["created_at"])
+        seconds_between = None
+        if prev_time:
+            seconds_between = str(int((created - prev_time).total_seconds()))
+        prev_time = created
+
+        messages.append({
+            "content": row["content"],
+            "from": "charlie" if row["role"] == "assistant" else "user",
+            "date_time": created.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+            "seconds_between_messages": seconds_between,
+        })
+
+    # Get recent memories created during this session
+    cursor = await db.execute(
+        """SELECT id, type, content, tags, created_at FROM entities
+           WHERE created_session_id = ? AND deleted_at IS NULL
+           ORDER BY created_at ASC""",
+        (session_id,),
+    )
+    memory_rows = await cursor.fetchall()
+    memories_data = [
+        {"type": row["type"], "content": row["content"][:300], "tags": row["tags"]}
+        for row in memory_rows
+    ]
+
+    # Get recent knowledge created during this session
+    cursor = await db.execute(
+        """SELECT id, topic, content, tags, created_at FROM knowledge
+           WHERE created_session_id = ? AND deleted_at IS NULL
+           ORDER BY created_at ASC""",
+        (session_id,),
+    )
+    knowledge_rows = await cursor.fetchall()
+    knowledge_data = [
+        {"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]}
+        for row in knowledge_rows
+    ]
+
+    return JSONResponse({
+        "session": session_data,
+        "existing_story": existing_story_data,
+        "messages": messages,
+        "memories": memories_data,
+        "knowledge": knowledge_data,
+    })
+
+
+@mcp.custom_route("/api/story-data/{tier}/{date}", methods=["GET"])
+async def api_story_data_tier(request: Request) -> JSONResponse:
+    """Get lower-tier stories for rollup generation.
+
+    E.g., /api/story-data/weekly/2026-03-16 returns daily stories for that week.
+    """
+    tier = request.path_params["tier"]
+    date_str = request.path_params["date"]
+    story_store: StoryStore = _rest_stores["stories"]
+
+    from datetime import date, timedelta
+    target_date = date.fromisoformat(date_str)
+
+    # Determine source tier and date range based on target tier
+    source_tier = None
+    range_start = None
+    range_end = None
+
+    if tier == "daily":
+        source_tier = StoryTier.session
+        range_start = target_date.isoformat()
+        range_end = target_date.isoformat()
+    elif tier == "weekly":
+        source_tier = StoryTier.daily
+        # Monday to Sunday of the week containing target_date
+        monday = target_date - timedelta(days=target_date.weekday())
+        sunday = monday + timedelta(days=6)
+        range_start = monday.isoformat()
+        range_end = sunday.isoformat()
+    elif tier == "monthly":
+        source_tier = StoryTier.weekly
+        range_start = target_date.replace(day=1).isoformat()
+        # Last day of month
+        if target_date.month == 12:
+            range_end = target_date.replace(year=target_date.year + 1, month=1, day=1).isoformat()
+        else:
+            range_end = target_date.replace(month=target_date.month + 1, day=1).isoformat()
+    elif tier == "quarterly":
+        source_tier = StoryTier.monthly
+        quarter_start_month = ((target_date.month - 1) // 3) * 3 + 1
+        range_start = target_date.replace(month=quarter_start_month, day=1).isoformat()
+        end_month = quarter_start_month + 3
+        if end_month > 12:
+            range_end = target_date.replace(year=target_date.year + 1, month=end_month - 12, day=1).isoformat()
+        else:
+            range_end = target_date.replace(month=end_month, day=1).isoformat()
+    elif tier == "yearly":
+        source_tier = StoryTier.quarterly
+        range_start = target_date.replace(month=1, day=1).isoformat()
+        range_end = target_date.replace(year=target_date.year + 1, month=1, day=1).isoformat()
+    else:
+        return JSONResponse({"error": f"Unknown tier: {tier}"}, status_code=400)
+
+    # Fetch source stories within the date range
+    stories = await story_store.find_by_period(range_start, range_end, limit=50)
+    # Filter to source tier
+    if source_tier:
+        stories = [s for s in stories if s.tier == source_tier]
+
+    return JSONResponse({
+        "tier": tier,
+        "date": date_str,
+        "source_tier": source_tier.value if source_tier else None,
+        "range_start": range_start,
+        "range_end": range_end,
+        "stories": [_serialize_story(s) for s in stories],
+    })
+
+
+@mcp.custom_route("/api/stories", methods=["PUT"])
+async def api_upsert_story(request: Request) -> JSONResponse:
+    """Upsert a story. For session stories, matches on session_id."""
+    from charlieverse.models.story import Story
+
+    body = await request.json()
+    story_store: StoryStore = _rest_stores["stories"]
+
+    story = Story(
+        title=body.get("title", ""),
+        summary=body.get("summary"),
+        content=body.get("content", ""),
+        tier=StoryTier(body.get("tier", "session")),
+        period_start=body.get("period_start"),
+        period_end=body.get("period_end"),
+        workspace=body.get("workspace"),
+        session_id=UUID(body["session_id"]) if body.get("session_id") else None,
+        tags=body.get("tags"),
+    )
+
+    result = await story_store.upsert(story)
+
+    # Sync embedding
+    try:
+        from charlieverse.embeddings import encode_one
+        from sqlite_vec import serialize_float32
+
+        text = f"{result.title}\n{result.summary or ''}\n{result.content}"
+        embedding = await encode_one(text)
+        db = _rest_stores["db"]
+        cursor = await db.execute(
+            "SELECT rowid FROM stories WHERE id = ?", (str(result.id),)
+        )
+        row = await cursor.fetchone()
+        if row:
+            await db.execute(
+                "INSERT OR REPLACE INTO stories_vec(rowid, embedding) VALUES(?, ?)",
+                (row[0], serialize_float32(embedding)),
+            )
+            await db.commit()
+    except Exception:
+        pass  # Embedding sync is best-effort
+
+    return JSONResponse(_serialize_story(result))
 
 
 @mcp.custom_route("/api/stories", methods=["GET"])

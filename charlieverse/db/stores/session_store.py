@@ -29,6 +29,7 @@ def _row_to_session(row: aiosqlite.Row) -> Session:
         for_next_session=row["for_next_session"],
         tags=_tags_list(row["tags"]),
         workspace=row["workspace"],
+        transcript_path=row["transcript_path"] if "transcript_path" in row.keys() else None,
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
         deleted_at=datetime.fromisoformat(row["deleted_at"]) if row["deleted_at"] else None,
@@ -45,14 +46,15 @@ class SessionStore:
         """Insert a new session."""
         await self.db.execute(
             """INSERT INTO sessions (id, what_happened, for_next_session, tags, workspace,
-               created_at, updated_at, deleted_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               transcript_path, created_at, updated_at, deleted_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(session.id),
                 session.what_happened,
                 session.for_next_session,
                 _tags_json(session.tags),
                 session.workspace,
+                session.transcript_path,
                 session.created_at.isoformat(),
                 session.updated_at.isoformat(),
                 session.deleted_at.isoformat() if session.deleted_at else None,
@@ -75,13 +77,14 @@ class SessionStore:
         now = datetime.now(timezone.utc)
         await self.db.execute(
             """UPDATE sessions SET what_happened = ?, for_next_session = ?,
-               tags = ?, workspace = ?, updated_at = ?
+               tags = ?, workspace = ?, transcript_path = ?, updated_at = ?
                WHERE id = ? AND deleted_at IS NULL""",
             (
                 session.what_happened,
                 session.for_next_session,
                 _tags_json(session.tags),
                 session.workspace,
+                session.transcript_path,
                 now.isoformat(),
                 str(session.id),
             ),

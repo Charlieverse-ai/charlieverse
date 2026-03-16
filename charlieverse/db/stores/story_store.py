@@ -26,10 +26,13 @@ def _row_to_story(row: aiosqlite.Row) -> Story:
     return Story(
         id=UUID(row["id"]),
         title=row["title"],
+        summary=row["summary"],
         content=row["content"],
         tier=StoryTier(row["tier"]),
         period_start=row["period_start"],
         period_end=row["period_end"],
+        workspace=row["workspace"],
+        session_id=UUID(row["session_id"]) if row["session_id"] else None,
         tags=_tags_list(row["tags"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
@@ -46,16 +49,19 @@ class StoryStore:
     async def create(self, story: Story) -> Story:
         """Insert a new story."""
         await self.db.execute(
-            """INSERT INTO stories (id, title, content, tier, period_start, period_end,
-               tags, created_at, updated_at, deleted_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO stories (id, title, summary, content, tier, period_start, period_end,
+               workspace, session_id, tags, created_at, updated_at, deleted_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 str(story.id),
                 story.title,
+                story.summary,
                 story.content,
                 story.tier.value,
                 story.period_start,
                 story.period_end,
+                story.workspace,
+                str(story.session_id) if story.session_id else None,
                 _tags_json(story.tags),
                 story.created_at.isoformat(),
                 story.updated_at.isoformat(),
@@ -65,6 +71,28 @@ class StoryStore:
         await self._sync_fts(story)
         await self.db.commit()
         return story
+
+    async def upsert(self, story: Story) -> Story:
+        """Insert or update a story. For session stories, matches on session_id."""
+        existing = None
+        if story.session_id:
+            existing = await self.find_by_session(story.session_id)
+        if not existing:
+            existing = await self.get(story.id)
+        if existing:
+            story.id = existing.id
+            story.created_at = existing.created_at
+            return await self.update(story)
+        return await self.create(story)
+
+    async def find_by_session(self, session_id: UUID) -> Story | None:
+        """Find the session-tier story for a given session."""
+        cursor = await self.db.execute(
+            "SELECT * FROM stories WHERE session_id = ? AND deleted_at IS NULL LIMIT 1",
+            (str(session_id),),
+        )
+        row = await cursor.fetchone()
+        return _row_to_story(row) if row else None
 
     async def get(self, story_id: UUID) -> Story | None:
         """Fetch a story by ID."""
@@ -120,20 +148,25 @@ class StoryStore:
         """Update an existing story."""
         now = datetime.now(timezone.utc)
         await self.db.execute(
-            """UPDATE stories SET title = ?, content = ?, tier = ?,
-               period_start = ?, period_end = ?, tags = ?, updated_at = ?
+            """UPDATE stories SET title = ?, summary = ?, content = ?, tier = ?,
+               period_start = ?, period_end = ?, workspace = ?, session_id = ?,
+               tags = ?, updated_at = ?
                WHERE id = ? AND deleted_at IS NULL""",
             (
                 story.title,
+                story.summary,
                 story.content,
                 story.tier.value,
                 story.period_start,
                 story.period_end,
+                story.workspace,
+                str(story.session_id) if story.session_id else None,
                 _tags_json(story.tags),
                 now.isoformat(),
                 str(story.id),
             ),
         )
+        await self._sync_fts(story)
         await self.db.commit()
         return story
 
@@ -150,7 +183,6 @@ class StoryStore:
 
     async def _sync_fts(self, story: Story) -> None:
         """Sync a story to the FTS index."""
-        # Get the rowid for this story
         cursor = await self.db.execute(
             "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
         )
@@ -158,14 +190,13 @@ class StoryStore:
         if not row:
             return
         rowid = row[0]
-        # Delete old entry, insert new
         await self.db.execute(
-            "INSERT INTO stories_fts(stories_fts, rowid, title, content, tags) VALUES('delete', ?, ?, ?, ?)",
-            (rowid, story.title, story.content, _tags_json(story.tags) or ""),
+            "INSERT INTO stories_fts(stories_fts, rowid, title, summary, content, tags) VALUES('delete', ?, ?, ?, ?, ?)",
+            (rowid, story.title, story.summary or "", story.content, _tags_json(story.tags) or ""),
         )
         await self.db.execute(
-            "INSERT INTO stories_fts(rowid, title, content, tags) VALUES(?, ?, ?, ?)",
-            (rowid, story.title, story.content, _tags_json(story.tags) or ""),
+            "INSERT INTO stories_fts(rowid, title, summary, content, tags) VALUES(?, ?, ?, ?, ?)",
+            (rowid, story.title, story.summary or "", story.content, _tags_json(story.tags) or ""),
         )
 
     async def search(

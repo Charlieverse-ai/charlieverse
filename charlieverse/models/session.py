@@ -18,6 +18,7 @@ class Session(BaseModel):
     for_next_session: str | None = None
     tags: list[NonEmptyString] | None = None
     workspace: str | None = None
+    transcript_path: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     deleted_at: datetime | None = None

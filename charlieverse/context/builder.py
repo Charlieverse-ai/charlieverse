@@ -5,8 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore
+from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
 from charlieverse.models import Entity, EntityType, Knowledge, Session
+from charlieverse.models.story import Story
 
 
 @dataclass
@@ -15,6 +16,7 @@ class ContextBundle:
 
     session: Session
     recent_sessions: list[Session] = field(default_factory=list)
+    session_stories: list[Story] = field(default_factory=list)
     pinned_entities: list[Entity] = field(default_factory=list)
     moments: list[Entity] = field(default_factory=list)
     session_entities: list[Entity] = field(default_factory=list)
@@ -37,10 +39,12 @@ class ActivationBuilder:
         memories: MemoryStore,
         sessions: SessionStore,
         knowledge: KnowledgeStore,
+        stories: StoryStore | None = None,
     ) -> None:
         self.memories = memories
         self.sessions = sessions
         self.knowledge = knowledge
+        self.stories = stories
 
     async def build(
         self,
@@ -78,6 +82,19 @@ class ActivationBuilder:
                     # Embeddings are best-effort — never block activation
                     pass
 
+        # Fetch session-tier stories for today (replaces raw session dumps)
+        session_stories: list[Story] = []
+        if self.stories:
+            from charlieverse.models.story import StoryTier
+            from datetime import datetime, timezone
+
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            session_stories = await self.stories.find_by_period(
+                start=today, end=today, limit=10,
+            )
+            # Filter to session tier only
+            session_stories = [s for s in session_stories if s.tier == StoryTier.session]
+
         # Fetch pinned knowledge
         pinned_knowledge = await self.knowledge.pinned()
 
@@ -100,6 +117,7 @@ class ActivationBuilder:
         return ContextBundle(
             session=session,
             recent_sessions=recent_sessions,
+            session_stories=session_stories,
             pinned_entities=pinned_entities,
             moments=moments,
             session_entities=session_entities,

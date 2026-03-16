@@ -1,15 +1,13 @@
-"""Generate story reminder — fires when it's time to create a new story."""
+"""Generate story reminder — nudges to run /session-save."""
 
 from __future__ import annotations
-
-from datetime import datetime
 
 from charlieverse.context.reminders.rules.base import ReminderRule
 from charlieverse.context.reminders.types import HookContext, ReminderResult
 
-# TODO: Check actual last story generation date from the DB.
-# For now, fires on every UserPromptSubmit as a placeholder
-# until we wire up the story date check.
+# Fires when session has been going for a while without a story save.
+# Works alongside save_session rule but with a different message.
+STORY_NUDGE_INTERVAL_SECONDS = 3600  # 1 hour
 
 
 class GenerateStoryRule(ReminderRule):
@@ -17,14 +15,18 @@ class GenerateStoryRule(ReminderRule):
         if ctx.event != "UserPromptSubmit":
             return None
 
-        next_story_date = ctx.metadata.get("next_story_date")
-        if not next_story_date:
+        session_start = ctx.metadata.get("session_start")
+        if not session_start:
+            # No session timing info — still fire the reminder
             return self.result(self.template.render("generate-story"))
 
-        if isinstance(next_story_date, str):
-            next_story_date = datetime.fromisoformat(next_story_date)
+        from datetime import datetime
 
-        if ctx.timestamp >= next_story_date:
-            return self.result(self.template.render("generate-story"))
+        if isinstance(session_start, str):
+            session_start = datetime.fromisoformat(session_start)
 
-        return None
+        elapsed = (ctx.timestamp - session_start).total_seconds()
+        if elapsed < STORY_NUDGE_INTERVAL_SECONDS:
+            return None
+
+        return self.result(self.template.render("generate-story"))

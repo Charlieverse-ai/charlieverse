@@ -1,1 +1,1 @@
-It's time to generate the story
+If it's been a while since you last saved, run `/session-save` to capture what we've been working on.

@@ -70,15 +70,6 @@ def _parse_stdin() -> dict | None:
     return None
 
 
-async def _post_event(host: str, port: int, **kwargs) -> None:
-    """POST a hook event to the server. Best-effort, never fails the hook."""
-    import httpx
-
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            await client.post(f"http://{host}:{port}/api/hooks/event", json=kwargs)
-    except Exception:
-        pass  # Hook events are best-effort
 
 
 async def _post_message(host: str, port: int, **kwargs) -> None:
@@ -161,13 +152,6 @@ async def _session_start(
         raise typer.Exit(1)
 
     _output_context(_build_context_static(activation), hook_event="SessionStart")
-
-    await _post_event(
-        host, port,
-        event_type="session_start", session_id=sid,
-        content=f"Session started from {source}",
-        metadata={"source": source, "workspace": workspace},
-    )
     typer.Exit(0)
 
 
@@ -276,14 +260,6 @@ def stop(
             content=last_message[:5000],
         ))
 
-    # Log stop event
-    asyncio.run(_post_event(
-        host, port,
-        event_type="stop",
-        session_id=session_id,
-        content=last_message[:500] if last_message else "Response completed",
-        metadata={"message_len": len(last_message) if last_message else 0},
-    ))
     typer.Exit(0)
 
 # ===== tool-use =====
@@ -303,16 +279,6 @@ def tool_use(
     session_id = stdin_data.get("session_id")
     tool_name = stdin_data.get("tool_name", "unknown")
     _log("tool-use", f"session={session_id} tool={tool_name}")
-    tool_input = stdin_data.get("tool_input", {})
-
-    asyncio.run(_post_event(
-        host, port,
-        event_type="tool_use",
-        session_id=session_id,
-        tool_name=tool_name,
-        content=f"Called {tool_name}",
-        metadata={"input": tool_input},
-    ))
     typer.Exit(0)
 
 # ===== save-reminder =====
@@ -322,8 +288,7 @@ def save_reminder() -> None:
     """Hook: PreCompact. Reminds Charlie to save before context compaction."""
     context = (
         "<charlie-reminder>Context is about to be compacted. "
-        "Call `session_update` NOW to save your progress before you lose context. "
-        "Include what we worked on and next steps.</charlie-reminder>\n"
+        "Run `/session-save` NOW to save your progress before you lose context.</charlie-reminder>\n"
         "<charlie-reminder>Remember to update knowledge, save decisions, etc "
         "so we don't lose anything.</charlie-reminder>"
     )
@@ -355,9 +320,3 @@ async def _session_end(host: str, port: int, source: str, session_id: str) -> No
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         raise typer.Exit(1)
-
-    await _post_event(
-        host, port,
-        event_type="session_end", session_id=session_id,
-        content=f"Session ended from {source}",
-    )

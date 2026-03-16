@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from charlieverse.context.builder import ContextBundle
 from charlieverse.models import Entity, EntityType, Session
+from charlieverse.models.story import Story
 
 
 def render(bundle: ContextBundle) -> str:
@@ -15,27 +16,40 @@ def render(bundle: ContextBundle) -> str:
 
     # Current datetime
     parts.append('---')
-    now = datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
-    parts.append(f"Now: {now}")
+    now_str = datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
+    parts.append(f"Now: {now_str}")
     parts.append(f"Current Session ID: {bundle.session.id}\n")
     parts.append('---')
 
     parts.append('<past_sessions>')
-    # Recent sessions grouped by date — skip empty ones
     now = datetime.now(timezone.utc)
-    valid_sessions = [
-        s for s in bundle.recent_sessions
-        if s.what_happened or s.for_next_session
-    ]
-    most_recent = True
-    current_date_key: str | None = None
-    for session in valid_sessions:
-        date_key = _date_group_key(session.updated_at, now)
-        if date_key != current_date_key:
-            current_date_key = date_key
-            parts.append(f"# {date_key}")
-        parts.append(_render_session(session, now, most_recent=most_recent))
-        most_recent = False
+
+    # If we have session stories, show those instead of raw sessions
+    if bundle.session_stories:
+        current_date_key: str | None = None
+        most_recent = True
+        for story in bundle.session_stories:
+            date_key = _date_group_key(story.updated_at, now)
+            if date_key != current_date_key:
+                current_date_key = date_key
+                parts.append(f"# {date_key}")
+            parts.append(_render_story_session(story, now, most_recent=most_recent))
+            most_recent = False
+    else:
+        # Fallback to raw sessions if no stories exist yet
+        valid_sessions = [
+            s for s in bundle.recent_sessions
+            if s.what_happened or s.for_next_session
+        ]
+        most_recent = True
+        current_date_key = None
+        for session in valid_sessions:
+            date_key = _date_group_key(session.updated_at, now)
+            if date_key != current_date_key:
+                current_date_key = date_key
+                parts.append(f"# {date_key}")
+            parts.append(_render_session(session, now, most_recent=most_recent))
+            most_recent = False
 
     parts.append('</past_sessions>')
 
@@ -88,6 +102,25 @@ def render(bundle: ContextBundle) -> str:
 
     parts.append("</activation_output>")
     return "\n".join(parts)
+
+
+def _render_story_session(story: Story, now: datetime, most_recent: bool) -> str:
+    """Render a session story in the activation context."""
+    lines: list[str] = []
+
+    lines.append(f"## {_session_time(story.updated_at, now)}")
+
+    if story.workspace:
+        lines.append('---')
+        lines.append(f"Workspace: {story.workspace}")
+        lines.append('---')
+
+    if most_recent and story.summary:
+        lines.append(f"\n{story.summary}")
+    elif story.summary:
+        lines.append(f"\n{story.summary}")
+
+    return "\n".join(lines)
 
 
 def _render_session(session: Session, now: datetime, most_recent: bool) -> str:

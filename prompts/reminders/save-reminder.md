@@ -1,1 +1,2 @@
-Save the session!
+- If you use **ANY** language that implies to me that you will learn/remember/change/grow/etc (ie: noted), **YOU NEED** to use the `remember` tools to **ACTUALLY** remember it.
+- If it's been a while since you last saved, run `/session-save` to capture what we've been working on.
