@@ -24,8 +24,6 @@ export function EntityCard({ entity, featured = false, onClick, onTagClick: _onT
       style={{ '--accent': color } as React.CSSProperties}
       onClick={onClick}
     >
-      <div className="entity-card__accent" />
-
       <div className="entity-card__header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {entity.pinned && (

@@ -1,6 +1,6 @@
 import { relativeTime } from '../lib/dates'
 import type { Session } from '../types'
-
+import { Markdown } from './Markdown'
 interface SessionGroupProps {
   sessions: Session[]
   onSelect: (session: Session) => void
@@ -53,7 +53,9 @@ export function SessionGroup({ sessions, onSelect }: SessionGroupProps) {
           >
             <div className="session-row__bar" />
             <div className="session-row__body">
-              <div className="session-row__title">{title}</div>
+              <div className="session-row__title">
+                <Markdown content={session.what_happened || ''} />
+                </div>
               {summary && (
                 <div className="session-row__summary">{summary}</div>
               )}

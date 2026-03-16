@@ -34,7 +34,7 @@ export function FilterChips({ active, onChange }: FilterChipsProps) {
             className="w-2 h-2 rounded-full shrink-0"
             style={{ background: entityColors[type] }}
           />
-          {entityLabels[type]}s
+          {type === 'person' ? 'People' : `${entityLabels[type]}s`}
         </button>
       ))}
     </div>

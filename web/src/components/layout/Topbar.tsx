@@ -49,11 +49,6 @@ export function Topbar({ page, activeStory, onStoryBack, onTap, mobileMenuButton
         {mobileMenuButton}
         <div>
           <div className="topbar-title">{pageTitles[page]}</div>
-          {pageDescriptions[page] && (
-            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 1 }}>
-              {pageDescriptions[page]}
-            </div>
-          )}
         </div>
       </div>
     </div>
