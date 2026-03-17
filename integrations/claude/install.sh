@@ -88,7 +88,7 @@ function upsert_marketplace() {
 
 # Install or update the local Charlieverse plugin
 function upsert_plugin() {
-    if $CLAUDE_CLI plugin list --json | grep -q "$PLUGIN_NAME"; then
+    if $CLAUDE_CLI plugin list --json | grep -q "\"id\":\"$PLUGIN_NAME\""; then
         bump_version
         $CLAUDE_CLI plugin update "$PLUGIN_NAME"
     else
