@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -97,6 +99,51 @@ def _build_context_static(*parts: str) -> str:
     sections: list[str] = [f"<now>{_time_now()}</now>"]
     sections.extend(parts)
     return "\n".join(sections)
+
+
+async def _run_user_hooks(hook_dir_name: str, **env_vars: str | None) -> str:
+    """Run executable scripts from ~/.charlieverse/hooks/{hook_dir_name}/.
+
+    Each script gets hook context as environment variables (CHARLIE_SESSION_ID, etc.).
+    Scripts run in parallel. Their stdout is collected and returned as additional context.
+    Scripts that fail or timeout (5s) are silently skipped.
+    """
+    hooks_dir = Path.home() / ".charlieverse" / "hooks" / hook_dir_name
+    if not hooks_dir.is_dir():
+        return ""
+
+    scripts = sorted(
+        f for f in hooks_dir.iterdir()
+        if f.is_file() and os.access(f, os.X_OK)
+    )
+    if not scripts:
+        return ""
+
+    # Build environment with hook context
+    env = {**os.environ}
+    for key, value in env_vars.items():
+        if value is not None:
+            env_key = f"CHARLIE_{key.upper()}"
+            env[env_key] = str(value)
+
+    async def _run_one(script: Path) -> str:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                str(script),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
+            if proc.returncode == 0 and stdout:
+                return stdout.decode().strip()
+        except (asyncio.TimeoutError, Exception):
+            pass
+        return ""
+
+    results = await asyncio.gather(*[_run_one(s) for s in scripts])
+    parts = [r for r in results if r]
+    return "\n".join(parts)
 
 
 def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
@@ -221,6 +268,12 @@ async def _prompt_submit(
     )
 
     reminders_output = await _build_reminders(ctx)
+
+    # Run user hooks from ~/.charlieverse/hooks/prompt-submit/
+    user_hook_output = await _run_user_hooks("prompt-submit", session_id=session_id, message=user_prompt)
+    if user_hook_output:
+        reminders_output += user_hook_output
+
     _output_context(reminders_output, hook_event="UserPromptSubmit")
 
     # Post user message to server
