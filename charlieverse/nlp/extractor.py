@@ -30,11 +30,14 @@ class TemporalRef:
     end: datetime
 
 
-def _get_nlp() -> spacy.language.Language:
-    """Lazy-load the spaCy model."""
+def _get_nlp() -> spacy.language.Language | None:
+    """Lazy-load the spaCy model. Returns None if model not installed."""
     global _nlp
     if _nlp is None:
-        _nlp = spacy.load("en_core_web_sm")
+        try:
+            _nlp = spacy.load("en_core_web_sm")
+        except OSError:
+            return None
     return _nlp
 
 
@@ -95,6 +98,9 @@ def extract_entities(text: str, max_length: int = 1000) -> list[str]:
         return []
 
     nlp = _get_nlp()
+    if nlp is None:
+        return []
+
     doc = nlp(text[:max_length])
 
     seen: set[str] = set()
@@ -128,6 +134,9 @@ def extract_temporal_refs(text: str, max_length: int = 1000) -> list[TemporalRef
         return []
 
     nlp = _get_nlp()
+    if nlp is None:
+        return []
+
     doc = nlp(text[:max_length])
 
     refs: list[TemporalRef] = []

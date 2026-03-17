@@ -34,5 +34,18 @@ def init(
     else:
         typer.echo(f"Config already exists at {config_path}")
 
+    # Download spaCy model for NER-based memory injection
+    try:
+        import spacy
+        spacy.load("en_core_web_sm")
+        typer.echo("spaCy model already installed.")
+    except OSError:
+        typer.echo("Downloading spaCy language model...")
+        import subprocess
+        subprocess.run(
+            ["python", "-m", "spacy", "download", "en_core_web_sm"],
+            check=True,
+        )
+
     typer.echo(f"Charlieverse initialized at {root}")
     typer.echo("Run `charlie server start` to start the MCP server.")
