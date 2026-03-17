@@ -246,7 +246,7 @@ def _extract_copilot_response(response: list, session_id: str, workspace: str,
     return entries
 
 
-def process_copilot_file(jsonl_path: Path) -> list[dict]:
+def process_copilot_file(jsonl_path: Path, source: str = "copilot") -> list[dict]:
     """Process a VS Code / Copilot chat session JSONL file."""
     entries: list[dict] = []
 
@@ -279,7 +279,7 @@ def process_copilot_file(jsonl_path: Path) -> list[dict]:
 
                 if user_text and not _is_system_noise(user_text):
                     entries.append({
-                        "source": "copilot",
+                        "source": source,
                         "session_id": session_id,
                         "workspace": workspace_hash,
                         "timestamp": ts_iso,
@@ -289,12 +289,13 @@ def process_copilot_file(jsonl_path: Path) -> list[dict]:
 
                 entries.extend(_extract_copilot_response(
                     req.get("response", []), session_id, workspace_hash, ts_iso,
+                    source=source,
                 ))
 
     return entries
 
 
-def process_copilot_json_file(json_path: Path) -> list[dict]:
+def process_copilot_json_file(json_path: Path, source: str = "copilot") -> list[dict]:
     """Process a Copilot/Cursor chat session JSON file (version 3 format).
 
     Single JSON object with top-level requests[] array, used by VS Code
@@ -343,7 +344,7 @@ def process_copilot_json_file(json_path: Path) -> list[dict]:
 
         if user_text and not _is_system_noise(user_text):
             entries.append({
-                "source": "copilot",
+                "source": source,
                 "session_id": session_id,
                 "workspace": workspace,
                 "timestamp": req_ts,
@@ -354,6 +355,7 @@ def process_copilot_json_file(json_path: Path) -> list[dict]:
         # Assistant response
         entries.extend(_extract_copilot_response(
             req.get("response", []), session_id, workspace, req_ts,
+            source=source,
         ))
 
     return entries
@@ -499,11 +501,11 @@ def _discover_providers(extra_dirs: list[Path] | None = None) -> list[tuple[str,
         appdata = Path(sys.environ.get("APPDATA", ""))
         candidates.append(("copilot", appdata / "Code" / "User" / "workspaceStorage"))
 
-    # Cursor (same format as Copilot)
+    # Cursor (same format as Copilot, different provider name)
     if system == "Darwin":
-        candidates.append(("copilot", home / "Library" / "Application Support" / "Cursor" / "User" / "workspaceStorage"))
+        candidates.append(("cursor", home / "Library" / "Application Support" / "Cursor" / "User" / "workspaceStorage"))
     elif system == "Linux":
-        candidates.append(("copilot", home / ".config" / "Cursor" / "User" / "workspaceStorage"))
+        candidates.append(("cursor", home / ".config" / "Cursor" / "User" / "workspaceStorage"))
 
     # Codex
     candidates.append(("codex", home / ".codex" / "sessions"))
@@ -552,26 +554,27 @@ def _detect_providers_in_dir(root: Path, candidates: list[tuple[str, Path]]) -> 
     if (root / ".cursor").exists():
         cursor_ws = root / "User" / "workspaceStorage"
         if cursor_ws.exists():
-            candidates.append(("copilot", cursor_ws))
+            candidates.append(("cursor", cursor_ws))
 
 
 # ============================================================
 # Main
 # ============================================================
 
-def _find_copilot_files(provider_dir: Path) -> list[tuple[Path, callable]]:
+def _find_copilot_files(provider_dir: Path, source: str = "copilot") -> list[tuple[Path, callable]]:
     """Find both JSONL and JSON copilot/cursor chat files with their processors."""
     files: list[tuple[Path, callable]] = []
     for p in sorted(provider_dir.rglob("chatSessions/*.jsonl")):
-        files.append((p, process_copilot_file))
+        files.append((p, lambda path, s=source: process_copilot_file(path, source=s)))
     for p in sorted(provider_dir.rglob("chatSessions/*.json")):
-        files.append((p, process_copilot_json_file))
+        files.append((p, lambda path, s=source: process_copilot_json_file(path, source=s)))
     return files
 
 
 PROVIDER_PROCESSORS = {
     "claude": (lambda d: sorted(d.rglob("*.jsonl")), process_claude_file),
-    "copilot": (lambda d: _find_copilot_files(d), None),  # special: mixed formats
+    "copilot": (lambda d: _find_copilot_files(d, source="copilot"), None),  # special: mixed formats
+    "cursor": (lambda d: _find_copilot_files(d, source="cursor"), None),  # same format, different source
     "codex": (lambda d: sorted(d.rglob("*.jsonl")), process_codex_file),
 }
 
