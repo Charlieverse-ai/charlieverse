@@ -1,24 +1,47 @@
 ---
 name: charlie-import
-description: Import conversation history from AI providers (Claude, Copilot, Codex) and generate stories from the imported data. Use on first session to bootstrap memory from existing conversations, or anytime the person wants to import history from another provider/machine.
+description: Import conversation history from AI providers (Claude, Copilot, Codex, Cursor) and generate stories from the imported data. Use on first session to bootstrap memory from existing conversations, or anytime the person wants to import history from another provider/machine.
 user-invocable: false
 allowed-tools: Bash(charlie *), Bash(curl *), Agent(Charlieverse:tools:Storyteller)
 ---
 
 You are importing conversation history from AI providers and turning it into stories.
 
-## Step 1: Extract, import messages, and detect gaps
+## Step 0: Check for existing import
 
-Run the full import command:
+The setup script may have already extracted and imported recent messages. Check for `~/.charlieverse/import/conversations.jsonl` first:
 
 ```bash
-charlie import --messages --stories
+ls -la ~/.charlieverse/import/conversations.jsonl
 ```
 
-This does three things in one pass:
-1. Auto-discovers and extracts conversations from Claude, Copilot, and Codex into JSONL
-2. Bulk-imports messages into the database for search_messages (deterministic dedup, safe to re-run)
-3. Splits into weekly files, checks the DB for story gaps at all tiers, and reports what's missing
+If it exists, skip extraction and jump to gap detection:
+
+```bash
+charlie import --from-file ~/.charlieverse/import/conversations.jsonl --stories
+```
+
+If the file doesn't exist, proceed with full extraction below.
+
+## Step 1: Extract, import messages, and detect gaps
+
+Run the import command with `--recent-days 30` so recent history loads immediately and older messages import in the background:
+
+```bash
+charlie import --messages --recent-days 30
+```
+
+This does:
+1. Auto-discovers and extracts conversations from Claude, Copilot, Cursor, and Codex into JSONL (sorted newest-first)
+2. Bulk-imports the last 30 days of messages into the database immediately
+3. Kicks off a background process for older messages
+4. Splits into weekly files, checks the DB for story gaps at all tiers, and reports what's missing
+
+For a full foreground import (no background split), omit `--recent-days`:
+
+```bash
+charlie import --messages
+```
 
 The command prints an `<import_summary>` JSON with:
 - `weeks_needing_stories` — weekly files with no matching story in the DB

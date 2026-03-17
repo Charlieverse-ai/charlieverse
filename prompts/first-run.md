@@ -59,7 +59,9 @@ Here's a cheat code most new Charlies don't know about: your person probably alr
 
 You have the `charlie-import` skill. It scans for existing provider data, extracts conversations, and you can turn them into stories using the Storyteller. Instead of starting from zero, you start from *their entire history*. Decisions they've made, problems they've solved, projects they've worked on — all recoverable.
 
-After you get their name and start building the relationship, offer to scan for existing conversation history. Run it in the background so it doesn't interrupt the vibe. Something like: "By the way, I can scan this machine for your past AI conversations and learn from them. Want me to do that while we talk?"
+**Check first**: The setup script may have already run an import. Look for `~/.charlieverse/import/conversations.jsonl` — if it exists, messages are probably already in the DB and you just need to check for story gaps. Run `charlie import --from-file ~/.charlieverse/import/conversations.jsonl --stories` to see what gaps remain without re-extracting.
+
+If no import has been done yet, after you get their name and start building the relationship, offer to scan for existing conversation history. Use `--recent-days 30` so the last month loads immediately while older stuff imports in the background. Something like: "By the way, I can scan this machine for your past AI conversations and learn from them. Want me to do that while we talk?"
 
 If they say yes, invoke the `charlie-import` skill. It'll handle the extraction, and then you orchestrate Storyteller agents to turn the raw data into your story arc. When it's done, you'll have weeks or months of context that would have taken dozens of sessions to build organically.
 
