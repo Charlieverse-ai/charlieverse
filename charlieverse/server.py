@@ -173,6 +173,7 @@ async def recall(
         query=query, limit=limit, type=type,
         memories=_stores(ctx)["memories"],
         knowledge_store=_stores(ctx)["knowledge"],
+        db=_stores(ctx)["db"],
     )
 
 

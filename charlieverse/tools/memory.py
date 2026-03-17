@@ -191,6 +191,7 @@ async def recall(
     *,
     memories: MemoryStore,
     knowledge_store: KnowledgeStore,
+    db=None,
 ) -> RecallResponse:
     """Search across entities and knowledge. Results are relevance-ordered."""
     entity_type = EntityType(type) if type else None
@@ -223,6 +224,32 @@ async def recall(
                 continue
             merged_entities.append(e)
 
+    # Search messages if db is available
+    from charlieverse.tools.responses.recall_response import MessageSummary
+    from charlieverse.db.fts import sanitize_fts_query
+
+    message_results: list[MessageSummary] = []
+    if db:
+        try:
+            fts_query = sanitize_fts_query(query)
+            cursor = await db.execute(
+                """SELECT m.id, m.role, m.content, m.created_at FROM messages m
+                   JOIN messages_fts fts ON m.rowid = fts.rowid
+                   WHERE messages_fts MATCH ?
+                   ORDER BY bm25(messages_fts) LIMIT ?""",
+                (fts_query, min(limit, 5)),
+            )
+            rows = await cursor.fetchall()
+            message_results = [
+                MessageSummary(
+                    id=row["id"], role=row["role"],
+                    content=row["content"][:500], created_at=row["created_at"],
+                )
+                for row in rows
+            ]
+        except Exception:
+            pass
+
     return RecallResponse(
         entities=[_to_summary(e) for e in merged_entities[:limit]],
         knowledge=[
@@ -232,6 +259,7 @@ async def recall(
             )
             for k in knowledge_results
         ],
+        messages=message_results,
     )
 
 
