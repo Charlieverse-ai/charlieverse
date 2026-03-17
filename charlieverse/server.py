@@ -293,6 +293,7 @@ async def search_messages(
 
 # Store references for REST routes (populated during lifespan)
 _rest_stores: dict = {}
+_activation_seen_ids: dict[str, set[str]] = {}  # session_id → IDs delivered at activation
 
 
 # Patch lifespan to also populate REST store refs
@@ -357,6 +358,9 @@ async def api_session_start(request: Request) -> JSONResponse:
     builder = ActivationBuilder(memories_store, sessions_store, knowledge_store, stories=_rest_stores.get("stories"))
     bundle = await builder.build(session)
     activation = context_renderer.render(bundle)
+
+    # Track which IDs were delivered so /api/context/enrich can skip them
+    _activation_seen_ids[str(session.id)] = bundle.seen_ids
 
     return JSONResponse({
         "session_id": str(session.id),
@@ -499,6 +503,10 @@ async def api_context_enrich(request: Request) -> JSONResponse:
     seen_ids = set(body.get("seen_ids", []))
     session_id = body.get("session_id")
 
+    # Merge IDs already delivered during activation so we don't re-inject them
+    if session_id:
+        seen_ids |= _activation_seen_ids.get(session_id, set())
+
     if not text:
         return JSONResponse({"entities": [], "found": [], "not_found": [], "stories": []})
 
@@ -602,6 +610,16 @@ async def api_context_enrich(request: Request) -> JSONResponse:
                         stories_result.append(_story_entry(story, query_embedding))
         except Exception:
             pass  # Vector search is best-effort
+
+    # Accumulate IDs returned this prompt so they aren't re-injected next prompt
+    if session_id:
+        prompt_ids: set[str] = set()
+        for entry in found:
+            prompt_ids.update(m["id"] for m in entry.get("memories", []))
+            prompt_ids.update(k["id"] for k in entry.get("knowledge", []))
+        prompt_ids.update(s["id"] for s in stories_result)
+        if prompt_ids:
+            _activation_seen_ids.setdefault(session_id, set()).update(prompt_ids)
 
     return JSONResponse({
         "entities": entities,

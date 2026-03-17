@@ -36,6 +36,20 @@ class ContextBundle:
             and not self.all_time_story
         )
 
+    @property
+    def seen_ids(self) -> set[str]:
+        """All IDs delivered in this activation — used for downstream dedup."""
+        ids: set[str] = set()
+        for group in (self.moments, self.pinned_entities, self.session_entities, self.related_entities):
+            ids.update(str(e.id) for e in group)
+        for k in self.pinned_knowledge:
+            ids.add(str(k.id))
+        for s in self.session_stories + self.weekly_stories:
+            ids.add(str(s.id))
+        if self.all_time_story:
+            ids.add(str(self.all_time_story.id))
+        return ids
+
 class ActivationBuilder:
     """Assembles the activation context for a session.
 
