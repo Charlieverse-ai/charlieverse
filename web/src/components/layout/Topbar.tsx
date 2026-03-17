@@ -10,13 +10,6 @@ const pageTitles: Record<Page, string> = {
   settings: 'Settings',
 }
 
-const pageDescriptions: Record<Page, string> = {
-  dashboard: '',
-  memories: 'Decisions, solutions, preferences, and moments.',
-  sessions: 'Your conversation history.',
-  knowledge: 'Expertise and domain knowledge articles.',
-  settings: 'Server configuration and maintenance.',
-}
 
 interface TopbarProps {
   page: Page
