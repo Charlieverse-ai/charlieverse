@@ -198,7 +198,14 @@ async def _session_start(
         print(f"Error connecting to Charlieverse at {host}:{port}: {e}", file=sys.stderr)
         raise typer.Exit(1)
 
-    _output_context(_build_context_static(activation), hook_event="SessionStart")
+    context = _build_context_static(activation)
+
+    # Run user hooks from ~/.charlieverse/hooks/session-start/
+    user_hook_output = await _run_user_hooks("session-start", session_id=sid, workspace=workspace or "")
+    if user_hook_output:
+        context += user_hook_output
+
+    _output_context(context, hook_event="SessionStart")
     typer.Exit(0)
 
 
@@ -313,6 +320,11 @@ def stop(
             content=last_message[:5000],
         ))
 
+    # Run user hooks from ~/.charlieverse/hooks/stop/
+    user_hook_output = asyncio.run(_run_user_hooks("stop", session_id=session_id or ""))
+    if user_hook_output:
+        _output_context(user_hook_output, hook_event="Stop")
+
     typer.Exit(0)
 
 # ===== tool-use =====
@@ -345,6 +357,12 @@ def save_reminder() -> None:
         "<charlie-reminder>Remember to update knowledge, save decisions, etc "
         "so we don't lose anything.</charlie-reminder>"
     )
+
+    # Run user hooks from ~/.charlieverse/hooks/save-reminder/
+    user_hook_output = asyncio.run(_run_user_hooks("save-reminder"))
+    if user_hook_output:
+        context += user_hook_output
+
     _output_context(context, hook_event="PreCompact")
     typer.Exit(0)
 

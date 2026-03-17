@@ -24,6 +24,21 @@ def init(
     root.mkdir(parents=True, exist_ok=True)
     (root / "backups").mkdir(exist_ok=True)
 
+    # ── User hook directories ─────────────────────────────────
+    hooks_dir = root / "hooks"
+    hook_events = ["session-start", "prompt-submit", "stop", "save-reminder"]
+    for event in hook_events:
+        event_dir = hooks_dir / event
+        event_dir.mkdir(parents=True, exist_ok=True)
+        readme = event_dir / "README"
+        if not readme.exists():
+            readme.write_text(
+                f"# Drop executable scripts here to run on {event} hook events.\n"
+                f"# Scripts get CHARLIE_SESSION_ID and other context as env vars.\n"
+                f"# stdout is injected into Charlie's context. 5s timeout.\n"
+            )
+    typer.echo(f"✔ Hook directories at {hooks_dir}")
+
     # ── Default config ───────────────────────────────────────
     config_path = root / "config.json"
     if not config_path.exists():
