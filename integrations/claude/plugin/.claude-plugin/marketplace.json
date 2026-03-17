@@ -1,5 +1,5 @@
 {
-  "name": "charlieverse",
+  "name": "charlieverse-marketplace",
   "owner": {
     "name": "Charlie 🐕",
     "email": "charlie@charlieverse.ai"
@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "Charlieverse",
-      "source": "./integrations/claude",
+      "source": "./",
       "description": "Charlie — your AI companion with persistent memory, personality, and story arcs",
       "version": "1.0.0"
     }

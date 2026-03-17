@@ -41,7 +41,8 @@ web/node_modules/
 web/dist/
 
 # Integration install artifacts
-integrations/*/plugin/
+integrations/*/plugin/agents
+integrations/*/plugin/hooks
 
 # Import data
 conversations.jsonl

@@ -3,7 +3,7 @@
 CHARLIE_DIR="$(realpath $(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../..)"
 PROMPTS_DIR="$CHARLIE_DIR/prompts"
 INTEGRATIONS_DIR="$CHARLIE_DIR/integrations/claude"
-PLUGIN_DIR="$INTEGRATIONS_DIR/plugin/"
+PLUGIN_DIR="$INTEGRATIONS_DIR/plugin"
 MARKETPLACE_NAME="charlieverse-marketplace"
 PLUGIN_NAME="Charlieverse@$MARKETPLACE_NAME"
 CLAUDE_CLI="claude"
@@ -82,7 +82,7 @@ function upsert_marketplace() {
     if $CLAUDE_CLI plugin marketplace list --json | grep -q "$MARKETPLACE_NAME"; then
         $CLAUDE_CLI plugin marketplace update "$MARKETPLACE_NAME"
     else
-        $CLAUDE_CLI plugin marketplace add "$CHARLIE_DIR"
+        $CLAUDE_CLI plugin marketplace add "$PLUGIN_DIR/"
     fi
 }
 
