@@ -491,15 +491,16 @@ def _discover_providers(extra_dirs: list[Path] | None = None) -> list[tuple[str,
     # Claude Code
     candidates.append(("claude", home / ".claude" / "projects"))
 
-    # VS Code / Copilot (platform-specific)
+    # VS Code / Copilot (platform-specific) — includes Insiders variant
     system = platform.system()
-    if system == "Darwin":
-        candidates.append(("copilot", home / "Library" / "Application Support" / "Code" / "User" / "workspaceStorage"))
-    elif system == "Linux":
-        candidates.append(("copilot", home / ".config" / "Code" / "User" / "workspaceStorage"))
-    else:
-        appdata = Path(sys.environ.get("APPDATA", ""))
-        candidates.append(("copilot", appdata / "Code" / "User" / "workspaceStorage"))
+    for code_variant in ("Code", "Code - Insiders"):
+        if system == "Darwin":
+            candidates.append(("copilot", home / "Library" / "Application Support" / code_variant / "User" / "workspaceStorage"))
+        elif system == "Linux":
+            candidates.append(("copilot", home / ".config" / code_variant / "User" / "workspaceStorage"))
+        else:
+            appdata = Path(sys.environ.get("APPDATA", ""))
+            candidates.append(("copilot", appdata / code_variant / "User" / "workspaceStorage"))
 
     # Cursor (same format as Copilot, different provider name)
     if system == "Darwin":

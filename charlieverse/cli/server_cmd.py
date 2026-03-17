@@ -79,7 +79,16 @@ def start(
                 typer.echo(f"Charlieverse started (PID {_read_pid()})")
                 typer.echo(f"Listening on http://{host}:{port}")
             else:
-                typer.echo("Failed to start Charlieverse")
+                typer.echo("Failed to start Charlieverse", err=True)
+                # Show the last few lines of the log so the error is visible
+                if LOG_FILE.exists():
+                    lines = LOG_FILE.read_text().strip().splitlines()
+                    tail = lines[-15:] if len(lines) > 15 else lines
+                    if tail:
+                        typer.echo("\nServer log:", err=True)
+                        for line in tail:
+                            typer.echo(f"  {line}", err=True)
+                raise typer.Exit(1)
             return
 
         # Child — detach and redirect output
