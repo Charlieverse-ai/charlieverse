@@ -2,7 +2,7 @@
 
 import typer
 
-from charlieverse.cli import hooks, init_cmd, server_cmd, log_cmd, story_data_cmd, context_cmd, import_cmd
+from charlieverse.cli import hooks, init_cmd, server_cmd, log_cmd, story_data_cmd, context_cmd, import_cmd, install_cli_cmd
 
 app = typer.Typer(
     name="charlie",
@@ -17,3 +17,4 @@ app.command("story-data")(story_data_cmd.story_data)
 app.command("log")(log_cmd.log)
 app.command("context")(context_cmd.context)
 app.command("import")(import_cmd.import_conversations)
+app.command("install-cli")(install_cli_cmd.install_cli)
