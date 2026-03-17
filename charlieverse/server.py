@@ -1303,10 +1303,41 @@ async def api_upsert_story(request: Request) -> JSONResponse:
                 workspace=body.get("workspace"),
             ))
 
+    # Guard against Storyteller returning raw JSON as fields
+    title = body.get("title", "")
+    summary = body.get("summary")
+    content = body.get("content", "")
+
+    # If the title looks like a JSON object, try to extract the actual title
+    if isinstance(title, str) and title.strip().startswith("{"):
+        try:
+            parsed = json.loads(title)
+            if isinstance(parsed, dict):
+                title = parsed.get("title", title)
+                summary = summary or parsed.get("summary")
+                content = content or parsed.get("content", content)
+        except json.JSONDecodeError:
+            pass
+
+    # If content is a JSON object, extract fields from it
+    if isinstance(content, str) and content.strip().startswith("{"):
+        try:
+            parsed = json.loads(content)
+            if isinstance(parsed, dict) and "content" in parsed:
+                title = title or parsed.get("title", "")
+                summary = summary or parsed.get("summary")
+                content = parsed.get("content", content)
+        except json.JSONDecodeError:
+            pass
+
+    # Reject empty/test stories
+    if not title or not content or len(content.strip()) < 20:
+        return JSONResponse({"error": "Story must have a title and content (min 20 chars)"}, status_code=400)
+
     story = Story(
-        title=body.get("title", ""),
-        summary=body.get("summary"),
-        content=body.get("content", ""),
+        title=title,
+        summary=summary,
+        content=content,
         tier=StoryTier(body.get("tier", "session")),
         period_start=body.get("period_start"),
         period_end=body.get("period_end"),
@@ -1339,6 +1370,42 @@ async def api_upsert_story(request: Request) -> JSONResponse:
         pass  # Embedding sync is best-effort
 
     return JSONResponse(_serialize_story(result))
+
+
+@mcp.custom_route("/api/stories/{id}", methods=["DELETE"])
+async def api_delete_story(request: Request) -> JSONResponse:
+    """Delete a story."""
+    story_store: StoryStore = _rest_stores["stories"]
+    story_id = request.path_params["id"]
+
+    story = await story_store.get(UUID(story_id))
+    if not story:
+        return JSONResponse({"error": "Story not found"}, status_code=404)
+
+    await story_store.delete(UUID(story_id))
+    return JSONResponse({"deleted": True})
+
+
+@mcp.custom_route("/api/stories/cleanup", methods=["POST"])
+async def api_cleanup_stories(request: Request) -> JSONResponse:
+    """Delete all stories with empty or 'test' titles."""
+    story_store: StoryStore = _rest_stores["stories"]
+    db = _rest_stores["db"]
+
+    cursor = await db.execute(
+        """SELECT id FROM stories
+           WHERE deleted_at IS NULL
+           AND (title IS NULL OR title = '' OR LOWER(title) = 'test' OR LOWER(title) = 'test title'
+                OR LENGTH(TRIM(title)) < 5)"""
+    )
+    rows = await cursor.fetchall()
+    deleted = 0
+
+    for row in rows:
+        await story_store.delete(UUID(row["id"]))
+        deleted += 1
+
+    return JSONResponse({"deleted": deleted})
 
 
 @mcp.custom_route("/api/stories", methods=["GET"])
