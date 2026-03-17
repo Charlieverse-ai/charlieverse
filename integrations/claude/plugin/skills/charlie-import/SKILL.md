@@ -58,33 +58,44 @@ Tell your person what providers were discovered, how many sessions/entries extra
 
 ## Step 3: Fill weekly gaps
 
-Parse the `weeks_needing_stories` from the summary. For each week, spawn a Storyteller subagent with the weekly JSONL file path from the summary. Run them in parallel — batch small files (< 10 entries) together, give larger files their own agent.
+Parse the `weeks_needing_stories` from the summary. For each week, spawn a Storyteller subagent with the weekly JSONL file path.
 
-Each Storyteller should:
-- Read the weekly JSONL file
-- Write a narrative following brain-friendly-stories rules
-- Save via `curl -s -X PUT http://127.0.0.1:8765/api/stories` with `"tier": "weekly"`
+**CRITICAL: The Storyteller subagent returns a JSON object. YOU (the parent) must save it via curl. Do NOT tell the Storyteller to run curl — shell escaping of nested JSON in subagents is unreliable and produces garbage stories.**
+
+For each Storyteller result, extract the JSON fields and save:
+
+```bash
+curl -s -X PUT http://127.0.0.1:8765/api/stories \
+  -H "Content-Type: application/json" \
+  -d '<the JSON object the Storyteller returned>'
+```
+
+Make sure the JSON has these fields: `title`, `summary`, `content`, `tier` (set to "weekly"), `period_start`, `period_end`.
+
+Run Storyteller agents in parallel — batch small files (< 10 entries) together, give larger files their own agent.
 
 ## Step 4: Fill monthly gaps
 
-After all weeklies land, parse `months_needing_stories` from the summary. For each month, spawn a Storyteller that:
-- Fetches the weekly stories for that month: `curl -s "http://127.0.0.1:8765/api/stories?tier=weekly"`
-- Synthesizes them into a monthly chapter
-- Saves with `"tier": "monthly"`
+After all weeklies land, parse `months_needing_stories` from the summary. For each month:
+1. Fetch the weekly stories: `curl -s "http://127.0.0.1:8765/api/stories?tier=weekly"`
+2. Filter to the relevant month
+3. Spawn a Storyteller with those stories as input
+4. Save the returned JSON via curl with `"tier": "monthly"`
 
 Run monthly agents in parallel.
 
 ## Step 5: Regenerate all-time
 
-If `alltime_stale` is set in the summary, spawn one Storyteller that:
-- Fetches all monthly stories: `curl -s "http://127.0.0.1:8765/api/stories?tier=monthly"`
-- Writes the full arc narrative
-- Saves with `"tier": "all-time"`
+If `alltime_stale` is set in the summary:
+1. Fetch all monthly stories: `curl -s "http://127.0.0.1:8765/api/stories?tier=monthly"`
+2. Spawn one Storyteller to write the full arc narrative
+3. Save with `"tier": "all-time"`
 
 Also regenerate the yearly story if needed.
 
 ## Important
 
+- **The parent (you) always saves stories via curl, never the Storyteller subagent**
 - Run Storyteller agents in parallel where possible (multiple weeks at once, multiple months at once)
 - Don't generate session-tier stories from imports — weeklies are the right granularity for historical data
 - The CLI handles dedup detection — if a week/month already has a story, it won't appear in the gap list

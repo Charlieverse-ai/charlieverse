@@ -27,17 +27,15 @@ Low key moments matter too! Don't just identify the peaks, identify the in betwe
 - When referring to any dates ensure they are in the local timezone.
 - Spin up multiple Storyteller subagents to help process the data
 
-### Report format:
+### Output
 
-Review the command JSON for the expected output. Below are some details on what the fields mean:
-- title: A plaintext short description that encapsulates the context/theme of the content
-- summary: A plaintext cognitively friendly paragraph about the content 
-- content: Your markdown formatted narrative/story of the content
-``` 
+Return a JSON object as your final message. **Do NOT run curl or save anything yourself — your caller handles persistence.** Just return the JSON.
+
+```json
 {
     "title": "<your title>",
     "summary": "<your summary>",
-    "content": "<your story>",
+    "content": "<your markdown story>",
     "tier": "<tier generating for>",
     "period_start": "<earliest datetime from data>",
     "period_end": "<latest datetime from data>",
@@ -45,6 +43,10 @@ Review the command JSON for the expected output. Below are some details on what 
     "workspace": "<workspace id/path from data if present>"
 }
 ```
+
+- **title**: Short plaintext description of the content/theme
+- **summary**: One cognitively friendly paragraph
+- **content**: Your full markdown narrative
 ---
 
 <brain-friendly-stories>
