@@ -24,15 +24,27 @@ def story_data(
 
 async def _story_data(target: str, date: str | None, host: str, port: int) -> None:
     import httpx
+    from datetime import date as date_type
 
     tier_names = {"daily", "weekly", "monthly", "quarterly", "yearly"}
+
+    # Resolve date shortcuts
+    date_shortcuts = {
+        "today": lambda: date_type.today().isoformat(),
+        "this-week": lambda: date_type.today().isoformat(),
+        "this-month": lambda: date_type.today().isoformat(),
+        "yesterday": lambda: (date_type.today() - __import__("datetime").timedelta(days=1)).isoformat(),
+    }
+
+    if date and date in date_shortcuts:
+        date = date_shortcuts[date]()
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             if target in tier_names:
                 if not date:
-                    typer.echo("Date required for tier rollups (e.g. charlie story-data weekly 2026-03-16)", err=True)
-                    raise typer.Exit(1)
+                    # Default to today's date for convenience
+                    date = date_type.today().isoformat()
                 response = await client.get(f"http://{host}:{port}/api/story-data/{target}/{date}")
             else:
                 # Assume it's a session ID
