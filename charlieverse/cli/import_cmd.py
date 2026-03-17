@@ -33,6 +33,7 @@ DEFAULT_PORT = config.server.port
 
 def import_conversations(
     output: Path = typer.Option(DEFAULT_OUTPUT, "--output", "-o", help="Output JSONL file path"),
+    from_file: Path | None = typer.Option(None, "--from-file", "-f", help="Import from existing JSONL instead of auto-discovering"),
     provider: str | None = typer.Option(None, "--provider", "-p", help="Filter to specific provider (claude, copilot, codex)"),
     extra_dirs: list[str] = typer.Option([], "--dir", "-d", help="Extra directories to scan"),
     host: str = typer.Option(DEFAULT_HOST, help="Server host"),
@@ -43,11 +44,12 @@ def import_conversations(
     split_dir: Path = typer.Option(DEFAULT_SPLIT_DIR, "--split-dir", help="Directory for weekly split files"),
 ) -> None:
     """Extract conversation history from AI providers into JSONL."""
-    asyncio.run(_import(output, provider, extra_dirs, host, port, skip_existing, messages, stories, split_dir))
+    asyncio.run(_import(output, from_file, provider, extra_dirs, host, port, skip_existing, messages, stories, split_dir))
 
 
 async def _import(
     output: Path,
+    from_file: Path | None,
     provider: str | None,
     extra_dirs: list[str],
     host: str,
@@ -57,73 +59,88 @@ async def _import(
     import_stories: bool,
     split_dir: Path,
 ) -> None:
-    # Import the extraction module from tools/
-    tools_dir = Path(__file__).resolve().parent.parent.parent / "tools"
-    sys.path.insert(0, str(tools_dir))
-
-    try:
-        from extract_conversations import (
-            _discover_providers,
-            PROVIDER_PROCESSORS,
-        )
-    except ImportError:
-        typer.echo("Can't find tools/extract_conversations.py", err=True)
-        raise typer.Exit(1)
-
-    extra_paths = [Path(d) for d in extra_dirs]
-    providers = _discover_providers(extra_paths)
-
-    if provider:
-        providers = [(name, path) for name, path in providers if name == provider]
-
-    if not providers:
-        typer.echo("No provider data found.", err=True)
-        raise typer.Exit(1)
-
-    # Ensure output directory exists
-    output.parent.mkdir(parents=True, exist_ok=True)
-
-    typer.echo(f"Discovered: {', '.join(f'{name} ({path})' for name, path in providers)}")
-
     total_entries = 0
     total_sessions = 0
     provider_stats: dict[str, dict] = {}
 
-    with open(output, "w") as out:
-        for provider_name, provider_dir in providers:
-            spec = PROVIDER_PROCESSORS.get(provider_name)
-            if not spec:
-                continue
+    if from_file:
+        # Skip extraction, use existing JSONL
+        if not from_file.exists():
+            typer.echo(f"File not found: {from_file}", err=True)
+            raise typer.Exit(1)
 
-            finder, default_processor = spec
-            typer.echo(f"\n[{provider_name}] Scanning {provider_dir}")
-            found = finder(provider_dir)
-            typer.echo(f"[{provider_name}] Found {len(found)} files")
+        # Count entries in the file
+        with open(from_file) as f:
+            for line in f:
+                if line.strip():
+                    total_entries += 1
 
-            p_entries = 0
-            p_sessions = 0
+        # Use the from_file as our output for downstream steps
+        output = from_file
+        typer.echo(f"Using existing JSONL: {from_file} ({total_entries} entries)")
 
-            for i, item in enumerate(found):
-                # Mixed-format providers return (path, processor) tuples
-                if isinstance(item, tuple):
-                    file_path, processor = item
-                else:
-                    file_path, processor = item, default_processor
+    else:
+        # Auto-discover and extract
+        tools_dir = Path(__file__).resolve().parent.parent.parent / "tools"
+        sys.path.insert(0, str(tools_dir))
 
-                entries = processor(file_path)
-                if entries:
-                    p_sessions += 1
-                    for entry in entries:
-                        out.write(json.dumps(entry) + "\n")
-                        p_entries += 1
+        try:
+            from extract_conversations import (
+                _discover_providers,
+                PROVIDER_PROCESSORS,
+            )
+        except ImportError:
+            typer.echo("Can't find tools/extract_conversations.py", err=True)
+            raise typer.Exit(1)
 
-                if (i + 1) % 100 == 0:
-                    typer.echo(f"[{provider_name}]   {i + 1}/{len(found)} files...")
+        extra_paths = [Path(d) for d in extra_dirs]
+        providers = _discover_providers(extra_paths)
 
-            typer.echo(f"[{provider_name}] {p_sessions} sessions, {p_entries} entries")
-            provider_stats[provider_name] = {"sessions": p_sessions, "entries": p_entries}
-            total_entries += p_entries
-            total_sessions += p_sessions
+        if provider:
+            providers = [(name, path) for name, path in providers if name == provider]
+
+        if not providers:
+            typer.echo("No provider data found.", err=True)
+            raise typer.Exit(1)
+
+        output.parent.mkdir(parents=True, exist_ok=True)
+
+        typer.echo(f"Discovered: {', '.join(f'{name} ({path})' for name, path in providers)}")
+
+        with open(output, "w") as out:
+            for provider_name, provider_dir in providers:
+                spec = PROVIDER_PROCESSORS.get(provider_name)
+                if not spec:
+                    continue
+
+                finder, default_processor = spec
+                typer.echo(f"\n[{provider_name}] Scanning {provider_dir}")
+                found = finder(provider_dir)
+                typer.echo(f"[{provider_name}] Found {len(found)} files")
+
+                p_entries = 0
+                p_sessions = 0
+
+                for i, item in enumerate(found):
+                    if isinstance(item, tuple):
+                        file_path, processor = item
+                    else:
+                        file_path, processor = item, default_processor
+
+                    entries = processor(file_path)
+                    if entries:
+                        p_sessions += 1
+                        for entry in entries:
+                            out.write(json.dumps(entry) + "\n")
+                            p_entries += 1
+
+                    if (i + 1) % 100 == 0:
+                        typer.echo(f"[{provider_name}]   {i + 1}/{len(found)} files...")
+
+                typer.echo(f"[{provider_name}] {p_sessions} sessions, {p_entries} entries")
+                provider_stats[provider_name] = {"sessions": p_sessions, "entries": p_entries}
+                total_entries += p_entries
+                total_sessions += p_sessions
 
     # Optionally bulk-import messages into the database
     messages_imported = 0
