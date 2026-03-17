@@ -314,17 +314,16 @@ async def _import_messages_to_db(
 
     Returns (imported_count, skipped_count).
     """
-    import aiosqlite
-
     db_path = Path(config.database.path).expanduser()
     imported = 0
     skipped = 0
     batch: list[tuple] = []
     batch_size = 5000
 
-    async with aiosqlite.connect(str(db_path)) as db:
-        # WAL mode for better write performance during bulk import
-        await db.execute("PRAGMA journal_mode=WAL")
+    from charlieverse.db.database import connect
+
+    db = await connect(db_path)
+    try:
 
         with open(jsonl_path) as f:
             for line_num, line in enumerate(f, 1):
@@ -363,6 +362,8 @@ async def _import_messages_to_db(
         typer.echo("  Rebuilding FTS index...")
         await db.execute("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')")
         await db.commit()
+    finally:
+        await db.close()
 
     return imported, skipped
 
@@ -452,12 +453,13 @@ async def _get_existing_weekly_stories() -> set[str]:
 
     Matches week keys like '2025/07/W2' by converting period_start dates.
     """
-    import aiosqlite
+    from charlieverse.db.database import connect
 
     db_path = Path(config.database.path).expanduser()
     existing: set[str] = set()
 
-    async with aiosqlite.connect(str(db_path)) as db:
+    db = await connect(db_path)
+    try:
         cursor = await db.execute(
             "SELECT period_start, period_end FROM stories WHERE tier = 'weekly'"
         )
@@ -467,6 +469,8 @@ async def _get_existing_weekly_stories() -> set[str]:
             dt = _parse_timestamp(period_start)
             if dt:
                 existing.add(_week_key(dt))
+    finally:
+        await db.close()
 
     return existing
 
@@ -476,12 +480,13 @@ async def _get_months_needing_stories() -> list[dict]:
 
     Returns list of {month: "2025/08", weekly_count: 5}.
     """
-    import aiosqlite
+    from charlieverse.db.database import connect
 
     db_path = Path(config.database.path).expanduser()
     results: list[dict] = []
 
-    async with aiosqlite.connect(str(db_path)) as db:
+    db = await connect(db_path)
+    try:
         # Get all months that have weekly stories
         cursor = await db.execute(
             "SELECT period_start FROM stories WHERE tier = 'weekly'"
@@ -514,6 +519,8 @@ async def _get_months_needing_stories() -> list[dict]:
                     "month": month_key,
                     "weekly_count": months_with_weeklies[month_key],
                 })
+    finally:
+        await db.close()
 
     return results
 
@@ -523,11 +530,12 @@ async def _is_alltime_stale() -> dict | None:
 
     Returns {covers: "2025-11 to 2026-03", data_extends_to: "2025-06"} or None.
     """
-    import aiosqlite
+    from charlieverse.db.database import connect
 
     db_path = Path(config.database.path).expanduser()
 
-    async with aiosqlite.connect(str(db_path)) as db:
+    db = await connect(db_path)
+    try:
         # Get earliest weekly story date
         cursor = await db.execute(
             "SELECT MIN(period_start) FROM stories WHERE tier = 'weekly'"
@@ -558,5 +566,7 @@ async def _is_alltime_stale() -> dict | None:
                 "covers": f"{alltime_start[:7]} to {alltime[1][:7]}",
                 "data_extends_to": earliest_weekly[:7],
             }
+    finally:
+        await db.close()
 
     return None
