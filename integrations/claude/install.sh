@@ -21,12 +21,12 @@ function bump_version() {
 
 # Check if claude + jq are installed
 function verify_env() {
-    if !command -v $CLAUDE_CLI &> /dev/null; then
+    if ! command -v $CLAUDE_CLI &> /dev/null; then
         echo "$CLAUDE_CLI not found"
         exit 1
     fi
 
-    if !command -v $JQ_CLI &> /dev/null; then
+    if ! command -v $JQ_CLI &> /dev/null; then
         echo "$JQ_CLI not found"
         exit 1
     fi
@@ -98,8 +98,22 @@ function upsert_plugin() {
 
 function update_claude_settings() {
     SETTINGS_FILE="$HOME/.claude/settings.json"
+    PLUGIN_SETTINGS="$PLUGIN_DIR/settings.json"
+
+    # Skip if plugin settings don't exist
+    if [ ! -f "$PLUGIN_SETTINGS" ]; then
+        echo "⚠ No plugin settings.json found, skipping settings merge"
+        return
+    fi
+
+    # Create claude settings if it doesn't exist
+    if [ ! -f "$SETTINGS_FILE" ]; then
+        mkdir -p "$(dirname "$SETTINGS_FILE")"
+        echo '{}' > "$SETTINGS_FILE"
+    fi
+
     TMP="$SETTINGS_FILE.tmp"
-    $JQ_CLI '.* input' "$SETTINGS_FILE" "$PLUGIN_DIR/settings.json" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
+    $JQ_CLI -s '.[0] * .[1]' "$SETTINGS_FILE" "$PLUGIN_SETTINGS" > "$TMP" && mv "$TMP" "$SETTINGS_FILE"
     echo "✔ 🐕 Charlie settings applied to: $SETTINGS_FILE"
 }
 
