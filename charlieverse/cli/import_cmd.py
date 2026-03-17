@@ -40,11 +40,12 @@ def import_conversations(
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
     skip_existing: bool = typer.Option(True, help="Skip sessions that already have stories"),
     messages: bool = typer.Option(False, "--messages", "-m", help="Also import messages into the database"),
-    stories: bool = typer.Option(False, "--stories", "-s", help="Split into weekly files and report gaps needing Storyteller processing"),
+    stories: bool = typer.Option(True, "--stories", "-s", help="Split into weekly files and report gaps needing Storyteller processing"),
     split_dir: Path = typer.Option(DEFAULT_SPLIT_DIR, "--split-dir", help="Directory for weekly split files"),
+    recent_days: int | None = typer.Option(None, "--recent-days", help="Import only the last N days in foreground, queue rest in background"),
 ) -> None:
     """Extract conversation history from AI providers into JSONL."""
-    asyncio.run(_import(output, from_file, provider, extra_dirs, host, port, skip_existing, messages, stories, split_dir))
+    asyncio.run(_import(output, from_file, provider, extra_dirs, host, port, skip_existing, messages, stories, split_dir, recent_days))
 
 
 async def _import(
@@ -58,6 +59,7 @@ async def _import(
     import_messages: bool,
     import_stories: bool,
     split_dir: Path,
+    recent_days: int | None = None,
 ) -> None:
     total_entries = 0
     total_sessions = 0
@@ -142,14 +144,46 @@ async def _import(
                 total_entries += p_entries
                 total_sessions += p_sessions
 
+    # Sort JSONL newest-first so recent context gets priority
+    _sort_jsonl_newest_first(output)
+
     # Optionally bulk-import messages into the database
     messages_imported = 0
     messages_skipped = 0
 
     if import_messages:
-        typer.echo(f"\nImporting messages into database from {output}...")
-        messages_imported, messages_skipped = await _import_messages_to_db(output, host, port)
-        typer.echo(f"Messages: {messages_imported} imported, {messages_skipped} duplicates skipped")
+        if recent_days is not None:
+            # Import recent messages in foreground, older ones in background
+            cutoff = datetime.now(timezone.utc) - __import__("datetime").timedelta(days=recent_days)
+            recent_file, older_file = _split_by_date(output, cutoff)
+
+            typer.echo(f"\nImporting recent messages ({recent_days} days) from {recent_file}...")
+            recent_imported, recent_skipped = await _import_messages_to_db(recent_file, host, port)
+            typer.echo(f"Recent: {recent_imported} imported, {recent_skipped} duplicates skipped")
+            messages_imported += recent_imported
+            messages_skipped += recent_skipped
+
+            if older_file.exists() and older_file.stat().st_size > 0:
+                typer.echo(f"\nImporting older messages in the background...")
+                # Fork a background process for older messages
+                import subprocess
+                bg_cmd = [
+                    "uv", "run", "python", "-m", "charlieverse.cli", "import",
+                    "--from-file", str(older_file),
+                    "--messages",
+                    "--no-stories",
+                ]
+                subprocess.Popen(
+                    bg_cmd,
+                    stdout=open(Path.home() / ".charlieverse" / "logs" / "import-bg.log", "w"),
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+                typer.echo(f"Background import started — log at ~/.charlieverse/logs/import-bg.log")
+        else:
+            typer.echo(f"\nImporting messages into database from {output}...")
+            messages_imported, messages_skipped = await _import_messages_to_db(output, host, port)
+            typer.echo(f"Messages: {messages_imported} imported, {messages_skipped} duplicates skipped")
 
     # Optionally split into weekly files and find gaps
     weeks_needing_stories: list[dict] = []
@@ -209,6 +243,56 @@ async def _import(
 
     typer.echo(f"\nDone. {total_sessions} sessions, {total_entries} entries → {output}")
     typer.echo(f"\n<import_summary>{json.dumps(summary)}</import_summary>")
+
+
+def _sort_jsonl_newest_first(jsonl_path: Path) -> None:
+    """Sort a JSONL file by timestamp descending (newest first)."""
+    lines: list[tuple[str, str]] = []  # (sort_key, raw_line)
+
+    with open(jsonl_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                ts = obj.get("timestamp", "")
+                lines.append((ts, line))
+            except json.JSONDecodeError:
+                lines.append(("", line))
+
+    # Sort descending by timestamp
+    lines.sort(key=lambda x: x[0], reverse=True)
+
+    with open(jsonl_path, "w") as f:
+        for _, line in lines:
+            f.write(line + "\n")
+
+
+def _split_by_date(jsonl_path: Path, cutoff: datetime) -> tuple[Path, Path]:
+    """Split a JSONL file into recent (>= cutoff) and older (< cutoff) files."""
+    recent_path = jsonl_path.with_suffix(".recent.jsonl")
+    older_path = jsonl_path.with_suffix(".older.jsonl")
+    cutoff_iso = cutoff.isoformat()
+
+    with open(jsonl_path) as f, \
+         open(recent_path, "w") as recent_f, \
+         open(older_path, "w") as older_f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                ts = obj.get("timestamp", "")
+                if ts >= cutoff_iso:
+                    recent_f.write(line + "\n")
+                else:
+                    older_f.write(line + "\n")
+            except json.JSONDecodeError:
+                older_f.write(line + "\n")
+
+    return recent_path, older_path
 
 
 def _deterministic_id(session_id: str, timestamp: str, role: str) -> str:
