@@ -35,18 +35,13 @@ def init(
         typer.echo(f"Config already exists at {config_path}")
 
     # Download spaCy model for NER-based memory injection
+    # Verify spaCy model (installed via pyproject.toml dependency)
     try:
         import spacy
         spacy.load("en_core_web_sm")
-        typer.echo("spaCy model already installed.")
+        typer.echo("spaCy model verified.")
     except OSError:
-        typer.echo("Downloading spaCy language model...")
-        import subprocess
-        import sys
-        subprocess.run(
-            [sys.executable, "-m", "spacy", "download", "en_core_web_sm"],
-            check=True,
-        )
+        typer.echo("⚠ spaCy model en_core_web_sm not found. Run: uv sync")
 
     typer.echo(f"Charlieverse initialized at {root}")
     typer.echo("Run `charlie server start` to start the MCP server.")
