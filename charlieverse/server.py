@@ -288,6 +288,39 @@ async def search_messages(
 
 
 # ============================================================
+# Session tools
+# ============================================================
+
+
+@mcp.tool
+async def session_update(
+    what_happened: str,
+    for_next_session: str,
+    session_id: str | None = None,
+    tags: list[str] | None = None,
+    workspace: str | None = None,
+    ctx: Context = CurrentContext(),
+):
+    """Save a detailed snapshot of the current session — what happened and what's next."""
+    from charlieverse.tools.sessions import session_update as _session_update
+
+    stores = _stores(ctx)
+    sessions: SessionStore = stores["sessions"]
+
+    # Use provided session_id or generate one
+    sid = session_id or str(uuid4())
+
+    return await _session_update(
+        id=sid,
+        what_happened=what_happened,
+        for_next_session=for_next_session,
+        tags=tags,
+        workspace=workspace,
+        sessions=sessions,
+    )
+
+
+# ============================================================
 # REST API endpoints (for hooks CLI + future web UI)
 # ============================================================
 
@@ -1258,6 +1291,18 @@ async def api_upsert_story(request: Request) -> JSONResponse:
     body = await request.json()
     story_store: StoryStore = _rest_stores["stories"]
 
+    session_id = UUID(body["session_id"]) if body.get("session_id") else None
+
+    # Auto-create session row if it doesn't exist (prevents FK violation)
+    if session_id:
+        sessions_store: SessionStore = _rest_stores["sessions"]
+        existing = await sessions_store.get(session_id)
+        if not existing:
+            await sessions_store.create(Session(
+                id=session_id,
+                workspace=body.get("workspace"),
+            ))
+
     story = Story(
         title=body.get("title", ""),
         summary=body.get("summary"),
@@ -1266,7 +1311,7 @@ async def api_upsert_story(request: Request) -> JSONResponse:
         period_start=body.get("period_start"),
         period_end=body.get("period_end"),
         workspace=body.get("workspace"),
-        session_id=UUID(body["session_id"]) if body.get("session_id") else None,
+        session_id=session_id,
         tags=body.get("tags"),
     )
 
