@@ -737,6 +737,194 @@ async def api_get_entity(request: Request) -> JSONResponse:
     return JSONResponse(_serialize_entity(entity))
 
 
+@mcp.custom_route("/api/entities", methods=["POST"])
+async def api_create_entity(request: Request) -> JSONResponse:
+    """Create a new entity."""
+    body = await request.json()
+    memories: MemoryStore = _rest_stores["memories"]
+
+    from datetime import datetime, timezone
+
+    entity = Entity(
+        type=EntityType(body["type"]),
+        content=body["content"],
+        tags=body.get("tags"),
+        pinned=body.get("pinned", False),
+        created_session_id=UUID(body.get("session_id", str(uuid4()))),
+    )
+    created = await memories.create(entity)
+
+    # Best-effort embedding
+    try:
+        from charlieverse.embeddings import encode_one
+        embedding = await encode_one(created.content)
+        await memories.upsert_embedding(created.id, embedding)
+    except Exception:
+        pass
+
+    return JSONResponse(_serialize_entity(created), status_code=201)
+
+
+@mcp.custom_route("/api/entities/{id}", methods=["PATCH"])
+async def api_update_entity(request: Request) -> JSONResponse:
+    """Update an entity's content, tags, or pinned status."""
+    memories: MemoryStore = _rest_stores["memories"]
+    entity_id = request.path_params["id"]
+    body = await request.json()
+
+    entity = await memories.get(UUID(entity_id))
+    if not entity:
+        return JSONResponse({"error": "Entity not found"}, status_code=404)
+
+    from datetime import datetime, timezone
+
+    if "content" in body:
+        entity.content = body["content"]
+    if "tags" in body:
+        entity.tags = body["tags"]
+    if "pinned" in body:
+        entity.pinned = body["pinned"]
+
+    entity.updated_at = datetime.now(timezone.utc)
+    updated = await memories.update(entity)
+
+    # Re-embed if content changed
+    if "content" in body:
+        try:
+            from charlieverse.embeddings import encode_one
+            embedding = await encode_one(updated.content)
+            await memories.upsert_embedding(updated.id, embedding)
+        except Exception:
+            pass
+
+    return JSONResponse(_serialize_entity(updated))
+
+
+@mcp.custom_route("/api/entities/{id}", methods=["DELETE"])
+async def api_delete_entity(request: Request) -> JSONResponse:
+    """Soft-delete an entity."""
+    memories: MemoryStore = _rest_stores["memories"]
+    entity_id = request.path_params["id"]
+
+    entity = await memories.get(UUID(entity_id))
+    if not entity:
+        return JSONResponse({"error": "Entity not found"}, status_code=404)
+
+    await memories.delete(UUID(entity_id))
+    return JSONResponse({"deleted": True})
+
+
+@mcp.custom_route("/api/entities/{id}/pin", methods=["POST"])
+async def api_pin_entity(request: Request) -> JSONResponse:
+    """Toggle pin status on an entity."""
+    memories: MemoryStore = _rest_stores["memories"]
+    entity_id = request.path_params["id"]
+    body = await request.json()
+
+    entity = await memories.get(UUID(entity_id))
+    if not entity:
+        return JSONResponse({"error": "Entity not found"}, status_code=404)
+
+    pinned = body.get("pinned", not entity.pinned)
+    await memories.pin(UUID(entity_id), pinned)
+
+    entity.pinned = pinned
+    return JSONResponse(_serialize_entity(entity))
+
+
+@mcp.custom_route("/api/knowledge", methods=["POST"])
+async def api_create_knowledge(request: Request) -> JSONResponse:
+    """Create a new knowledge article."""
+    body = await request.json()
+    knowledge_store: KnowledgeStore = _rest_stores["knowledge"]
+
+    article = Knowledge(
+        topic=body["topic"],
+        content=body["content"],
+        tags=body.get("tags"),
+        pinned=body.get("pinned", False),
+        created_session_id=UUID(body.get("session_id", str(uuid4()))),
+    )
+    created = await knowledge_store.create(article)
+
+    try:
+        from charlieverse.embeddings import encode_one
+        embedding = await encode_one(f"{created.topic} {created.content}")
+        await knowledge_store.upsert_embedding(created.id, embedding)
+    except Exception:
+        pass
+
+    return JSONResponse(_serialize_knowledge(created), status_code=201)
+
+
+@mcp.custom_route("/api/knowledge/{id}", methods=["PATCH"])
+async def api_update_knowledge(request: Request) -> JSONResponse:
+    """Update a knowledge article's topic, content, tags, or pinned status."""
+    knowledge_store: KnowledgeStore = _rest_stores["knowledge"]
+    article_id = request.path_params["id"]
+    body = await request.json()
+
+    article = await knowledge_store.get(UUID(article_id))
+    if not article:
+        return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
+
+    from datetime import datetime, timezone
+
+    if "topic" in body:
+        article.topic = body["topic"]
+    if "content" in body:
+        article.content = body["content"]
+    if "tags" in body:
+        article.tags = body["tags"]
+    if "pinned" in body:
+        article.pinned = body["pinned"]
+
+    article.updated_at = datetime.now(timezone.utc)
+    updated = await knowledge_store.upsert(article)
+
+    if "topic" in body or "content" in body:
+        try:
+            from charlieverse.embeddings import encode_one
+            embedding = await encode_one(f"{updated.topic} {updated.content}")
+            await knowledge_store.upsert_embedding(updated.id, embedding)
+        except Exception:
+            pass
+
+    return JSONResponse(_serialize_knowledge(updated))
+
+
+@mcp.custom_route("/api/knowledge/{id}", methods=["DELETE"])
+async def api_delete_knowledge(request: Request) -> JSONResponse:
+    """Delete a knowledge article."""
+    knowledge_store: KnowledgeStore = _rest_stores["knowledge"]
+    article_id = request.path_params["id"]
+
+    article = await knowledge_store.get(UUID(article_id))
+    if not article:
+        return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
+
+    await knowledge_store.delete(UUID(article_id))
+    return JSONResponse({"deleted": True})
+
+
+@mcp.custom_route("/api/knowledge/{id}/pin", methods=["POST"])
+async def api_pin_knowledge(request: Request) -> JSONResponse:
+    """Toggle pin status on a knowledge article."""
+    knowledge_store: KnowledgeStore = _rest_stores["knowledge"]
+    article_id = request.path_params["id"]
+    body = await request.json()
+
+    article = await knowledge_store.get(UUID(article_id))
+    if not article:
+        return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
+
+    pinned = body.get("pinned", not article.pinned)
+    await knowledge_store.pin(UUID(article_id), pinned)
+
+    article.pinned = pinned
+    return JSONResponse(_serialize_knowledge(article))
+
+
 @mcp.custom_route("/api/sessions/list", methods=["GET"])
 async def api_list_sessions(request: Request) -> JSONResponse:
     """List recent sessions."""

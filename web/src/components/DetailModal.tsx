@@ -1,8 +1,10 @@
-import { X, ArrowLeft, Pin, Clock, Tag, Folder } from 'lucide-react'
+import { useState } from 'react'
+import { X, ArrowLeft, Pin, PinOff, Clock, Tag, Folder, Pencil, Trash2, Check, XCircle } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { entityColors, entityLabels } from '../lib/colors'
 import { relativeTime } from '../lib/dates'
 import { Markdown } from './Markdown'
+import { useUpdateEntity, useDeleteEntity, usePinEntity, useUpdateKnowledge, useDeleteKnowledge, usePinKnowledge } from '../hooks/use-mutations'
 import type { Entity, Knowledge, Session, Story } from '../types'
 
 type DetailItem =
@@ -14,7 +16,7 @@ type DetailItem =
 interface DetailModalProps {
   item: DetailItem | null
   onClose: () => void
-  onDismiss?: () => void  // hard close (X), vs onClose which may go back to search
+  onDismiss?: () => void
   onTagClick?: (tag: string) => void
   showBack?: boolean
 }
@@ -59,7 +61,7 @@ export function DetailModal({ item, onClose, onDismiss, onTagClick, showBack = f
             )}
             {item.kind === 'story' && (
               <HeaderBadge
-                label={`Story · ${item.data.tier}`}
+                label={`Story \u00b7 ${item.data.tier}`}
                 color="#A78BFA"
                 pinned={false}
               />
@@ -70,8 +72,8 @@ export function DetailModal({ item, onClose, onDismiss, onTagClick, showBack = f
           </button>
         </div>
         <div className="detail-content">
-          {item.kind === 'entity' && <EntityDetail entity={item.data} onTagClick={onTagClick} />}
-          {item.kind === 'knowledge' && <KnowledgeDetail article={item.data} onTagClick={onTagClick} />}
+          {item.kind === 'entity' && <EntityDetail entity={item.data} onTagClick={onTagClick} onClose={onDismiss || onClose} />}
+          {item.kind === 'knowledge' && <KnowledgeDetail article={item.data} onTagClick={onTagClick} onClose={onDismiss || onClose} />}
           {item.kind === 'session' && <SessionDetail session={item.data} onTagClick={onTagClick} />}
           {item.kind === 'story' && <StoryDetail story={item.data} onTagClick={onTagClick} />}
         </div>
@@ -116,6 +118,53 @@ function HeaderBadge({ label, color, pinned }: { label: string; color: string; p
   )
 }
 
+function ActionBar({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 8,
+      padding: '12px 0',
+      borderBottom: '1px solid var(--border)',
+      marginBottom: 16,
+    }}>
+      {children}
+    </div>
+  )
+}
+
+function ActionButton({ icon, label, onClick, variant = 'default', disabled = false }: {
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+  variant?: 'default' | 'danger'
+  disabled?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 12px',
+        borderRadius: 6,
+        fontSize: 12,
+        fontWeight: 500,
+        border: '1px solid var(--border)',
+        background: variant === 'danger' ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+        color: variant === 'danger' ? '#EF4444' : 'var(--text-secondary)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        transition: 'all 0.15s ease',
+      }}
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
 function MetaRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div style={{
@@ -145,12 +194,118 @@ function TagList({ tags, onTagClick }: { tags: string[]; onTagClick?: (tag: stri
   )
 }
 
-function EntityDetail({ entity, onTagClick }: { entity: Entity; onTagClick?: (tag: string) => void }) {
+function ConfirmDelete({ onConfirm, onCancel, isPending }: { onConfirm: () => void; onCancel: () => void; isPending: boolean }) {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      padding: '12px 16px',
+      borderRadius: 8,
+      background: 'rgba(239, 68, 68, 0.08)',
+      border: '1px solid rgba(239, 68, 68, 0.2)',
+      marginBottom: 16,
+    }}>
+      <span style={{ fontSize: 13, color: '#EF4444', flex: 1 }}>Delete this? This can't be undone.</span>
+      <button
+        onClick={onConfirm}
+        disabled={isPending}
+        style={{
+          padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+          background: '#EF4444', color: '#fff', border: 'none', cursor: 'pointer',
+        }}
+      >
+        {isPending ? '...' : 'Delete'}
+      </button>
+      <button
+        onClick={onCancel}
+        style={{
+          padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+          background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border)', cursor: 'pointer',
+        }}
+      >
+        Cancel
+      </button>
+    </div>
+  )
+}
+
+function EditTextarea({ value, onSave, onCancel }: { value: string; onSave: (v: string) => void; onCancel: () => void }) {
+  const [text, setText] = useState(value)
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        style={{
+          width: '100%',
+          minHeight: 200,
+          padding: 12,
+          borderRadius: 8,
+          border: '1px solid var(--border)',
+          background: 'var(--bg)',
+          color: 'var(--text-primary)',
+          fontSize: 13,
+          fontFamily: "'JetBrains Mono', monospace",
+          lineHeight: 1.6,
+          resize: 'vertical',
+        }}
+        autoFocus
+      />
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <ActionButton icon={<Check size={14} />} label="Save" onClick={() => onSave(text)} />
+        <ActionButton icon={<XCircle size={14} />} label="Cancel" onClick={onCancel} />
+      </div>
+    </div>
+  )
+}
+
+function EntityDetail({ entity, onTagClick, onClose }: { entity: Entity; onTagClick?: (tag: string) => void; onClose: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const updateEntity = useUpdateEntity()
+  const deleteEntity = useDeleteEntity()
+  const pinEntity = usePinEntity()
+
+  const handleSave = (content: string) => {
+    updateEntity.mutate({ id: entity.id, content }, {
+      onSuccess: () => setEditing(false),
+    })
+  }
+
+  const handleDelete = () => {
+    deleteEntity.mutate(entity.id, {
+      onSuccess: () => onClose(),
+    })
+  }
+
+  const handlePin = () => {
+    pinEntity.mutate({ id: entity.id, pinned: !entity.pinned })
+  }
+
   return (
     <>
-      <div style={{ marginBottom: 24 }}>
-        <Markdown content={entity.content} />
-      </div>
+      <ActionBar>
+        <ActionButton icon={<Pencil size={14} />} label="Edit" onClick={() => { setEditing(true); setConfirming(false) }} />
+        <ActionButton
+          icon={entity.pinned ? <PinOff size={14} /> : <Pin size={14} />}
+          label={entity.pinned ? 'Unpin' : 'Pin'}
+          onClick={handlePin}
+          disabled={pinEntity.isPending}
+        />
+        <ActionButton icon={<Trash2 size={14} />} label="Delete" onClick={() => { setConfirming(true); setEditing(false) }} variant="danger" />
+      </ActionBar>
+
+      {confirming && <ConfirmDelete onConfirm={handleDelete} onCancel={() => setConfirming(false)} isPending={deleteEntity.isPending} />}
+
+      {editing ? (
+        <EditTextarea value={entity.content} onSave={handleSave} onCancel={() => setEditing(false)} />
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          <Markdown content={entity.content} />
+        </div>
+      )}
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4 }}>
         <MetaRow
@@ -179,12 +334,85 @@ function EntityDetail({ entity, onTagClick }: { entity: Entity; onTagClick?: (ta
   )
 }
 
-function KnowledgeDetail({ article, onTagClick }: { article: Knowledge; onTagClick?: (tag: string) => void }) {
+function KnowledgeDetail({ article, onTagClick, onClose }: { article: Knowledge; onTagClick?: (tag: string) => void; onClose: () => void }) {
+  const [editing, setEditing] = useState(false)
+  const [editingTopic, setEditingTopic] = useState(false)
+  const [topicValue, setTopicValue] = useState(article.topic)
+  const [confirming, setConfirming] = useState(false)
+  const updateKnowledge = useUpdateKnowledge()
+  const deleteKnowledge = useDeleteKnowledge()
+  const pinKnowledge = usePinKnowledge()
+
+  const handleSaveContent = (content: string) => {
+    updateKnowledge.mutate({ id: article.id, content }, {
+      onSuccess: () => setEditing(false),
+    })
+  }
+
+  const handleSaveTopic = () => {
+    updateKnowledge.mutate({ id: article.id, topic: topicValue }, {
+      onSuccess: () => setEditingTopic(false),
+    })
+  }
+
+  const handleDelete = () => {
+    deleteKnowledge.mutate(article.id, {
+      onSuccess: () => onClose(),
+    })
+  }
+
+  const handlePin = () => {
+    pinKnowledge.mutate({ id: article.id, pinned: !article.pinned })
+  }
+
   return (
     <>
-      <div style={{ marginBottom: 24 }}>
-        <Markdown content={article.content} />
-      </div>
+      <ActionBar>
+        <ActionButton icon={<Pencil size={14} />} label="Edit" onClick={() => { setEditing(true); setConfirming(false) }} />
+        <ActionButton
+          icon={article.pinned ? <PinOff size={14} /> : <Pin size={14} />}
+          label={article.pinned ? 'Unpin' : 'Pin'}
+          onClick={handlePin}
+          disabled={pinKnowledge.isPending}
+        />
+        <ActionButton icon={<Trash2 size={14} />} label="Delete" onClick={() => { setConfirming(true); setEditing(false) }} variant="danger" />
+      </ActionBar>
+
+      {confirming && <ConfirmDelete onConfirm={handleDelete} onCancel={() => setConfirming(false)} isPending={deleteKnowledge.isPending} />}
+
+      {/* Topic */}
+      {editingTopic ? (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+          <input
+            value={topicValue}
+            onChange={(e) => setTopicValue(e.target.value)}
+            style={{
+              flex: 1, padding: '8px 12px', borderRadius: 6,
+              border: '1px solid var(--border)', background: 'var(--bg)',
+              color: 'var(--text-primary)', fontSize: 16, fontWeight: 600,
+            }}
+            autoFocus
+          />
+          <ActionButton icon={<Check size={14} />} label="Save" onClick={handleSaveTopic} />
+          <ActionButton icon={<XCircle size={14} />} label="Cancel" onClick={() => { setEditingTopic(false); setTopicValue(article.topic) }} />
+        </div>
+      ) : (
+        <div
+          style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16, cursor: 'pointer' }}
+          onClick={() => setEditingTopic(true)}
+          title="Click to edit topic"
+        >
+          {article.topic}
+        </div>
+      )}
+
+      {editing ? (
+        <EditTextarea value={article.content} onSave={handleSaveContent} onCancel={() => setEditing(false)} />
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          <Markdown content={article.content} />
+        </div>
+      )}
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4 }}>
         <MetaRow
@@ -221,7 +449,7 @@ function StoryDetail({ story, onTagClick }: { story: Story; onTagClick?: (tag: s
 
       {story.period_start && (
         <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 16 }}>
-          {story.period_start}{story.period_end ? ` — ${story.period_end}` : ''}
+          {story.period_start}{story.period_end ? ` \u2014 ${story.period_end}` : ''}
         </div>
       )}
 
@@ -233,7 +461,7 @@ function StoryDetail({ story, onTagClick }: { story: Story; onTagClick?: (tag: s
         <MetaRow
           icon={<Clock size={14} />}
           label="Updated"
-          value={`${relativeTime(story.updated_at)} · ${new Date(story.updated_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`}
+          value={`${relativeTime(story.updated_at)} \u00b7 ${new Date(story.updated_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`}
         />
         {story.tags && story.tags.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 0', fontSize: 13 }}>

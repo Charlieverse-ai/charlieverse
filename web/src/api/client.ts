@@ -56,6 +56,32 @@ export const api = {
   // Stats
   stats: () => request<import('../types').Stats>('/stats'),
 
+  // Mutations — Entities
+  createEntity: (data: { type: string; content: string; tags?: string[]; pinned?: boolean }) =>
+    request<import('../types').Entity>('/entities', { method: 'POST', body: JSON.stringify(data) }),
+
+  updateEntity: (id: string, data: { content?: string; tags?: string[]; pinned?: boolean }) =>
+    request<import('../types').Entity>(`/entities/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  deleteEntity: (id: string) =>
+    request<{ deleted: boolean }>(`/entities/${id}`, { method: 'DELETE' }),
+
+  pinEntity: (id: string, pinned: boolean) =>
+    request<import('../types').Entity>(`/entities/${id}/pin`, { method: 'POST', body: JSON.stringify({ pinned }) }),
+
+  // Mutations — Knowledge
+  createKnowledge: (data: { topic: string; content: string; tags?: string[]; pinned?: boolean }) =>
+    request<import('../types').Knowledge>('/knowledge', { method: 'POST', body: JSON.stringify(data) }),
+
+  updateKnowledge: (id: string, data: { topic?: string; content?: string; tags?: string[]; pinned?: boolean }) =>
+    request<import('../types').Knowledge>(`/knowledge/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  deleteKnowledge: (id: string) =>
+    request<{ deleted: boolean }>(`/knowledge/${id}`, { method: 'DELETE' }),
+
+  pinKnowledge: (id: string, pinned: boolean) =>
+    request<import('../types').Knowledge>(`/knowledge/${id}/pin`, { method: 'POST', body: JSON.stringify({ pinned }) }),
+
   // Health
   health: () => request<{ status: string }>('/health'),
 }
