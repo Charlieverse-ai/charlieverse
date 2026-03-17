@@ -7,64 +7,62 @@ allowed-tools: Bash(charlie *), Bash(curl *), Agent(Charlieverse:tools:Storytell
 
 You are importing conversation history from AI providers and turning it into stories.
 
-## Step 1: Extract conversations
+## Step 1: Extract, import messages, and detect gaps
 
-Run the extraction command:
+Run the full import command:
 
 ```bash
-charlie import
+charlie import --messages --stories
 ```
 
-This auto-discovers conversation data from Claude Code, VS Code/Copilot, and Codex on the local machine. It outputs a JSONL file and prints an `<import_summary>` with stats.
+This does three things in one pass:
+1. Auto-discovers and extracts conversations from Claude, Copilot, and Codex into JSONL
+2. Bulk-imports messages into the database for search_messages (deterministic dedup, safe to re-run)
+3. Splits into weekly files, checks the DB for story gaps at all tiers, and reports what's missing
 
-If the person mentioned a specific provider, pass `--provider`:
-```bash
-charlie import --provider claude
-```
+The command prints an `<import_summary>` JSON with:
+- `weeks_needing_stories` — weekly files with no matching story in the DB
+- `months_needing_stories` — months that have weeklies but no monthly rollup
+- `alltime_stale` — whether the all-time story needs regeneration
 
-If they have data from another machine, pass `--dir`:
-```bash
-charlie import --dir /path/to/copied/data
-```
+Optional flags:
+- `--provider claude|copilot|codex` — filter to one provider
+- `--dir /path` — scan additional directories (data copied from another machine)
 
 ## Step 2: Report what was found
 
-Tell your person what providers were discovered and how many sessions/entries were extracted. Ask if they want you to proceed with generating stories from the data. This can take a few minutes for large histories.
+Tell your person what providers were discovered, how many sessions/entries extracted, how many messages imported, and what story gaps exist. Ask if they want you to proceed with generating stories. This can take a few minutes for large histories.
 
-## Step 3: Generate stories
+## Step 3: Fill weekly gaps
 
-The JSONL file contains entries grouped by session_id with timestamps. You need to:
+Parse the `weeks_needing_stories` from the summary. For each week, spawn a Storyteller subagent with the weekly JSONL file path from the summary. Run them in parallel — batch small files (< 10 entries) together, give larger files their own agent.
 
-1. Read the JSONL file and group entries by week (using timestamps)
-2. For each week, spawn a Storyteller subagent to generate a weekly story
-3. After all weeklies are done, generate monthly rollups
-4. After monthlies, generate a yearly and all-time story
-
-Use the Storyteller agent for each story. Each Storyteller should:
-- Read the relevant portion of the JSONL (or the lower-tier stories for rollups)
+Each Storyteller should:
+- Read the weekly JSONL file
 - Write a narrative following brain-friendly-stories rules
-- Save via `curl -s -X PUT http://127.0.0.1:8765/api/stories`
+- Save via `curl -s -X PUT http://127.0.0.1:8765/api/stories` with `"tier": "weekly"`
 
-### Weekly story generation
+## Step 4: Fill monthly gaps
 
-For each week's data, the Storyteller needs the raw conversation entries. Pass the JSONL file path and the date range.
+After all weeklies land, parse `months_needing_stories` from the summary. For each month, spawn a Storyteller that:
+- Fetches the weekly stories for that month: `curl -s "http://127.0.0.1:8765/api/stories?tier=weekly"`
+- Synthesizes them into a monthly chapter
+- Saves with `"tier": "monthly"`
 
-### Rollup generation
+Run monthly agents in parallel.
 
-For monthly/yearly/all-time, use the `/session-save` skill with the tier argument:
-```
-/session-save monthly 2026-01
-/session-save yearly 2026
-/session-save all_time
-```
+## Step 5: Regenerate all-time
 
-Or have Storytellers read existing stories from the API and synthesize:
-```bash
-curl -s "http://127.0.0.1:8765/api/stories?tier=weekly&limit=50"
-```
+If `alltime_stale` is set in the summary, spawn one Storyteller that:
+- Fetches all monthly stories: `curl -s "http://127.0.0.1:8765/api/stories?tier=monthly"`
+- Writes the full arc narrative
+- Saves with `"tier": "all-time"`
+
+Also regenerate the yearly story if needed.
 
 ## Important
 
-- Run Storyteller agents in parallel where possible (multiple weeks at once)
-- Don't generate session-tier stories from imports — dailies and weeklies are the right granularity for historical data
-- The person's existing stories should not be overwritten — check for overlapping periods before generating
+- Run Storyteller agents in parallel where possible (multiple weeks at once, multiple months at once)
+- Don't generate session-tier stories from imports — weeklies are the right granularity for historical data
+- The CLI handles dedup detection — if a week/month already has a story, it won't appear in the gap list
+- Steps 3→4→5 must run in sequence (monthlies need weeklies, all-time needs monthlies)
