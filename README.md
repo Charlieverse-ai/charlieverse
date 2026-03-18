@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="https://charlieverse.ai/charlie-logo.png" alt="Charlie" width="120" />
-</p>
-
 <h1 align="center">Charlieverse</h1>
 
 <p align="center">
