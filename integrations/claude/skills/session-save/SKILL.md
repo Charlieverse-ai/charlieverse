@@ -18,7 +18,7 @@ Review the command JSON for the expected output. Below are some details on what 
 After generating a story, save it by running:
 
 ```bash
-curl -s -X PUT http://127.0.0.1:8765/api/stories \
+curl -s -X PUT V_API/stories \
   -H "Content-Type: application/json" \
   -d '{
     "title": "<your title>",
@@ -42,7 +42,7 @@ After saving the session story, you MUST cascade up through the tiers to keep hi
 Fetch today's session stories and generate/update the daily story:
 
 ```bash
-charlie story-data daily
+V_CLI story-data daily
 ```
 
 Spawn a Storyteller subagent with that data. Save with `"tier": "daily"`.
@@ -51,7 +51,7 @@ Spawn a Storyteller subagent with that data. Save with `"tier": "daily"`.
 Fetch this week's daily stories and generate/update the weekly story:
 
 ```bash
-charlie story-data weekly
+V_CLI story-data weekly
 ```
 
 Spawn a Storyteller subagent with that data. Save with `"tier": "weekly"`.
@@ -60,7 +60,7 @@ Spawn a Storyteller subagent with that data. Save with `"tier": "weekly"`.
 Fetch this month's weekly stories and generate/update the monthly story:
 
 ```bash
-charlie story-data monthly
+V_CLI story-data monthly
 ```
 
 Spawn a Storyteller subagent with that data. Save with `"tier": "monthly"`.
@@ -69,5 +69,5 @@ Each tier depends on the one below it (daily needs session stories, weekly needs
 
 ---
 <session_data>
-!`charlie story-data ${CLAUDE_SESSION_ID}`
+!`V_CLI story-data ${CLAUDE_SESSION_ID}`
 </session_data>

@@ -9,16 +9,16 @@ You are importing conversation history from AI providers and turning it into sto
 
 ## Step 0: Check for existing import
 
-The setup script may have already extracted and imported recent messages. Check for `~/.charlieverse/import/conversations.jsonl` first:
+The setup script may have already extracted and imported recent messages. Check for `V_PATH/import/conversations.jsonl` first:
 
 ```bash
-ls -la ~/.charlieverse/import/conversations.jsonl
+ls -la V_PATH/import/conversations.jsonl
 ```
 
 If it exists, skip extraction and jump to gap detection:
 
 ```bash
-charlie import --from-file ~/.charlieverse/import/conversations.jsonl --stories
+V_CLI import --from-file V_PATH/import/conversations.jsonl --stories
 ```
 
 If the file doesn't exist, proceed with full extraction below.
@@ -28,7 +28,7 @@ If the file doesn't exist, proceed with full extraction below.
 Run the import command with `--recent-days 30` so recent history loads immediately and older messages import in the background:
 
 ```bash
-charlie import --messages --recent-days 30
+V_CLI import --messages --recent-days 30
 ```
 
 This does:
@@ -40,7 +40,7 @@ This does:
 For a full foreground import (no background split), omit `--recent-days`:
 
 ```bash
-charlie import --messages
+V_CLI import --messages
 ```
 
 The command prints an `<import_summary>` JSON with:
@@ -65,7 +65,7 @@ Parse the `weeks_needing_stories` from the summary. For each week, spawn a Story
 For each Storyteller result, extract the JSON fields and save:
 
 ```bash
-curl -s -X PUT http://127.0.0.1:8765/api/stories \
+curl -s -X PUT V_API/stories \
   -H "Content-Type: application/json" \
   -d '<the JSON object the Storyteller returned>'
 ```
@@ -77,7 +77,7 @@ Run Storyteller agents in parallel — batch small files (< 10 entries) together
 ## Step 4: Fill monthly gaps
 
 After all weeklies land, parse `months_needing_stories` from the summary. For each month:
-1. Fetch the weekly stories: `curl -s "http://127.0.0.1:8765/api/stories?tier=weekly"`
+1. Fetch the weekly stories: `curl -s "V_API/stories?tier=weekly"`
 2. Filter to the relevant month
 3. Spawn a Storyteller with those stories as input
 4. Save the returned JSON via curl with `"tier": "monthly"`
@@ -87,7 +87,7 @@ Run monthly agents in parallel.
 ## Step 5: Regenerate all-time
 
 If `alltime_stale` is set in the summary:
-1. Fetch all monthly stories: `curl -s "http://127.0.0.1:8765/api/stories?tier=monthly"`
+1. Fetch all monthly stories: `curl -s "V_API/stories?tier=monthly"`
 2. Spawn one Storyteller to write the full arc narrative
 3. Save with `"tier": "all-time"`
 

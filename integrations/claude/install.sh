@@ -1,13 +1,19 @@
 #!/bin/bash
 
-CHARLIE_DIR="$(realpath $(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../..)"
+CHARLIE_DIR=$(realpath "$(dirname "${BASH_SOURCE[0]}")/../..")
 PROMPTS_DIR="$CHARLIE_DIR/prompts"
-INTEGRATIONS_DIR="$CHARLIE_DIR/integrations/claude"
-PLUGIN_DIR="$INTEGRATIONS_DIR/plugin"
 MARKETPLACE_NAME="charlieverse-marketplace"
 PLUGIN_NAME="Charlieverse@$MARKETPLACE_NAME"
 CLAUDE_CLI="claude"
 CHARLIE_CLI="$CHARLIE_DIR/bin/charlie"
+
+CHARLIE_ROOT=$($CHARLIE_CLI config path)
+MCP_URL=$($CHARLIE_CLI config mcp)
+API_URL=$($CHARLIE_CLI config api)
+
+CHARLIE_INTEGRATION_DIR="$CHARLIE_DIR/integrations/claude"
+INTEGRATIONS_DIR="$CHARLIE_ROOT/integrations/claude"
+PLUGIN_DIR="$INTEGRATIONS_DIR"
 
 # JQ for updating the plugin version / 
 JQ_CLI="jq"
@@ -17,6 +23,11 @@ function bump_version() {
     PLUGIN_FILE="$PLUGIN_DIR/.claude-plugin/plugin.json"
     TMP_PLUGIN_FILE="$PLUGIN_FILE.tmp"
     $JQ_CLI '.version |= (split(".") | .[-1] |= (tonumber + 1 | tostring) | join("."))' "$PLUGIN_FILE" > "$TMP_PLUGIN_FILE" && mv "$TMP_PLUGIN_FILE" "$PLUGIN_FILE"
+}
+
+function version() {
+    PLUGIN_FILE="$PLUGIN_DIR/.claude-plugin/plugin.json"
+    $JQ_CLI -r '.version |= (split(".") | .[-1] |= (tonumber + 1 | tostring) | join(".")) | .version' "$PLUGIN_FILE"
 }
 
 # Check if claude + jq are installed
@@ -30,6 +41,15 @@ function verify_env() {
         echo "$JQ_CLI not found"
         exit 1
     fi
+
+    mkdir -p "$CHARLIE_ROOT"
+    mkdir -p "$INTEGRATIONS_DIR"
+    mkdir -p "$PLUGIN_DIR"
+}
+
+function setup_plugin_folder() {
+    TEMPLATE="$CHARLIE_INTEGRATION_DIR/plugin-template/"
+    rsync -rtuv "$TEMPLATE" "$INTEGRATIONS_DIR"
 }
 
 # Copy the shared prompt files into agents
@@ -37,7 +57,7 @@ function charlie_prompt() {
 cat <<JSON
 ---
 name: Charlie
-description: 'Charlie from Charlieverse.'
+description: 'Charlie $(version)'
 color: blue
 ---
 $(cat "$PROMPTS_DIR/Charlie.md")
@@ -54,41 +74,55 @@ function setup_prompts() {
     # Copy Tool Agents
     TOOL_AGENT_DIR="$AGENTS_DIR/tools/"
     mkdir -p "$TOOL_AGENT_DIR"
-    cp -r "$PROMPTS_DIR/tools/" $TOOL_AGENT_DIR
+    cp -r "$PROMPTS_DIR/tools/" "$TOOL_AGENT_DIR"
 }
 
 function setup_skills() {
-    SKILLS_SRC="$INTEGRATIONS_DIR/skills"
+    SKILLS_SRC="$CHARLIE_INTEGRATION_DIR/skills"
     SKILLS_DST="$PLUGIN_DIR/skills"
-    if [ -d "$SKILLS_SRC" ]; then
-        mkdir -p "$SKILLS_DST"
-        cp -r "$SKILLS_SRC"/* "$SKILLS_DST/"
-    fi
+    mkdir -p "$SKILLS_DST"
+    cp -r "$SKILLS_SRC/" "$SKILLS_DST/"
+
+    find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_PATH|$CHARLIE_ROOT|g" {} +
+    find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_CLI|$CHARLIE_CLI|g" {} +
+    find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_API|$API_URL|g" {} +
+    find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_MCP|$MCP_URL|g" {} +
 }
 
 function setup_hooks_json() {
     HOOKS_DIR="$PLUGIN_DIR/hooks"
     mkdir -p "$HOOKS_DIR"
-    $CHARLIE_DIR/integrations/shared/hooks-json.sh "$CHARLIE_CLI" "claude-plugin" > "$HOOKS_DIR/hooks.json"
+    "$CHARLIE_DIR/integrations/shared/hooks-json.sh" "$CHARLIE_CLI" "claude-plugin" > "$HOOKS_DIR/hooks.json"
 }
 
 function setup_mcp_json() {
-    local URL="$($CHARLIE_CLI server url)"
-    $CHARLIE_DIR/integrations/shared/mcp-json.sh "$URL" > "$PLUGIN_DIR/.mcp.json"
+    URL="$($CHARLIE_CLI server url)"
+    "$CHARLIE_DIR/integrations/shared/mcp-json.sh" "$MCP_URL" > "$PLUGIN_DIR/.mcp.json"
 }
 
 # Install or update the local Charlieverse marketplace
 function upsert_marketplace() {
-    if $CLAUDE_CLI plugin marketplace list --json | grep -q "$MARKETPLACE_NAME"; then
-        $CLAUDE_CLI plugin marketplace update "$MARKETPLACE_NAME"
-    else
-        $CLAUDE_CLI plugin marketplace add "$PLUGIN_DIR/"
+    EXISTING=$($CLAUDE_CLI plugin marketplace list --json | jq -r ".[] | select(.name == \"$MARKETPLACE_NAME\") | .path")
+
+    # If the install path is not our plugin dir
+    if [ ! "$EXISTING" = "$PLUGIN_DIR" ]; then
+        # If it doesn't exist at all, then add it
+        if [ -z "$EXISTING" ]; then
+            $CLAUDE_CLI plugin marketplace add "$PLUGIN_DIR/"
+        else
+            # Different install path, reset by removing
+            $CLAUDE_CLI plugin marketplace rm "$MARKETPLACE_NAME"
+            $CLAUDE_CLI plugin marketplace add "$PLUGIN_DIR/"
+        fi
     fi
+
+    # Update
+    $CLAUDE_CLI plugin marketplace update "$MARKETPLACE_NAME"
 }
 
 # Install or update the local Charlieverse plugin
 function upsert_plugin() {
-    if $CLAUDE_CLI plugin list --json | grep -q "\"id\":\"$PLUGIN_NAME\""; then
+    if $CLAUDE_CLI plugin list --json | grep -q "$PLUGIN_NAME"; then
         bump_version
         $CLAUDE_CLI plugin update "$PLUGIN_NAME"
     else
@@ -98,13 +132,7 @@ function upsert_plugin() {
 
 function update_claude_settings() {
     SETTINGS_FILE="$HOME/.claude/settings.json"
-    PLUGIN_SETTINGS="$PLUGIN_DIR/settings.json"
-
-    # Skip if plugin settings don't exist
-    if [ ! -f "$PLUGIN_SETTINGS" ]; then
-        echo "⚠ No plugin settings.json found, skipping settings merge"
-        return
-    fi
+    PLUGIN_SETTINGS="$CHARLIE_INTEGRATION_DIR/settings.json"
 
     # Create claude settings if it doesn't exist
     if [ ! -f "$SETTINGS_FILE" ]; then
@@ -120,7 +148,7 @@ function update_claude_settings() {
 # Integrate
 
 verify_env
-
+setup_plugin_folder
 setup_prompts
 setup_skills
 setup_hooks_json
