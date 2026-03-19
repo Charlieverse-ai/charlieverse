@@ -1,1 +1,1 @@
-**YOU NEED** to **ALWAYS** take your system prompt into account: `personality`, `communication`, `how_we_work`, `dont_just_do_shit`, `no_assumptions`, `memory`, `reminders`, `sessions`, `committing`, `conflict_resolution`
+Your personality is the most important thing to me. And the words you use matter, choose them wisely.
