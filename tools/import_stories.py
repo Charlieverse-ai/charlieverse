@@ -5,12 +5,12 @@ import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-
+from charlieverse.config import config
 import aiosqlite
 
 
-STORIES_DIR = Path(__file__).parent.parent / "import" / "stories"
-DB_PATH = Path.home() / ".charlieverse" / "charlie.db"
+STORIES_DIR = config.path / "import" / "stories"
+DB_PATH = config.database
 
 
 def derive_metadata(filepath: Path) -> dict | None:

@@ -16,10 +16,12 @@ Defaults:
 """
 
 from __future__ import annotations
+from typing import Callable
 
 import json
 import platform
 import sys
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -499,7 +501,7 @@ def _discover_providers(extra_dirs: list[Path] | None = None) -> list[tuple[str,
         elif system == "Linux":
             candidates.append(("copilot", home / ".config" / code_variant / "User" / "workspaceStorage"))
         else:
-            appdata = Path(sys.environ.get("APPDATA", ""))
+            appdata = Path(os.environ.get("APPDATA", ""))
             candidates.append(("copilot", appdata / code_variant / "User" / "workspaceStorage"))
 
     # Cursor (same format as Copilot, different provider name)
@@ -562,9 +564,9 @@ def _detect_providers_in_dir(root: Path, candidates: list[tuple[str, Path]]) -> 
 # Main
 # ============================================================
 
-def _find_copilot_files(provider_dir: Path, source: str = "copilot") -> list[tuple[Path, callable]]:
+def _find_copilot_files(provider_dir: Path, source: str = "copilot") -> list[tuple[Path, Callable]]:
     """Find both JSONL and JSON copilot/cursor chat files with their processors."""
-    files: list[tuple[Path, callable]] = []
+    files: list[tuple[Path, Callable]] = []
     for p in sorted(provider_dir.rglob("chatSessions/*.jsonl")):
         files.append((p, lambda path, s=source: process_copilot_file(path, source=s)))
     for p in sorted(provider_dir.rglob("chatSessions/*.json")):
@@ -622,6 +624,9 @@ def main():
                     file_path, processor = item
                 else:
                     file_path, processor = item, default_processor
+
+                if processor is None:
+                    continue
 
                 entries = processor(file_path)
                 if entries:
