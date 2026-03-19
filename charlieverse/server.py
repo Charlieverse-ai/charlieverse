@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from uuid import UUID, uuid4
+from typing import Literal, TypeAlias
 
 from fastmcp import Context, FastMCP
 from fastmcp.server.dependencies import CurrentContext
@@ -17,16 +18,15 @@ from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
 from charlieverse.db import database
 from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore, WorkLogStore
-from charlieverse.models import EntityType, Session, StoryTier
+from charlieverse.models import EntityType, Session, StoryTier, Entity, Knowledge
 from charlieverse.tools import knowledge as knowledge_tools
 from charlieverse.tools import memory as memory_tools
-from charlieverse.tools import work_log as work_log_tools
-
+from charlieverse.embeddings.service import encode_one
 
 @lifespan
 async def app_lifespan(server):
     """Initialize database and stores on server start."""
-    db_path = config.database.resolved_path
+    db_path = config.database
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     db = await database.connect(db_path)
@@ -53,6 +53,7 @@ async def app_lifespan(server):
 
 
 mcp = FastMCP("Charlieverse", lifespan=app_lifespan)
+McpTransport: TypeAlias = Literal["stdio", "http", "sse", "streamable-http"]
 
 
 # --- Helper to get stores from context ---
@@ -777,8 +778,6 @@ async def api_create_entity(request: Request) -> JSONResponse:
     body = await request.json()
     memories: MemoryStore = _rest_stores["memories"]
 
-    from datetime import datetime, timezone
-
     entity = Entity(
         type=EntityType(body["type"]),
         content=body["content"],
@@ -1045,9 +1044,7 @@ async def api_search(request: Request) -> JSONResponse:
     # If FTS returned nothing, fall back to vector search
     if not entity_results and not knowledge_results:
         try:
-            from charlieverse.embeddings.service import embed
-
-            embedding = embed(query)
+            embedding = encode_one(query)
             entity_results = await memories.search_by_vector(embedding, limit=limit)
             knowledge_results = await knowledge.search_by_vector(embedding, limit=limit)
         except Exception:
