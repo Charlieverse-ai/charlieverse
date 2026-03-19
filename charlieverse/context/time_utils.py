@@ -53,7 +53,7 @@ def relative_date(date: datetime) -> str:
     Falls back to full date format for dates older than a week.
     """
     now = datetime.now(timezone.utc)
-    diff = now - date.replace(tzinfo=timezone.utc)
+    diff = now - _normalize_tz(date)
     total_seconds = diff.total_seconds()
 
     if total_seconds < 0:

@@ -7,7 +7,7 @@ from charlieverse.context.reminders.types import HookContext, ReminderResult, Re
 
 
 class SearchMemoriesRule(ReminderRule):
-    tag = ReminderTag.SYSTEM_REMINDER
+    tag = ReminderTag.MEMORY_HINT
 
     async def evaluate(self, ctx: HookContext) -> ReminderResult | None:
         if ctx.event != "UserPromptSubmit":

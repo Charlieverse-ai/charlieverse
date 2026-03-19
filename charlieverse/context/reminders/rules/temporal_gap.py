@@ -12,7 +12,7 @@ GAP_THRESHOLD_SECONDS = 300  # 5 minutes
 
 
 class TemporalGapRule(ReminderRule):
-    tag = ReminderTag.CHARLIE_REMINDER
+    tag = ReminderTag.TEMPORAL_CONTEXT
 
     async def evaluate(self, ctx: HookContext) -> ReminderResult | None:
         last_response_at = ctx.metadata.get("last_assistant_response_at")

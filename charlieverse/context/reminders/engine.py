@@ -30,12 +30,10 @@ class RemindersEngine:
             *(rule.evaluate(ctx) for rule in self.rules),
             return_exceptions=True,
         )
-        results: list[ReminderResult] = []
-        for result in raw_results:
-            if isinstance(result, Exception):
-                continue
-            if result is not None:
-                results.append(result)
+        results: list[ReminderResult] = [
+            r for r in raw_results
+            if not isinstance(r, BaseException) and r is not None
+        ]
         return results
 
     def format(self, results: list[ReminderResult]) -> str:

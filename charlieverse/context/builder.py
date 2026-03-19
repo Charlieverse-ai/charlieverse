@@ -8,7 +8,8 @@ from uuid import UUID
 from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
 from charlieverse.models import Entity, EntityType, Knowledge, Session
 from charlieverse.models.story import Story
-
+from charlieverse.models.story import StoryTier
+from datetime import datetime
 
 @dataclass
 class ContextBundle:
@@ -114,10 +115,9 @@ class ActivationBuilder:
         weekly_stories: list[Story] = []
         all_time_story: Story | None = None
         if self.stories:
-            from charlieverse.models.story import StoryTier
-            from datetime import datetime, timezone
 
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            # Use local date for "today" — UTC date diverges from local after ~7-8 PM EST
+            today = datetime.now().astimezone().strftime("%Y-%m-%d")
 
             # Today's session stories (workspace-scoped)
             today_stories = await self.stories.find_by_period(

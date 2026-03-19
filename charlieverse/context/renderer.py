@@ -23,34 +23,37 @@ def render(bundle: ContextBundle) -> str:
 
     # Current datetime
     parts.append('---')
-    now_str = datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
+    now_str = datetime.now().astimezone().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
     parts.append(f"Now: {now_str}")
     parts.append(f"Current Session ID: {bundle.session.id}\n")
     parts.append('---')
 
     # Workspace awareness
-    if bundle.session.workspace and not bundle.session_stories:
-        parts.append(f"<workspace-context>New workspace: {bundle.session.workspace} — no previous sessions here.</workspace-context>")
+    # if bundle.session.workspace and not bundle.session_stories:
+    #     parts.append(f"<workspace-context>New workspace: {bundle.session.workspace} — no previous sessions here.</workspace-context>")
 
-    parts.append('<past_sessions>')
-    now = datetime.now(timezone.utc)
+    # Use local time for all "today/yesterday" display logic
+    now = datetime.now().astimezone()
 
     # If we have session stories, show those instead of raw sessions
     if bundle.session_stories:
+        parts.append('<latest_sessions>')
         current_date_key: str | None = None
         most_recent = True
         for story in bundle.session_stories:
             # Use period_start for date grouping (when the session happened)
-            story_date = story.updated_at #_parse_period_date(story.period_end) or story.updated_at
+            story_date = story.updated_at.astimezone()
             date_key = _date_group_key(story_date, now)
             if date_key != current_date_key:
                 current_date_key = date_key
                 parts.append(f"# {date_key}")
             parts.append(_render_story_session(story, now, most_recent=most_recent))
             most_recent = False
+        parts.append('</latest_sessions>')
 
     # Weekly stories for before today
     if bundle.weekly_stories:
+        parts.append('<our_week_so_far>')
         for story in bundle.weekly_stories:
             period_start = _parse_period_date(story.period_start)
             period_end = _parse_period_date(story.period_end)
@@ -60,8 +63,8 @@ def render(bundle: ContextBundle) -> str:
                 date_range = "recent"
             parts.append(f"# Week of {date_range}")
             parts.append(_render_story_weekly(story))
-
-    parts.append('</past_sessions>')
+        parts.append('</our_week_so_far>')
+    
 
     parts.append('<important>')
     if bundle.pinned_entities:
@@ -121,7 +124,7 @@ def _render_first_run(bundle: ContextBundle) -> str:
     parts: list[str] = []
     parts.append("<activation_output>")
 
-    now_str = datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
+    now_str = datetime.now().astimezone().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
     parts.append('---')
     parts.append(f"Now: {now_str}")
     parts.append(f"Current Session ID: {bundle.session.id}\n")
@@ -165,7 +168,8 @@ def _render_story_session(story: Story, now: datetime, most_recent: bool) -> str
     """Render a session story in the activation context."""
     lines: list[str] = []
 
-    story_date = story.updated_at #_parse_period_date(story.period_end) or story.updated_at
+    story_date = story.updated_at.astimezone()
+    lines.append(f"{"<most_recent>" if most_recent else "<session>"}")
     lines.append(f"## {_session_time(story_date, now)} - {story.title}")
 
     # Body — summary is the session narrative
@@ -176,6 +180,7 @@ def _render_story_session(story: Story, now: datetime, most_recent: bool) -> str
     else:
         lines.append(f"\n{story.summary}")
 
+    lines.append(f"{"</most_recent>" if most_recent else "</session>"}")
     return "\n".join(lines)
 
 
@@ -217,7 +222,7 @@ def _render_entity(entity: Entity) -> str:
 
 def _date_group_key(date: datetime, now: datetime) -> str:
     """Return the date group header: 'Today', 'Yesterday (March 14th)', or full date."""
-    d = date.replace(tzinfo=timezone.utc)
+    d = date
     today = now.date()
     session_date = d.date()
 
@@ -235,7 +240,7 @@ def _session_time(date: datetime, now: datetime) -> str:
     Today: relative time (3.5 hours ago)
     Other days: time of day (10:45 PM)
     """
-    d = date.replace(tzinfo=timezone.utc)
+    d = date.astimezone()
     total_seconds = (now - d).total_seconds()
 
     if d.date() == now.date() and total_seconds >= 0:
