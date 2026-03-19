@@ -7,8 +7,7 @@ from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
 from charlieverse.models import Entity, EntityType, Knowledge, Session
-from charlieverse.models.story import Story
-from charlieverse.models.story import StoryTier
+from charlieverse.models.story import Story, StoryTier
 from datetime import datetime
 
 @dataclass
@@ -17,7 +16,6 @@ class ContextBundle:
 
     session: Session
     recent_sessions: list[Session] = field(default_factory=list)
-    session_stories: list[Story] = field(default_factory=list)
     weekly_stories: list[Story] = field(default_factory=list)
     pinned_entities: list[Entity] = field(default_factory=list)
     moments: list[Entity] = field(default_factory=list)
@@ -30,7 +28,7 @@ class ContextBundle:
     def is_first_run(self) -> bool:
         """True when the database has no prior context — birthday time."""
         return (
-            not self.session_stories
+            not self.recent_sessions
             and not self.weekly_stories
             and not self.pinned_entities
             and not self.moments
@@ -45,7 +43,7 @@ class ContextBundle:
             ids.update(str(e.id) for e in group)
         for k in self.pinned_knowledge:
             ids.add(str(k.id))
-        for s in self.session_stories + self.weekly_stories:
+        for s in self.weekly_stories:
             ids.add(str(s.id))
         if self.all_time_story:
             ids.add(str(self.all_time_story.id))
@@ -76,12 +74,11 @@ class ActivationBuilder:
     async def build(
         self,
         session: Session,
-        recent_session_count: int = 10,
     ) -> ContextBundle:
         """Build the full context bundle for the given session."""
-        # Fetch recent sessions (respects workspace scoping)
-        recent_sessions = await self.sessions.recent(
-            limit=recent_session_count,
+        # Fetch sessions from the last 2 days (raw data, no story layer dependency)
+        recent_sessions = await self.sessions.recent_within_days(
+            days=2,
             workspace=session.workspace,
         )
 
@@ -109,35 +106,22 @@ class ActivationBuilder:
                     # Embeddings are best-effort — never block activation
                     pass
 
-        # Fetch stories for activation context
-        # Today: session-tier (granular). Before today: weekly-tier (compressed arcs).
-        session_stories: list[Story] = []
+        # Fetch stories — weekly for compressed history, all-time for the arc
         weekly_stories: list[Story] = []
         all_time_story: Story | None = None
         if self.stories:
-
-            # Use local date for "today" — UTC date diverges from local after ~7-8 PM EST
             today = datetime.now().astimezone().strftime("%Y-%m-%d")
 
-            # Today's session stories (workspace-scoped)
-            today_stories = await self.stories.find_by_period(
-                start=today, end=today, limit=10,
-                workspace=session.workspace,
-            )
-            session_stories = [s for s in today_stories if s.tier == StoryTier.session]
-
-            # Weekly stories for context before today
             weekly_stories = await self.stories.list(
                 tier=StoryTier.weekly, limit=4,
             )
-            # Filter out any weekly that covers only today (edge case: week just started)
             weekly_stories = [
                 s for s in weekly_stories
                 if s.period_start and s.period_start < today
             ]
 
             all_time_story = await self.stories.get_all_time()
-        
+
         # Fetch pinned knowledge
         pinned_knowledge = await self.knowledge.pinned()
 
@@ -160,12 +144,11 @@ class ActivationBuilder:
         return ContextBundle(
             session=session,
             recent_sessions=recent_sessions,
-            session_stories=session_stories,
             weekly_stories=weekly_stories,
             pinned_entities=pinned_entities,
             moments=moments,
             session_entities=session_entities,
             related_entities=related_entities,
             pinned_knowledge=pinned_knowledge,
-            all_time_story=all_time_story
+            all_time_story=all_time_story,
         )

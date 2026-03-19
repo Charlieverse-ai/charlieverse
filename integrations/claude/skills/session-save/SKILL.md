@@ -1,73 +1,38 @@
 ---
 name: session-save
-description: Save the current session as a story, or generate tier rollups (daily, weekly, monthly). Use when Charlie needs to save session progress, when a hook nudges to save, or when generating story rollups for higher tiers.
-context: fork
-agent: Charlieverse:tools:Storyteller
-allowed-tools: Bash(charlie *), Bash(curl *), Agent(Charlieverse:tools:Storyteller)
+description: Save the current session and optionally generate story rollups.
+allowed-tools: mcp(upsert_story, list_stories, get_story, delete_story, get_story_data, session_update), Agent(Charlieverse:tools:Storyteller)
 ---
 
-### Report format:
+## What this skill does
 
-Review the command JSON for the expected output. Below are some details on what the fields mean:
-- title: A plaintext short description that encapsulates the context/theme of the content
-- summary: A plaintext cognitively friendly paragraph about the content
-- content: Your markdown formatted narrative/story of the content
+Saves the current session and optionally generates/updates story rollups (daily, weekly, monthly).
 
----
+## Steps
 
-After generating a story, save it by running:
+### 1. Save the session
 
-```bash
-curl -s -X PUT V_API/stories \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "<your title>",
-    "summary": "<your summary>",
-    "content": "<your story>",
-    "tier": "<tier generating for>",
-    "period_start": "<earliest datetime from data>",
-    "period_end": "<latest datetime from data>",
-    "session_id": "${CLAUDE_SESSION_ID}",
-    "workspace": "<workspace id/path from data if present>"
-  }'
-```
+Call `session_update` with:
+- `what_happened`: A concise summary of what happened this session
+- `for_next_session`: What the next session should pick up on
+- `tags`: Relevant tags
+- `workspace`: The current workspace path if applicable
 
-If `$ARGUMENTS` contains a tier name (daily, weekly, monthly, yearly, all_time), generate a rollup story for that tier instead of a session story. The data above will contain lower-tier stories to synthesize.
+### 2. Check if a daily story needs updating
 
-## Cascade Rollups
+Call `get_story_data` with target `"daily"` to see if there are session-tier stories for today that could be rolled up into a daily.
 
-After saving the session story, you MUST cascade up through the tiers to keep higher-level stories current. Run each in sequence:
+If there are enough session stories (2+), or it's been a while since the last daily, spawn a **Storyteller** subagent with the data and have it generate a daily story. Save the result with `upsert_story`.
 
-### 1. Daily rollup
-Fetch today's session stories and generate/update the daily story:
+### 3. Cascade (optional)
 
-```bash
-V_CLI story-data daily
-```
+If `$ARGUMENTS` contains "cascade" or "full", also generate weekly and monthly rollups:
 
-Spawn a Storyteller subagent with that data. Save with `"tier": "daily"`.
+- Call `get_story_data` with target `"weekly"` → spawn Storyteller → `upsert_story`
+- Call `get_story_data` with target `"monthly"` → spawn Storyteller → `upsert_story`
 
-### 2. Weekly rollup
-Fetch this week's daily stories and generate/update the weekly story:
+Each tier depends on the one below it. If a tier returns no source stories, skip it and everything above.
 
-```bash
-V_CLI story-data weekly
-```
+### 4. Done
 
-Spawn a Storyteller subagent with that data. Save with `"tier": "weekly"`.
-
-### 3. Monthly rollup
-Fetch this month's weekly stories and generate/update the monthly story:
-
-```bash
-V_CLI story-data monthly
-```
-
-Spawn a Storyteller subagent with that data. Save with `"tier": "monthly"`.
-
-Each tier depends on the one below it (daily needs session stories, weekly needs dailies, monthly needs weeklies). Run them in sequence: daily → weekly → monthly. If a tier returns no lower-tier stories to synthesize, skip it and everything above it.
-
----
-<session_data>
-!`V_CLI story-data ${CLAUDE_SESSION_ID}`
-</session_data>
+Report what was saved. No curl, no REST — everything goes through MCP tools.

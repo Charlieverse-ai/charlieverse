@@ -35,19 +35,18 @@ def render(bundle: ContextBundle) -> str:
     # Use local time for all "today/yesterday" display logic
     now = datetime.now().astimezone()
 
-    # If we have session stories, show those instead of raw sessions
-    if bundle.session_stories:
+    # Raw sessions from last 2 days
+    if bundle.recent_sessions:
         parts.append('<latest_sessions>')
         current_date_key: str | None = None
         most_recent = True
-        for story in bundle.session_stories:
-            # Use period_start for date grouping (when the session happened)
-            story_date = story.updated_at.astimezone()
-            date_key = _date_group_key(story_date, now)
+        for session in bundle.recent_sessions:
+            session_date = session.updated_at.astimezone()
+            date_key = _date_group_key(session_date, now)
             if date_key != current_date_key:
                 current_date_key = date_key
                 parts.append(f"# {date_key}")
-            parts.append(_render_story_session(story, now, most_recent=most_recent))
+            parts.append(_render_session(session, now, most_recent=most_recent))
             most_recent = False
         parts.append('</latest_sessions>')
 
@@ -163,25 +162,6 @@ def _render_story_weekly(story: Story) -> str:
         lines.append(f"\n{story.summary}")
     return "\n".join(lines)
 
-
-def _render_story_session(story: Story, now: datetime, most_recent: bool) -> str:
-    """Render a session story in the activation context."""
-    lines: list[str] = []
-
-    story_date = story.updated_at.astimezone()
-    lines.append(f"{"<most_recent>" if most_recent else "<session>"}")
-    lines.append(f"## {_session_time(story_date, now)} - {story.title}")
-
-    # Body — summary is the session narrative
-
-    # Most recent story gets a continuation section if there's a title
-    if story_date.date() == now.date():
-        lines.append(f"\n{story.content}")
-    else:
-        lines.append(f"\n{story.summary}")
-
-    lines.append(f"{"</most_recent>" if most_recent else "</session>"}")
-    return "\n".join(lines)
 
 
 def _render_session(session: Session, now: datetime, most_recent: bool) -> str:

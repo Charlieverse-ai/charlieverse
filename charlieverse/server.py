@@ -323,6 +323,282 @@ async def session_update(
 
 
 # ============================================================
+# Story tools (MCP — for Storyteller subagent)
+# ============================================================
+
+
+@mcp.tool
+async def upsert_story(
+    title: str,
+    content: str,
+    tier: str,
+    period_start: str,
+    period_end: str,
+    summary: str | None = None,
+    session_id: str | None = None,
+    workspace: str | None = None,
+    tags: list[str] | None = None,
+    ctx: Context = CurrentContext(),
+):
+    """Create or update a story. For session stories, matches on session_id."""
+    from charlieverse.models.story import Story
+
+    stores = _stores(ctx)
+    story_store: StoryStore = stores["stories"]
+    sessions_store: SessionStore = stores["sessions"]
+
+    sid = UUID(session_id) if session_id else None
+
+    # Auto-create session row if needed (prevents FK violation)
+    if sid:
+        existing = await sessions_store.get(sid)
+        if not existing:
+            await sessions_store.create(Session(id=sid, workspace=workspace))
+
+    story = Story(
+        title=title,
+        summary=summary,
+        content=content,
+        tier=StoryTier(tier),
+        period_start=period_start,
+        period_end=period_end,
+        workspace=workspace,
+        session_id=sid,
+        tags=tags,
+    )
+
+    result = await story_store.upsert(story)
+
+    # Best-effort embedding
+    try:
+        text = f"{result.title}\n{result.summary or ''}\n{result.content}"
+        embedding = await encode_one(text)
+        from sqlite_vec import serialize_float32
+
+        db = stores["db"]
+        cursor = await db.execute(
+            "SELECT rowid FROM stories WHERE id = ?", (str(result.id),)
+        )
+        row = await cursor.fetchone()
+        if row:
+            await db.execute(
+                "INSERT OR REPLACE INTO stories_vec(rowid, embedding) VALUES(?, ?)",
+                (row[0], serialize_float32(embedding)),
+            )
+            await db.commit()
+    except Exception:
+        pass
+
+    return {"id": str(result.id), "title": result.title, "tier": result.tier.value}
+
+
+@mcp.tool
+async def list_stories(
+    tier: str | None = None,
+    limit: int = 20,
+    ctx: Context = CurrentContext(),
+):
+    """List stories, optionally filtered by tier (session, daily, weekly, monthly, all-time)."""
+    stores = _stores(ctx)
+    story_store: StoryStore = stores["stories"]
+
+    story_tier = StoryTier(tier) if tier else None
+    stories = await story_store.list(tier=story_tier, limit=limit)
+
+    return {
+        "stories": [
+            {
+                "id": str(s.id),
+                "title": s.title,
+                "tier": s.tier.value,
+                "period_start": s.period_start,
+                "period_end": s.period_end,
+                "summary": s.summary,
+            }
+            for s in stories
+        ]
+    }
+
+
+@mcp.tool
+async def get_story(
+    id: str,
+    ctx: Context = CurrentContext(),
+):
+    """Get a story by ID. Returns full content."""
+    stores = _stores(ctx)
+    story_store: StoryStore = stores["stories"]
+
+    story = await story_store.get(UUID(id))
+    if not story:
+        return {"error": "Story not found"}
+
+    return {
+        "id": str(story.id),
+        "title": story.title,
+        "summary": story.summary,
+        "content": story.content,
+        "tier": story.tier.value,
+        "period_start": story.period_start,
+        "period_end": story.period_end,
+        "session_id": str(story.session_id) if story.session_id else None,
+        "workspace": story.workspace,
+    }
+
+
+@mcp.tool
+async def delete_story(
+    id: str,
+    ctx: Context = CurrentContext(),
+):
+    """Soft-delete a story."""
+    stores = _stores(ctx)
+    story_store: StoryStore = stores["stories"]
+
+    story = await story_store.get(UUID(id))
+    if not story:
+        return {"error": "Story not found"}
+
+    await story_store.delete(UUID(id))
+    return {"deleted": True, "id": id}
+
+
+@mcp.tool
+async def get_story_data(
+    target: str,
+    ctx: Context = CurrentContext(),
+):
+    """Get data for the Storyteller to generate a story.
+
+    Args:
+        target: Either a session_id (UUID) for session stories,
+                or a tier name (daily, weekly, monthly) for rollups.
+                Rollups return lower-tier stories for synthesis.
+    """
+    from datetime import date, timedelta
+
+    stores = _stores(ctx)
+    story_store: StoryStore = stores["stories"]
+    db = stores["db"]
+
+    # Check if target is a tier name (rollup) or a session_id
+    tier_names = {"daily", "weekly", "monthly", "quarterly", "yearly"}
+    if target in tier_names:
+        today = date.today()
+
+        source_tier = None
+        range_start = None
+        range_end = None
+
+        if target == "daily":
+            source_tier = StoryTier.session
+            range_start = today.isoformat()
+            range_end = today.isoformat()
+        elif target == "weekly":
+            source_tier = StoryTier.daily
+            monday = today - timedelta(days=today.weekday())
+            sunday = monday + timedelta(days=6)
+            range_start = monday.isoformat()
+            range_end = sunday.isoformat()
+        elif target == "monthly":
+            source_tier = StoryTier.weekly
+            range_start = today.replace(day=1).isoformat()
+            if today.month == 12:
+                range_end = today.replace(year=today.year + 1, month=1, day=1).isoformat()
+            else:
+                range_end = today.replace(month=today.month + 1, day=1).isoformat()
+
+        stories = await story_store.find_by_period(range_start, range_end, limit=50)
+        if source_tier:
+            stories = [s for s in stories if s.tier == source_tier]
+
+        return {
+            "type": "rollup",
+            "tier": target,
+            "range_start": range_start,
+            "range_end": range_end,
+            "stories": [
+                {
+                    "id": str(s.id),
+                    "title": s.title,
+                    "summary": s.summary,
+                    "content": s.content,
+                    "tier": s.tier.value,
+                    "period_start": s.period_start,
+                    "period_end": s.period_end,
+                }
+                for s in stories
+            ],
+        }
+    else:
+        # Session story data
+        session_id = target
+        sessions_store: SessionStore = stores["sessions"]
+
+        session = await sessions_store.get(UUID(session_id))
+        existing_story = await story_store.find_by_session(UUID(session_id))
+        last_update = existing_story.updated_at.isoformat() if existing_story else None
+
+        # Get messages
+        if last_update:
+            cursor = await db.execute(
+                """SELECT id, role, content, created_at FROM messages
+                   WHERE session_id = ? AND created_at > ?
+                   ORDER BY created_at ASC""",
+                (session_id, last_update),
+            )
+        else:
+            cursor = await db.execute(
+                """SELECT id, role, content, created_at FROM messages
+                   WHERE session_id = ? ORDER BY created_at ASC""",
+                (session_id,),
+            )
+        msg_rows = await cursor.fetchall()
+
+        from datetime import datetime as dt
+
+        messages = []
+        prev_time = None
+        for row in msg_rows:
+            created = dt.fromisoformat(row["created_at"])
+            seconds_between = None
+            if prev_time:
+                seconds_between = str(int((created - prev_time).total_seconds()))
+            prev_time = created
+            messages.append({
+                "content": row["content"],
+                "from": "charlie" if row["role"] == "assistant" else "user",
+                "date_time": created.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+                "seconds_between": seconds_between,
+            })
+
+        # Recent memories from this session
+        cursor = await db.execute(
+            """SELECT type, content, tags FROM entities
+               WHERE created_session_id = ? AND deleted_at IS NULL
+               ORDER BY created_at ASC""",
+            (session_id,),
+        )
+        memories = [
+            {"type": row["type"], "content": row["content"][:300], "tags": row["tags"]}
+            for row in await cursor.fetchall()
+        ]
+
+        return {
+            "type": "session",
+            "session_id": session_id,
+            "workspace": session.workspace if session else None,
+            "existing_story": {
+                "title": existing_story.title,
+                "summary": existing_story.summary,
+                "content": existing_story.content,
+            } if existing_story else None,
+            "messages": messages,
+            "memories": memories,
+        }
+
+
+# ============================================================
 # REST API endpoints (for hooks CLI + future web UI)
 # ============================================================
 
