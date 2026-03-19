@@ -21,13 +21,14 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+import aiosqlite
 import typer
 
 from charlieverse.config import config
 
-DEFAULT_OUTPUT = Path.home() / ".charlieverse" / "import" / "conversations.jsonl"
-DEFAULT_SPLIT_DIR = Path.home() / ".charlieverse" / "import" / "weekly"
-DEFAULT_HOST = config.server.host
+DEFAULT_OUTPUT = config.path / "import" / "conversations.jsonl"
+DEFAULT_SPLIT_DIR = config.path / "import" / "weekly"
+DEFAULT_HOST = config.server.ip_address
 DEFAULT_PORT = config.server.port
 
 
@@ -87,7 +88,7 @@ async def _import(
         sys.path.insert(0, str(tools_dir))
 
         try:
-            from extract_conversations import (
+            from extract_conversations import (  # ty:ignore[unresolved-import]
                 _discover_providers,
                 PROVIDER_PROCESSORS,
             )
@@ -164,7 +165,7 @@ async def _import(
             messages_skipped += recent_skipped
 
             if older_file.exists() and older_file.stat().st_size > 0:
-                typer.echo(f"\nImporting older messages in the background...")
+                typer.echo("\nImporting older messages in the background...")
                 # Fork a background process for older messages
                 import subprocess
                 bg_cmd = [
@@ -175,11 +176,11 @@ async def _import(
                 ]
                 subprocess.Popen(
                     bg_cmd,
-                    stdout=open(Path.home() / ".charlieverse" / "logs" / "import-bg.log", "w"),
+                    stdout=open(config.logs / "import-bg.log", "w"),
                     stderr=subprocess.STDOUT,
                     start_new_session=True,
                 )
-                typer.echo(f"Background import started — log at ~/.charlieverse/logs/import-bg.log")
+                typer.echo("Background import started — log at ~/.charlieverse/logs/import-bg.log")
         else:
             typer.echo(f"\nImporting messages into database from {output}...")
             messages_imported, messages_skipped = await _import_messages_to_db(output, host, port)
@@ -314,7 +315,7 @@ async def _import_messages_to_db(
 
     Returns (imported_count, skipped_count).
     """
-    db_path = Path(config.database.path).expanduser()
+    db_path = config.database
     imported = 0
     skipped = 0
     batch: list[tuple] = []
@@ -367,11 +368,14 @@ async def _import_messages_to_db(
 
     return imported, skipped
 
+async def total_messages(db: "aiosqlite.Connection") -> int:
+    cursor = await db.execute("SELECT COUNT(*) as total FROM messages LIMIT 1")
+    row: aiosqlite.Row | None = await cursor.fetchone()
+    return row[0] if row else 0
 
 async def _flush_batch(db: "aiosqlite.Connection", batch: list[tuple]) -> int:
     """Insert a batch of messages, returns count of rows inserted."""
-    cursor = await db.execute("SELECT COUNT(*) FROM messages")
-    before = (await cursor.fetchone())[0]
+    before = await total_messages(db)
 
     await db.executemany(
         """INSERT OR IGNORE INTO messages (id, session_id, role, content, created_at)
@@ -380,8 +384,7 @@ async def _flush_batch(db: "aiosqlite.Connection", batch: list[tuple]) -> int:
     )
     await db.commit()
 
-    cursor = await db.execute("SELECT COUNT(*) FROM messages")
-    after = (await cursor.fetchone())[0]
+    after = await total_messages(db)
 
     return after - before
 
@@ -455,7 +458,7 @@ async def _get_existing_weekly_stories() -> set[str]:
     """
     from charlieverse.db.database import connect
 
-    db_path = Path(config.database.path).expanduser()
+    db_path = config.database
     existing: set[str] = set()
 
     db = await connect(db_path)
@@ -482,7 +485,7 @@ async def _get_months_needing_stories() -> list[dict]:
     """
     from charlieverse.db.database import connect
 
-    db_path = Path(config.database.path).expanduser()
+    db_path = config.database
     results: list[dict] = []
 
     db = await connect(db_path)
@@ -532,7 +535,7 @@ async def _is_alltime_stale() -> dict | None:
     """
     from charlieverse.db.database import connect
 
-    db_path = Path(config.database.path).expanduser()
+    db_path = config.database
 
     db = await connect(db_path)
     try:

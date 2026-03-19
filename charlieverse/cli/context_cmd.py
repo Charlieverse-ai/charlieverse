@@ -8,7 +8,7 @@ import typer
 
 from charlieverse.config import config
 
-DEFAULT_HOST = config.server.host
+DEFAULT_HOST = config.server.ip_address()
 DEFAULT_PORT = config.server.port
 
 
@@ -37,7 +37,7 @@ async def _context(
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
-                f"http://{host}:{port}/api/sessions/context",
+                config.server.api_url("sessions/context"),
                 params=params,
             )
             resp.raise_for_status()

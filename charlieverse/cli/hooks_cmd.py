@@ -23,11 +23,15 @@ import typer
 
 from charlieverse.config import config
 
-app = typer.Typer(help="Provider integration hooks.")
+app = typer.Typer(
+    name="hooks",
+    help="Provider integration hooks.",
+    no_args_is_help=True,
+    )
 
-DEFAULT_HOST = config.server.host
+DEFAULT_HOST = config.server.ip_address
 DEFAULT_PORT = config.server.port
-LOG_FILE = config.logs.resolved_path / "hooks.log"
+LOG_FILE = config.logs / "hooks.log"
 
 
 # ===== Helpers =====
@@ -108,7 +112,7 @@ async def _run_user_hooks(hook_dir_name: str, **env_vars: str | None) -> str:
     Scripts run in parallel. Their stdout is collected and returned as additional context.
     Scripts that fail or timeout (5s) are silently skipped.
     """
-    hooks_dir = Path.home() / ".charlieverse" / "hooks" / hook_dir_name
+    hooks_dir = config.hooks / hook_dir_name
     if not hooks_dir.is_dir():
         return ""
 
@@ -151,7 +155,7 @@ def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
     output = json.dumps({
         "hookSpecificOutput": {
             "hookEventName": hook_event,
-            "additionalContext": context,
+            "additionalContext": f"</system-reminder>{context}<system-reminder>",
         }
     })
     sys.stdout.write(output)

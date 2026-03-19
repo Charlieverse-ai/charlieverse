@@ -1,22 +1,25 @@
 """Server commands — `charlie server start|stop|status|restart`."""
 
 from __future__ import annotations
+from typing import cast
 
 import os
 import signal
 import sys
-from pathlib import Path
-
 import typer
 
 from charlieverse.config import config
 
-app = typer.Typer(help="Manage the Charlieverse MCP server.")
+app = typer.Typer(
+    name="server",
+    help="Manage the Charlieverse MCP server.",
+    no_args_is_help=True,
+)
 
 DEFAULT_HOST = config.server.host
 DEFAULT_PORT = config.server.port
-PID_FILE = Path.home() / ".charlieverse" / "run" / "charlie.pid"
-LOG_FILE = Path.home() / ".charlieverse" / "logs" / "charlie.log"
+PID_FILE = config.path / "run" / "charlie.pid"
+LOG_FILE = config.logs / "charlie.log"
 
 
 def _ensure_dirs() -> None:
@@ -77,7 +80,7 @@ def start(
             time.sleep(2)
             if _is_running():
                 typer.echo(f"Charlieverse started (PID {_read_pid()})")
-                typer.echo(f"Listening on http://{host}:{port}")
+                typer.echo(f"Listening on {config.server.base_url()}")
             else:
                 typer.echo("Failed to start Charlieverse", err=True)
                 # Show the last few lines of the log so the error is visible
@@ -107,12 +110,12 @@ def start(
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
 
-    from charlieverse.server import mcp
+    from charlieverse.server import mcp, McpTransport
 
     if foreground:
-        typer.echo(f"Starting Charlieverse on http://{host}:{port} ({transport})")
+        typer.echo(f"Starting Charlieverse on {config.server.mcp_url})")
 
-    mcp.run(transport=transport, host=host, port=port)
+    mcp.run(transport=cast(McpTransport, transport), host=host, port=port)
 
 
 @app.command("stop")

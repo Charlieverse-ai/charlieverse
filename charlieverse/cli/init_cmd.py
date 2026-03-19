@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
+from charlieverse.config import config
 from pathlib import Path
 
 import typer
@@ -12,7 +12,7 @@ import typer
 
 def init(
     path: str = typer.Option(
-        str(Path.home() / ".charlieverse"),
+        str(config.path),
         help="Root directory for Charlieverse data",
     ),
 ) -> None:
@@ -38,20 +38,6 @@ def init(
                 f"# stdout is injected into Charlie's context. 5s timeout.\n"
             )
     typer.echo(f"✔ Hook directories at {hooks_dir}")
-
-    # ── Default config ───────────────────────────────────────
-    config_path = root / "config.json"
-    if not config_path.exists():
-        import json
-
-        config = {
-            "host": "127.0.0.1",
-            "port": 8765,
-        }
-        config_path.write_text(json.dumps(config, indent=2))
-        typer.echo(f"Created config at {config_path}")
-    else:
-        typer.echo(f"Config already exists at {config_path}")
 
     # ── spaCy model ──────────────────────────────────────────
     try:
