@@ -1,6 +1,7 @@
 """Story store — CRUD for tiered narrative arcs."""
 
 from __future__ import annotations
+from typing import List
 
 import json
 from datetime import datetime, timezone
@@ -115,7 +116,7 @@ class StoryStore:
         self,
         tier: StoryTier | None = None,
         limit: int = 50,
-    ) -> list[Story]:
+    ) -> List[Story]:
         """List stories, optionally filtered by tier."""
         if tier:
             cursor = await self.db.execute(
@@ -135,7 +136,7 @@ class StoryStore:
         end: str,
         limit: int = 5,
         workspace: str | None = None,
-    ) -> list[Story]:
+    ) -> List[Story]:
         """Find stories whose period overlaps with the given date range.
 
         Args:
@@ -148,9 +149,9 @@ class StoryStore:
             cursor = await self.db.execute(
                 """SELECT * FROM stories
                    WHERE deleted_at IS NULL
-                   AND DATE(period_start) <= ? AND DATE(period_end) >= ?
-                   AND workspace = ?
-                   ORDER BY tier ASC, period_start DESC
+                   AND DATE(period_start, 'localtime') <= ? AND DATE(period_end, 'localtime') >= ?
+                   AND (workspace = ? OR workspace IS NULL)
+                   ORDER BY updated_at DESC
                    LIMIT ?""",
                 (end, start, workspace, limit),
             )
@@ -158,8 +159,8 @@ class StoryStore:
             cursor = await self.db.execute(
                 """SELECT * FROM stories
                    WHERE deleted_at IS NULL
-                   AND DATE(period_start) <= ? AND DATE(period_end) >= ?
-                   ORDER BY tier ASC, period_start DESC
+                   AND DATE(period_start, 'localtime') <= ? AND DATE(period_end, 'localtime') >= ?
+                   ORDER BY updated_at DESC
                    LIMIT ?""",
                 (end, start, limit),
             )
@@ -226,7 +227,7 @@ class StoryStore:
         period_start: str | None = None,
         period_end: str | None = None,
         limit: int = 5,
-    ) -> list[Story]:
+    ) -> List[Story]:
         """Search stories via FTS, optionally filtered by date range.
 
         If both query and date range are provided, results must match both.
@@ -271,11 +272,11 @@ class StoryStore:
 
     async def search_by_vector(
         self,
-        embedding: list[float],
+        embedding: List[float],
         period_start: str | None = None,
         period_end: str | None = None,
         limit: int = 5,
-    ) -> list[Story]:
+    ) -> List[Story]:
         """Search stories by vector similarity, optionally filtered by date range."""
         from sqlite_vec import serialize_float32
 

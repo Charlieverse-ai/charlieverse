@@ -1,6 +1,7 @@
 """Work log store — CRUD and search for work log entries."""
 
 from __future__ import annotations
+from typing import List
 
 import json
 from datetime import datetime, timezone
@@ -79,7 +80,7 @@ class WorkLogStore:
         self,
         session_id: UUID | None = None,
         limit: int = 50,
-    ) -> list[WorkLog]:
+    ) -> List[WorkLog]:
         """List active work logs, optionally filtered by session."""
         if session_id:
             cursor = await self.db.execute(
@@ -95,7 +96,7 @@ class WorkLogStore:
             )
         return [_row_to_work_log(row) for row in await cursor.fetchall()]
 
-    async def for_sessions(self, session_ids: list[UUID]) -> list[WorkLog]:
+    async def for_sessions(self, session_ids: List[UUID]) -> List[WorkLog]:
         """Fetch work logs linked to the given sessions."""
         if not session_ids:
             return []
@@ -109,7 +110,7 @@ class WorkLogStore:
         )
         return [_row_to_work_log(row) for row in await cursor.fetchall()]
 
-    async def search(self, query: str, limit: int = 10) -> list[WorkLog]:
+    async def search(self, query: str, limit: int = 10) -> List[WorkLog]:
         """Full-text search across work logs using FTS5 + BM25 ranking."""
         cursor = await self.db.execute(
             """SELECT w.* FROM work_logs w

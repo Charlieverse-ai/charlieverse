@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from uuid import UUID
+from typing import List
 
 import aiosqlite
 
@@ -83,7 +84,7 @@ class MemoryStore:
         self,
         entity_type: EntityType | None = None,
         limit: int = 50,
-    ) -> list[Entity]:
+    ) -> List[Entity]:
         """List active entities, optionally filtered by type."""
         if entity_type:
             cursor = await self.db.execute(
@@ -135,14 +136,14 @@ class MemoryStore:
         )
         await self.db.commit()
 
-    async def pinned(self) -> list[Entity]:
+    async def pinned(self) -> List[Entity]:
         """Fetch all pinned, active entities."""
         cursor = await self.db.execute(
             "SELECT * FROM entities WHERE pinned = 1 AND deleted_at IS NULL ORDER BY created_at DESC",
         )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
 
-    async def for_sessions(self, session_ids: list[UUID]) -> list[Entity]:
+    async def for_sessions(self, session_ids: List[UUID]) -> List[Entity]:
         """Fetch active entities linked to the given sessions."""
         if not session_ids:
             return []
@@ -156,7 +157,7 @@ class MemoryStore:
         )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
 
-    async def search(self, query: str, limit: int = 10) -> list[Entity]:
+    async def search(self, query: str, limit: int = 10) -> List[Entity]:
         """Full-text search across entities using FTS5 + BM25 ranking."""
         from charlieverse.db.fts import sanitize_fts_query
 
@@ -175,7 +176,7 @@ class MemoryStore:
         )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
 
-    async def search_by_vector(self, embedding: list[float], limit: int = 10) -> list[Entity]:
+    async def search_by_vector(self, embedding: List[float], limit: int = 10) -> List[Entity]:
         """Semantic search using sqlite-vec cosine similarity."""
         from sqlite_vec import serialize_float32
 
@@ -192,7 +193,7 @@ class MemoryStore:
         rows = await cursor.fetchall()
         return [_row_to_entity(row) for row in rows]
 
-    async def upsert_embedding(self, entity_id: UUID, embedding: list[float]) -> None:
+    async def upsert_embedding(self, entity_id: UUID, embedding: List[float]) -> None:
         """Store or update the embedding for an entity."""
         from sqlite_vec import serialize_float32
 

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from uuid import UUID
-
 import aiosqlite
 
+from datetime import datetime, timezone
+from uuid import UUID
+from typing import List
 from charlieverse.models import Knowledge
 
 
@@ -111,7 +111,7 @@ class KnowledgeStore:
             return existing
         return await self.create(knowledge)
 
-    async def list(self, limit: int = 50) -> list[Knowledge]:
+    async def list(self, limit: int = 50) -> List[Knowledge]:
         """List active knowledge articles."""
         cursor = await self.db.execute(
             "SELECT * FROM knowledge WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?",
@@ -119,7 +119,7 @@ class KnowledgeStore:
         )
         return [_row_to_knowledge(row) for row in await cursor.fetchall()]
 
-    async def pinned(self) -> list[Knowledge]:
+    async def pinned(self) -> List[Knowledge]:
         """Fetch all pinned, active knowledge articles."""
         cursor = await self.db.execute(
             "SELECT * FROM knowledge WHERE pinned = 1 AND deleted_at IS NULL ORDER BY topic",
@@ -144,7 +144,7 @@ class KnowledgeStore:
         )
         await self.db.commit()
 
-    async def search(self, query: str, limit: int = 10) -> list[Knowledge]:
+    async def search(self, query: str, limit: int = 10) -> List[Knowledge]:
         """Full-text search across knowledge using FTS5 + BM25 ranking."""
         from charlieverse.db.fts import sanitize_fts_query
 
@@ -163,7 +163,7 @@ class KnowledgeStore:
         )
         return [_row_to_knowledge(row) for row in await cursor.fetchall()]
 
-    async def search_by_vector(self, embedding: list[float], limit: int = 10) -> list[Knowledge]:
+    async def search_by_vector(self, embedding: List[float], limit: int = 10) -> List[Knowledge]:
         """Semantic search using sqlite-vec."""
         from sqlite_vec import serialize_float32
 
@@ -179,7 +179,7 @@ class KnowledgeStore:
         )
         return [_row_to_knowledge(row) for row in await cursor.fetchall()]
 
-    async def upsert_embedding(self, knowledge_id: UUID, embedding: list[float]) -> None:
+    async def upsert_embedding(self, knowledge_id: UUID, embedding: List[float]) -> None:
         """Store or update the embedding for a knowledge article."""
         from sqlite_vec import serialize_float32
 
