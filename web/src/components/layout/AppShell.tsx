@@ -21,20 +21,20 @@ type DetailItem =
 
 type DetailSource = 'search' | 'page' | 'permalink'
 
-/** Parse hash routes like #/memories/{id}, #/stories/{id}, etc. */
-function parseHash(hash: string): { kind: string; id: string } | null {
-  const match = hash.match(/^#\/(memories|stories|sessions|knowledge)\/(.+)$/)
+/** Parse path routes like /memories/{id}, /stories/{id}, etc. */
+function parsePath(pathname: string): { kind: string; id: string } | null {
+  const match = pathname.match(/^\/(memories|stories|sessions|knowledge)\/(.+)$/)
   if (!match) return null
   return { kind: match[1], id: match[2] }
 }
 
-/** Build a hash route for a detail item */
-function hashForItem(item: DetailItem): string {
+/** Build a path for a detail item */
+function pathForItem(item: DetailItem): string {
   switch (item.kind) {
-    case 'entity': return `#/memories/${item.data.id}`
-    case 'story': return `#/stories/${item.data.id}`
-    case 'session': return `#/sessions/${item.data.id}`
-    case 'knowledge': return `#/knowledge/${item.data.id}`
+    case 'entity': return `/memories/${item.data.id}`
+    case 'story': return `/stories/${item.data.id}`
+    case 'session': return `/sessions/${item.data.id}`
+    case 'knowledge': return `/knowledge/${item.data.id}`
   }
 }
 
@@ -57,9 +57,9 @@ export function AppShell() {
     localStorage.setItem('cv-theme', theme)
   }, [theme])
 
-  // Permalink: load detail from hash on mount
+  // Permalink: load detail from URL path on mount
   useEffect(() => {
-    const route = parseHash(window.location.hash)
+    const route = parsePath(window.location.pathname)
     if (!route) return
 
     const load = async () => {
@@ -86,22 +86,22 @@ export function AppShell() {
           setPage('knowledge')
         }
       } catch {
-        // Item not found — just show the page
-        window.location.hash = ''
+        // Item not found — navigate to root
+        history.replaceState(null, '', '/')
       }
     }
     load()
   }, [])
 
-  // Permalink: update hash when detail opens/closes
+  // Permalink: update URL path when detail opens/closes
   useEffect(() => {
     if (detailItem) {
-      const hash = hashForItem(detailItem)
-      if (window.location.hash !== hash) {
-        window.location.hash = hash
+      const path = pathForItem(detailItem)
+      if (window.location.pathname !== path) {
+        history.pushState(null, '', path)
       }
-    } else if (window.location.hash.match(/^#\/(memories|stories|sessions|knowledge)\//)) {
-      history.replaceState(null, '', window.location.pathname)
+    } else if (parsePath(window.location.pathname)) {
+      history.replaceState(null, '', '/')
     }
   }, [detailItem])
 

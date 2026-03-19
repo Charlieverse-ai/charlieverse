@@ -64,7 +64,7 @@ def _stores(ctx: Context) -> dict:
 
 def _permalink(kind: str, id: str) -> str:
     """Build a web UI permalink URL."""
-    return f"{config.server.dashboard_url()}#/{kind}/{id}"
+    return f"{config.server.dashboard_url()}{kind}/{id}"
 
 
 async def _remember_with_url(result, kind: str = "memories") -> dict:
