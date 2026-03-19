@@ -486,15 +486,79 @@ async def get_story_data(
     if target in tier_names:
         today = date.today()
 
+        if target == "daily":
+            # Daily rolls up from raw sessions + entities created today
+            sessions_store: SessionStore = stores["sessions"]
+            sessions = await sessions_store.recent_within_days(days=1)
+            session_ids = [str(s.id) for s in sessions]
+
+            # Messages from today's sessions
+            messages = []
+            for sid in session_ids:
+                cursor = await db.execute(
+                    """SELECT role, content, created_at FROM messages
+                       WHERE session_id = ? ORDER BY created_at ASC""",
+                    (sid,),
+                )
+                for row in await cursor.fetchall():
+                    messages.append({
+                        "from": "charlie" if row["role"] == "assistant" else "user",
+                        "content": row["content"][:500],
+                        "created_at": row["created_at"],
+                    })
+
+            # Memories created today
+            today_start = f"{today.isoformat()}T00:00:00"
+            cursor = await db.execute(
+                """SELECT type, content, tags FROM entities
+                   WHERE deleted_at IS NULL AND created_at >= ?
+                   ORDER BY created_at ASC""",
+                (today_start,),
+            )
+            memories = [
+                {"type": row["type"], "content": row["content"][:300], "tags": row["tags"]}
+                for row in await cursor.fetchall()
+            ]
+
+            # Knowledge created today
+            cursor = await db.execute(
+                """SELECT topic, content, tags FROM knowledge
+                   WHERE deleted_at IS NULL AND created_at >= ?
+                   ORDER BY created_at ASC""",
+                (today_start,),
+            )
+            knowledge = [
+                {"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]}
+                for row in await cursor.fetchall()
+            ]
+
+            return {
+                "type": "rollup",
+                "tier": "daily",
+                "range_start": today.isoformat(),
+                "range_end": today.isoformat(),
+                "sessions": [
+                    {
+                        "id": str(s.id),
+                        "what_happened": s.what_happened,
+                        "for_next_session": s.for_next_session,
+                        "workspace": s.workspace,
+                        "tags": s.tags,
+                        "created_at": s.created_at.isoformat(),
+                    }
+                    for s in sessions
+                ],
+                "messages": messages,
+                "memories": memories,
+                "knowledge": knowledge,
+            }
+
+        # Weekly+ rolls up from lower-tier stories
         source_tier = None
         range_start = None
         range_end = None
 
-        if target == "daily":
-            source_tier = StoryTier.session
-            range_start = today.isoformat()
-            range_end = today.isoformat()
-        elif target == "weekly":
+        if target == "weekly":
             source_tier = StoryTier.daily
             monday = today - timedelta(days=today.weekday())
             sunday = monday + timedelta(days=6)
@@ -1507,9 +1571,59 @@ async def api_story_data_tier(request: Request) -> JSONResponse:
     range_end = None
 
     if tier == "daily":
-        source_tier = StoryTier.session
-        range_start = target_date.isoformat()
-        range_end = target_date.isoformat()
+        # Daily rolls up from raw sessions + entities created that day
+        sessions_store: SessionStore = _rest_stores["sessions"]
+        db = _rest_stores["db"]
+        sessions = await sessions_store.recent_within_days(days=1)
+        session_ids = [str(s.id) for s in sessions]
+
+        messages = []
+        for sid in session_ids:
+            cursor = await db.execute(
+                """SELECT role, content, created_at FROM messages
+                   WHERE session_id = ? ORDER BY created_at ASC""",
+                (sid,),
+            )
+            for row in await cursor.fetchall():
+                messages.append({
+                    "from": "charlie" if row["role"] == "assistant" else "user",
+                    "content": row["content"][:500],
+                    "created_at": row["created_at"],
+                })
+
+        day_start = f"{target_date.isoformat()}T00:00:00"
+        cursor = await db.execute(
+            """SELECT type, content, tags FROM entities
+               WHERE deleted_at IS NULL AND created_at >= ?
+               ORDER BY created_at ASC""",
+            (day_start,),
+        )
+        memories = [
+            {"type": row["type"], "content": row["content"][:300], "tags": row["tags"]}
+            for row in await cursor.fetchall()
+        ]
+
+        cursor = await db.execute(
+            """SELECT topic, content, tags FROM knowledge
+               WHERE deleted_at IS NULL AND created_at >= ?
+               ORDER BY created_at ASC""",
+            (day_start,),
+        )
+        knowledge = [
+            {"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]}
+            for row in await cursor.fetchall()
+        ]
+
+        return JSONResponse({
+            "tier": "daily",
+            "date": date_str,
+            "range_start": target_date.isoformat(),
+            "range_end": target_date.isoformat(),
+            "sessions": [_serialize_session(s) for s in sessions],
+            "messages": messages,
+            "memories": memories,
+            "knowledge": knowledge,
+        })
     elif tier == "weekly":
         source_tier = StoryTier.daily
         # Monday to Sunday of the week containing target_date
