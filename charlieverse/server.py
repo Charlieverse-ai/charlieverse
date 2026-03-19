@@ -62,6 +62,16 @@ def _stores(ctx: Context) -> dict:
     return ctx.lifespan_context
 
 
+def _permalink(kind: str, id: str) -> str:
+    """Build a web UI permalink URL."""
+    return f"{config.server.dashboard_url()}#/{kind}/{id}"
+
+
+async def _remember_with_url(result, kind: str = "memories") -> dict:
+    """Wrap a remember_* result to include a permalink URL."""
+    return {"id": str(result.id), "url": _permalink(kind, str(result.id))}
+
+
 # ============================================================
 # Memory tools
 # ============================================================
@@ -77,10 +87,11 @@ async def remember_decision(
     ctx: Context = CurrentContext(),
 ):
     """Remember a decision and why it was made."""
-    return await memory_tools.remember_decision(
+    result = await memory_tools.remember_decision(
         content=decision, rationale=rationale, session_id=session_id,
         tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
+    return await _remember_with_url(result)
 
 
 @mcp.tool
@@ -93,10 +104,11 @@ async def remember_solution(
     ctx: Context = CurrentContext(),
 ):
     """Remember a problem and how it was solved."""
-    return await memory_tools.remember_solution(
+    result = await memory_tools.remember_solution(
         problem=problem, solution=solution, session_id=session_id,
         tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
+    return await _remember_with_url(result)
 
 
 @mcp.tool
@@ -108,10 +120,11 @@ async def remember_preference(
     ctx: Context = CurrentContext(),
 ):
     """Remember a user preference or working style note."""
-    return await memory_tools.remember_preference(
+    result = await memory_tools.remember_preference(
         content=content, session_id=session_id,
         tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
+    return await _remember_with_url(result)
 
 
 @mcp.tool
@@ -123,10 +136,11 @@ async def remember_person(
     ctx: Context = CurrentContext(),
 ):
     """Remember a person — who they are, relationship, context."""
-    return await memory_tools.remember_person(
+    result = await memory_tools.remember_person(
         content=content, session_id=session_id,
         tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
+    return await _remember_with_url(result)
 
 
 @mcp.tool
@@ -139,10 +153,11 @@ async def remember_milestone(
     ctx: Context = CurrentContext(),
 ):
     """Remember a significant achievement or moment."""
-    return await memory_tools.remember_milestone(
+    result = await memory_tools.remember_milestone(
         milestone=milestone, significance=significance, session_id=session_id,
         tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
+    return await _remember_with_url(result)
 
 
 @mcp.tool
@@ -156,10 +171,11 @@ async def remember_moment(
     ctx: Context = CurrentContext(),
 ):
     """Remember a moment from our interactions — write it like a journal entry."""
-    return await memory_tools.remember_moment(
+    result = await memory_tools.remember_moment(
         moment=moment, feeling=feeling, context=context, session_id=session_id,
         tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
     )
+    return await _remember_with_url(result)
 
 
 @mcp.tool
@@ -187,10 +203,11 @@ async def update_memory(
     ctx: Context = CurrentContext(),
 ):
     """Update an existing memory's content and/or tags. Preserves creation date and provenance."""
-    return await memory_tools.update_memory(
+    result = await memory_tools.update_memory(
         id=id, content=content, tags=tags, session_id=session_id,
         memories=_stores(ctx)["memories"],
     )
+    return {"id": id, "url": _permalink("memories", id)}
 
 
 @mcp.tool
@@ -242,11 +259,12 @@ async def update_knowledge(
     ctx: Context = CurrentContext(),
 ):
     """Create or update a knowledge article."""
-    return await knowledge_tools.update_knowledge(
+    result = await knowledge_tools.update_knowledge(
         topic=topic, content=content, session_id=session_id,
         tags=tags, pinned=pinned,
         knowledge_store=_stores(ctx)["knowledge"],
     )
+    return {"id": str(result.id), "url": _permalink("knowledge", str(result.id))}
 
 # ============================================================
 # Message search tools
@@ -312,7 +330,7 @@ async def session_update(
     # Use provided session_id or generate one
     sid = session_id or str(uuid4())
 
-    return await _session_update(
+    result = await _session_update(
         id=sid,
         what_happened=what_happened,
         for_next_session=for_next_session,
@@ -320,6 +338,7 @@ async def session_update(
         workspace=workspace,
         sessions=sessions,
     )
+    return {"saved": True, "session_id": sid, "url": _permalink("sessions", sid)}
 
 
 # ============================================================
@@ -389,7 +408,7 @@ async def upsert_story(
     except Exception:
         pass
 
-    return {"id": str(result.id), "title": result.title, "tier": result.tier.value}
+    return {"id": str(result.id), "title": result.title, "tier": result.tier.value, "url": _permalink("stories", str(result.id))}
 
 
 @mcp.tool

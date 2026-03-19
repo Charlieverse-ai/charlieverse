@@ -10,6 +10,7 @@ import { Sessions } from '../../pages/Sessions'
 import { KnowledgePage } from '../../pages/Knowledge'
 import { SettingsPage } from '../../pages/Settings'
 import { StoryReader } from '../../pages/StoryReader'
+import { api } from '../../api/client'
 import type { Entity, Knowledge, Session, Story } from '../../types'
 
 type DetailItem =
@@ -18,7 +19,24 @@ type DetailItem =
   | { kind: 'session'; data: Session }
   | { kind: 'story'; data: Story }
 
-type DetailSource = 'search' | 'page'
+type DetailSource = 'search' | 'page' | 'permalink'
+
+/** Parse hash routes like #/memories/{id}, #/stories/{id}, etc. */
+function parseHash(hash: string): { kind: string; id: string } | null {
+  const match = hash.match(/^#\/(memories|stories|sessions|knowledge)\/(.+)$/)
+  if (!match) return null
+  return { kind: match[1], id: match[2] }
+}
+
+/** Build a hash route for a detail item */
+function hashForItem(item: DetailItem): string {
+  switch (item.kind) {
+    case 'entity': return `#/memories/${item.data.id}`
+    case 'story': return `#/stories/${item.data.id}`
+    case 'session': return `#/sessions/${item.data.id}`
+    case 'knowledge': return `#/knowledge/${item.data.id}`
+  }
+}
 
 export function AppShell() {
   const [page, setPage] = useState<Page>('dashboard')
@@ -38,6 +56,54 @@ export function AppShell() {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('cv-theme', theme)
   }, [theme])
+
+  // Permalink: load detail from hash on mount
+  useEffect(() => {
+    const route = parseHash(window.location.hash)
+    if (!route) return
+
+    const load = async () => {
+      try {
+        if (route.kind === 'memories') {
+          const data = await api.getEntity(route.id)
+          setDetailItem({ kind: 'entity', data })
+          setDetailSource('permalink')
+          setPage('memories')
+        } else if (route.kind === 'stories') {
+          const data = await api.getStory(route.id)
+          setDetailItem({ kind: 'story', data })
+          setDetailSource('permalink')
+          setPage('dashboard')
+        } else if (route.kind === 'sessions') {
+          const data = await api.getSession(route.id)
+          setDetailItem({ kind: 'session', data })
+          setDetailSource('permalink')
+          setPage('sessions')
+        } else if (route.kind === 'knowledge') {
+          const data = await api.getKnowledge(route.id)
+          setDetailItem({ kind: 'knowledge', data })
+          setDetailSource('permalink')
+          setPage('knowledge')
+        }
+      } catch {
+        // Item not found — just show the page
+        window.location.hash = ''
+      }
+    }
+    load()
+  }, [])
+
+  // Permalink: update hash when detail opens/closes
+  useEffect(() => {
+    if (detailItem) {
+      const hash = hashForItem(detailItem)
+      if (window.location.hash !== hash) {
+        window.location.hash = hash
+      }
+    } else if (window.location.hash.match(/^#\/(memories|stories|sessions|knowledge)\//)) {
+      history.replaceState(null, '', window.location.pathname)
+    }
+  }, [detailItem])
 
   const toggleTheme = useCallback(() => {
     setTheme((t) => (t === 'dark' ? 'light' : 'dark'))
