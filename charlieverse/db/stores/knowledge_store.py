@@ -47,6 +47,24 @@ class KnowledgeStore:
         """Rebuild FTS index from source table."""
         await self.db.execute("INSERT INTO knowledge_fts(knowledge_fts) VALUES('rebuild')")
 
+    async def rebuild_fts(self) -> None:
+        """Public FTS rebuild."""
+        await self._rebuild_fts()
+        await self.db.commit()
+
+    async def rebuild_vec(self) -> None:
+        """Rebuild all knowledge embeddings from scratch."""
+        from charlieverse.embeddings import encode_one
+
+        articles = await self.list(limit=5000)
+        for article in articles:
+            try:
+                text = f"{article.topic} {article.content}"
+                embedding = await encode_one(text)
+                await self.upsert_embedding(article.id, embedding)
+            except Exception:
+                continue
+
     async def create(self, knowledge: Knowledge) -> Knowledge:
         """Insert a new knowledge article."""
         await self.db.execute(

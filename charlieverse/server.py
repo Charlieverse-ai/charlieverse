@@ -46,6 +46,15 @@ async def app_lifespan(server):
         "work_logs": WorkLogStore(db),
         "stories": StoryStore(db),
     }
+
+    # Rebuild FTS indexes on startup (fast, ensures consistency)
+    try:
+        await stores["memories"].rebuild_fts()
+        await stores["knowledge"].rebuild_fts()
+        await stores["stories"].rebuild_fts()
+    except Exception:
+        pass  # FTS rebuild is best-effort on startup
+
     try:
         yield stores
     finally:
@@ -1821,38 +1830,28 @@ async def api_get_story(request: Request) -> JSONResponse:
     return JSONResponse(_serialize_story(story))
 
 
-@mcp.custom_route("/api/stories/rebuild", methods=["POST"])
-async def api_stories_rebuild(request: Request) -> JSONResponse:
-    """Rebuild both FTS index and embeddings for all stories."""
-    story_store: StoryStore = _rest_stores["stories"]
+async def _rebuild_all(stores: dict) -> dict:
+    """Rebuild FTS + vector indexes for all tables."""
+    memories: MemoryStore = stores["memories"]
+    knowledge: KnowledgeStore = stores["knowledge"]
+    stories: StoryStore = stores["stories"]
 
-    await story_store.rebuild_fts()
-    count = await _rebuild_story_embeddings(story_store)
+    await memories.rebuild_fts()
+    await knowledge.rebuild_fts()
+    await stories.rebuild_fts()
 
-    return JSONResponse({"fts": "rebuilt", "embeddings": count})
+    await memories.rebuild_vec()
+    await knowledge.rebuild_vec()
+    await stories.rebuild_vec()
 
-
-@mcp.custom_route("/api/stories/rebuild-fts", methods=["POST"])
-async def api_stories_rebuild_fts(request: Request) -> JSONResponse:
-    """Rebuild only the FTS index for stories."""
-    story_store: StoryStore = _rest_stores["stories"]
-    await story_store.rebuild_fts()
-    return JSONResponse({"fts": "rebuilt"})
+    return {"fts": "rebuilt", "vec": "rebuilt"}
 
 
-@mcp.custom_route("/api/stories/rebuild-embeddings", methods=["POST"])
-async def api_stories_rebuild_embeddings(request: Request) -> JSONResponse:
-    """Rebuild only embeddings for stories."""
-    story_store: StoryStore = _rest_stores["stories"]
-    count = await _rebuild_story_embeddings(story_store)
-    return JSONResponse({"embeddings": count})
-
-
-async def _rebuild_story_embeddings(story_store: StoryStore) -> int:
-    """Generate and store embeddings for all stories."""
-    await story_store.rebuild_vec()
-    all_stories = await story_store.list(limit=1000)
-    return len(all_stories)
+@mcp.custom_route("/api/rebuild", methods=["POST"])
+async def api_rebuild(request: Request) -> JSONResponse:
+    """Rebuild all FTS and vector indexes across entities, knowledge, and stories."""
+    result = await _rebuild_all(_rest_stores)
+    return JSONResponse(result)
 
 
 # ============================================================

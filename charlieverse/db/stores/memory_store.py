@@ -48,6 +48,24 @@ class MemoryStore:
         """Rebuild FTS index from source table."""
         await self.db.execute("INSERT INTO entities_fts(entities_fts) VALUES('rebuild')")
 
+    async def rebuild_fts(self) -> None:
+        """Public FTS rebuild."""
+        await self._rebuild_fts()
+        await self.db.commit()
+
+    async def rebuild_vec(self) -> None:
+        """Rebuild all entity embeddings from scratch."""
+        from charlieverse.embeddings import encode_one, prepare_entity_text
+
+        entities = await self.list(limit=5000)
+        for entity in entities:
+            try:
+                text = prepare_entity_text(entity.content, entity.tags)
+                embedding = await encode_one(text)
+                await self.upsert_embedding(entity.id, embedding)
+            except Exception:
+                continue
+
     async def create(self, entity: Entity) -> Entity:
         """Insert a new entity."""
         await self.db.execute(
