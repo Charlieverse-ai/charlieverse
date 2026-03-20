@@ -1,4 +1,4 @@
-"""Skill commands — `charlie skill list|find|show`."""
+"""Trick commands — `charlie trick list|find|show`."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ from charlieverse.config import config
 console = Console()
 
 app = typer.Typer(
-    name="skill",
-    help="Discover and inspect Charlieverse skills.",
+    name="trick",
+    help="Discover and inspect Charlie's tricks.",
     invoke_without_command=True,
 )
 
@@ -61,12 +61,12 @@ def _skill_dirs() -> list[Path]:
             seen.add(resolved)
             dirs.append(p)
 
-    # 1. Charlieverse user-installed skills (highest priority)
-    _add(config.path / "skills")
+    # 1. Charlieverse tricks (highest priority)
+    _add(config.path / "tricks")
 
-    # 2. Project-local skills (.charlie/skills/ in cwd)
+    # 2. Project-local tricks (.charlie/tricks/ in cwd)
     cwd = Path.cwd()
-    _add(cwd / ".charlie" / "skills")
+    _add(cwd / ".charlie" / "tricks")
 
     # 3. Cross-platform standard paths (.agents/skills/)
     home = Path.home()
@@ -148,7 +148,7 @@ def _estimate_tokens(text: str) -> int:
 def list_skills(
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
 ) -> None:
-    """List all available skills."""
+    """List all available tricks and skills."""
     skills = _discover_skills()
 
     if json_output:
@@ -156,7 +156,7 @@ def list_skills(
         return
 
     if not skills:
-        typer.echo("No skills found.")
+        typer.echo("No tricks found.")
         return
 
     # Group by source
@@ -167,14 +167,14 @@ def list_skills(
 
     # Header
     count = len(skills)
-    label = f"{count} Skill{'s' if count != 1 else ''}" if count else "No Skills"
+    label = f"{count} Trick{'s' if count != 1 else ''}" if count else "No Tricks"
     console.print()
     console.print(f"[bold]{label}[/bold]")
     console.print()
 
     # Source labels for display
     source_labels = {
-        "user": f"Charlie skills ({config.path / 'skills'})",
+        "user": f"Charlie tricks ({config.path / 'tricks'})",
         "claude": "Claude skills (~/.claude/skills)",
         "copilot": "Copilot skills (~/.copilot/skills)",
         "cursor": "Cursor skills (~/.cursor/skills)",
@@ -182,9 +182,9 @@ def list_skills(
         "windsurf": "Windsurf skills",
         "gemini": "Gemini skills (~/.gemini/skills)",
         "shared": "Shared skills (~/.agents/skills)",
-        "project": "Project skills (.charlie/skills)",
+        "project": "Project tricks (.charlie/tricks)",
         "github": "Project skills (.github/skills)",
-        "bundled": "Bundled skills (Charlieverse)",
+        "bundled": "Bundled tricks (Charlieverse)",
     }
 
     max_desc = 80
@@ -235,7 +235,7 @@ def _source_label(path_str: str) -> tuple[str, str]:
 def info_skill(
     name: str = typer.Argument(help="Skill name to inspect"),
 ) -> None:
-    """Show metadata for a skill without printing the full contents."""
+    """Show metadata for a trick without printing the full contents."""
     from rich.markup import escape
     from rich.panel import Panel
     from rich.columns import Columns
@@ -244,7 +244,7 @@ def info_skill(
 
     path = _find_skill(name)
     if not path:
-        typer.echo(f"Skill not found: {name}", err=True)
+        typer.echo(f"Trick not found: {name}", err=True)
         raise typer.Exit(1)
 
     fm = _parse_frontmatter(path)
@@ -316,7 +316,7 @@ def find_skill_cmd(
     """Print the path to a skill's SKILL.md."""
     path = _find_skill(name)
     if not path:
-        console.print(f"Skill not found [bold red]{name}[/bold red]")
+        console.print(f"Trick not found [bold red]{name}[/bold red]")
         if not source:
             raise typer.Exit(1)
     typer.echo(str(path))
@@ -330,7 +330,7 @@ def read(
     """Print the contents of a skill's SKILL.md."""
     path = _find_skill(name)
     if not path:
-        console.print(f"Skill not found [bold red]{name}[/bold red]")
+        console.print(f"Trick not found [bold red]{name}[/bold red]")
         if not source:
             raise typer.Exit(1)
     else:
