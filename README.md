@@ -196,6 +196,7 @@ Auto-discovers and imports from Claude, GitHub Copilot (including Insiders), Cur
 | [MCP Tools](docs/mcp-tools.md) | Memory, knowledge, session, and story tools |
 | [Skills](docs/skills.md) | Bundled skills and how to create your own |
 | [Agents](docs/agents.md) | Subagents (Expert, Researcher, Storyteller, etc.) |
+| [User Hooks](docs/hooks.md) | Per-machine context injection scripts |
 | [Changelog](CHANGELOG.md) | Version history |
 
 ## License
