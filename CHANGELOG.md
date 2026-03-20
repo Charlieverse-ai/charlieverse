@@ -5,6 +5,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.7.1] — 2026-03-20
+
+### Changed
+- Charlie prompt expanded with a Tricks section and a detailed Tools roster covering all subagents (Expert, Researcher, Storyteller, Linguist, AgentEngineer, Skill, Codex, Copilot) with purpose and usage notes
+
+### Fixed
+- FTS5 query sanitization in `search_messages` and work log search to prevent crashes on special characters
+
+---
+
 ## [v1.7.0] — 2026-03-20
 
 ### Added
