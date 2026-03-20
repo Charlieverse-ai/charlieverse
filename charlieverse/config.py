@@ -15,12 +15,13 @@ class ServerConfig:
     port: int = 8765
 
     def ip_address(self) -> str:
-        if not self.host == "0.0.0.0":
+        if self.host != "0.0.0.0":
             return self.host
-        hostname = socket.gethostname()
-        ip_address = socket.gethostbyname(hostname)
-
-        return ip_address
+        try:
+            hostname = socket.gethostname()
+            return socket.gethostbyname(hostname)
+        except socket.gaierror:
+            return "127.0.0.1"
 
     def base_url(self, path: str | None = None) -> str:
         return f"{self.protocol}://{self.ip_address()}:{self.port}/" + (path or "")
