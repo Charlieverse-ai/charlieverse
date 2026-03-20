@@ -53,7 +53,20 @@ async def app_lifespan(server):
         await stores["knowledge"].rebuild_fts()
         await stores["stories"].rebuild_fts()
     except Exception:
-        pass  # FTS rebuild is best-effort on startup
+        pass
+
+    # Rebuild vector indexes in the background (slow, don't block startup)
+    import asyncio
+
+    async def _background_vec_rebuild():
+        try:
+            await stores["memories"].rebuild_vec()
+            await stores["knowledge"].rebuild_vec()
+            await stores["stories"].rebuild_vec()
+        except Exception:
+            pass
+
+    asyncio.create_task(_background_vec_rebuild())
 
     try:
         yield stores
