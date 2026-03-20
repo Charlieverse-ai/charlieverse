@@ -1,6 +1,8 @@
 {
-  "charlie-tools" : {
-    "type" : "http",
-    "url" : "http://0.0.0.0:8765"
+  "mcpServers": {
+    "charlie-tools": {
+      "type": "http",
+      "url": "http://192.168.159.195:8765/mcp"
+    }
   }
 }

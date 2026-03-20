@@ -1,0 +1,14 @@
+{
+  "name": "charlieverse",
+  "description": "Charlie from Charlieverse — your personal AI companion with persistent memory.",
+  "version": "1.0.1",
+  "license": "MIT",
+  "author": {
+    "name": "Charlieverse"
+  },
+  "agents": "./agents",
+  "skills": [
+    "./skills/charlie-skill",
+    "./skills/research"
+  ]
+}
