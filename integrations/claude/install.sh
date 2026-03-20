@@ -75,18 +75,52 @@ function setup_prompts() {
     TOOL_AGENT_DIR="$AGENTS_DIR/tools/"
     mkdir -p "$TOOL_AGENT_DIR"
     cp -r "$PROMPTS_DIR/tools/" "$TOOL_AGENT_DIR"
+    
+    mkdir -p "$AGENTS_DIR/cli/"
+    cp -r "$PROMPTS_DIR/cli/" "$AGENTS_DIR/cli"
 }
 
 function setup_skills() {
-    SKILLS_SRC="$CHARLIE_INTEGRATION_DIR/skills"
     SKILLS_DST="$PLUGIN_DIR/skills"
     mkdir -p "$SKILLS_DST"
+
+    # Copy integration-specific skills (session-save, charlie-import, etc.)
+    SKILLS_SRC="$CHARLIE_INTEGRATION_DIR/skills"
     cp -r "$SKILLS_SRC/" "$SKILLS_DST/"
 
+    # Copy shared skills from prompts/skills/ to the plugin
+    SHARED_SKILLS_SRC="$PROMPTS_DIR/skills"
+    if [ -d "$SHARED_SKILLS_SRC" ]; then
+        cp -r "$SHARED_SKILLS_SRC/" "$SKILLS_DST/"
+    fi
+
+    # Skills that need context: fork don't work from plugins.
+    # Move them to ~/.claude/skills/ (user-level) instead.
+    CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+    FORK_SKILLS=("charlie-skill" "codex" "copilot")
+    for skill in "${FORK_SKILLS[@]}"; do
+        if [ -d "$SKILLS_DST/$skill" ]; then
+            mkdir -p "$CLAUDE_SKILLS_DIR/$skill"
+            cp -r "$SKILLS_DST/$skill/" "$CLAUDE_SKILLS_DIR/$skill/"
+            rm -rf "$SKILLS_DST/$skill"
+        fi
+    done
+
+    # Variable replacement across plugin skills
     find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_PATH|$CHARLIE_ROOT|g" {} +
     find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_CLI|$CHARLIE_CLI|g" {} +
     find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_API|$API_URL|g" {} +
     find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_MCP|$MCP_URL|g" {} +
+
+    # Variable replacement across user-level skills too
+    for skill in "${FORK_SKILLS[@]}"; do
+        if [ -f "$CLAUDE_SKILLS_DIR/$skill/SKILL.md" ]; then
+            sed -i '' "s|V_PATH|$CHARLIE_ROOT|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+            sed -i '' "s|V_CLI|$CHARLIE_CLI|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+            sed -i '' "s|V_API|$API_URL|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+            sed -i '' "s|V_MCP|$MCP_URL|g" "$CLAUDE_SKILLS_DIR/$skill/SKILL.md"
+        fi
+    done
 }
 
 function setup_hooks_json() {
