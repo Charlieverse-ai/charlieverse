@@ -187,6 +187,17 @@ Auto-discovers and imports from Claude, GitHub Copilot (including Insiders), Cur
 - jq (for provider integration scripts)
 - Node.js (optional, for web dashboard)
 
+## Documentation
+
+| Doc | What it covers |
+|-----|---------------|
+| [CLI Reference](docs/cli.md) | All `charlie` commands, options, and configuration |
+| [REST API](docs/api.md) | HTTP endpoints for the web dashboard and integrations |
+| [MCP Tools](docs/mcp-tools.md) | Memory, knowledge, session, and story tools |
+| [Skills](docs/skills.md) | Bundled skills and how to create your own |
+| [Agents](docs/agents.md) | Subagents (Expert, Researcher, Storyteller, etc.) |
+| [Changelog](CHANGELOG.md) | Version history |
+
 ## License
 
 Apache 2.0
