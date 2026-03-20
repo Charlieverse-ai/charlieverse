@@ -16,13 +16,22 @@ charlie server restart     # Restart the server
 charlie server url         # Print the server URL
 ```
 
-**Options** for `start` and `restart`:
+**Options** for `start`:
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--host` | Bind address | from config |
 | `--port` | Port number | from config |
-| `--foreground` | Run in foreground instead of daemonizing | off |
+| `--foreground` / `-f` | Run in foreground instead of daemonizing | off |
+| `--transport` | Transport type: `http`, `sse`, or `stdio` | `http` |
+
+**Options** for `restart`:
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--host` | Bind address | from config |
+| `--port` | Port number | from config |
+| `--transport` | Transport type: `http`, `sse`, or `stdio` | `http` |
 
 ---
 
@@ -36,9 +45,12 @@ charlie hooks prompt-submit    # Run reminders engine, capture message
 charlie hooks stop             # Capture assistant response
 charlie hooks tool-use         # Log tool calls
 charlie hooks save-reminder    # Remind to save before compaction
+charlie hooks session-end      # End a session
 ```
 
 **Common options:** `--host`, `--port`, `--source`
+
+`session-start` and `session-end` also require `--session-id`.
 
 All hooks skip processing when `agent_id` is present in stdin (subagent context).
 

@@ -14,6 +14,7 @@ Store a decision and why it was made.
 |-----------|------|----------|-------------|
 | `decision` | string | yes | The decision |
 | `rationale` | string | no | Why this decision was made |
+| `session_id` | string | no | Session to associate with |
 | `tags` | string[] | no | Tags for categorization |
 | `pinned` | bool | no | Pin to always appear in context |
 
@@ -25,6 +26,7 @@ Store a problem and how it was solved.
 |-----------|------|----------|-------------|
 | `problem` | string | yes | The problem |
 | `solution` | string | yes | How it was solved |
+| `session_id` | string | no | Session to associate with |
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
@@ -35,6 +37,7 @@ Store a working style preference.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `content` | string | yes | The preference |
+| `session_id` | string | no | Session to associate with |
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
@@ -45,6 +48,7 @@ Store info about a person.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `content` | string | yes | Who they are, relationship, context |
+| `session_id` | string | no | Session to associate with |
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
@@ -56,6 +60,7 @@ Store a significant achievement.
 |-----------|------|----------|-------------|
 | `milestone` | string | yes | The achievement |
 | `significance` | string | no | Why it matters |
+| `session_id` | string | no | Session to associate with |
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
@@ -68,6 +73,7 @@ Store a relationship moment (journal-style).
 | `moment` | string | yes | What happened |
 | `feeling` | string | no | How it felt |
 | `context` | string | no | Background context |
+| `session_id` | string | no | Session to associate with |
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
@@ -94,6 +100,7 @@ Edit an existing memory's content and/or tags.
 | `id` | string | yes | Memory ID |
 | `content` | string | no | New content |
 | `tags` | string[] | no | New tags |
+| `session_id` | string | no | Session context for the update |
 
 ### `forget`
 
@@ -133,6 +140,7 @@ Create or update a knowledge article.
 |-----------|------|----------|-------------|
 | `topic` | string | yes | Article topic (used as key for upsert) |
 | `content` | string | yes | Article content |
+| `session_id` | string | no | Session to associate with |
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
@@ -147,6 +155,7 @@ Full-text search past conversation messages.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | yes | Search query |
+| `session_id` | string | no | Limit to a specific session |
 | `limit` | int | no | Max results (default: 20) |
 
 ---

@@ -4,28 +4,9 @@ Tricks are Charlie's name for portable capability packages that agents load on d
 
 ---
 
-## Bundled tricks
+## Bundled skills
 
-### `session-save`
-
-Save the current session and optionally generate story rollups.
-
-**Usage:** `/session-save [cascade]`
-
-1. Calls `session_update` with a session summary
-2. Checks if a daily story needs updating
-3. If `cascade` or `full` in arguments, generates weekly and monthly rollups via Storyteller
-
-### `charlie-import`
-
-Import conversation history from AI providers.
-
-**Usage:** Triggered automatically on first session, or manually.
-
-1. Auto-discovers Claude, Copilot, Codex, Cursor session files
-2. Extracts messages into JSONL
-3. Bulk-imports into the database
-4. Detects story gaps and spawns Storyteller to fill them
+These ship with the Charlieverse repo in `prompts/skills/` and are available to any compatible provider.
 
 ### `research`
 
@@ -38,15 +19,15 @@ Research a topic and save findings to knowledge.
 3. Creates or updates knowledge with findings
 4. Returns a summary
 
-### `charlie-skill`
+### `trick`
 
-Run skills by name or path.
+Run Charlie tricks by name or path.
 
-**Usage:** `/charlie-skill [name or path]`
+**Usage:** `/trick [name or path]`
 
-- No args: lists available skills via `charlie trick list`
-- Name: resolves via `charlie skill find`, spawns Skill agent
-- Path: spawns Skill agent directly
+- No args: lists available tricks via `charlie trick list`
+- Name: resolves the trick, spawns Skill agent with it
+- Supports provider delegation: `/trick [name] [provider]`
 
 ### `codex`
 
