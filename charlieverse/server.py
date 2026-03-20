@@ -388,26 +388,6 @@ async def upsert_story(
 
     result = await story_store.upsert(story)
 
-    # Best-effort embedding
-    try:
-        text = f"{result.title}\n{result.summary or ''}\n{result.content}"
-        embedding = await encode_one(text)
-        from sqlite_vec import serialize_float32
-
-        db = stores["db"]
-        cursor = await db.execute(
-            "SELECT rowid FROM stories WHERE id = ?", (str(result.id),)
-        )
-        row = await cursor.fetchone()
-        if row:
-            await db.execute(
-                "INSERT OR REPLACE INTO stories_vec(rowid, embedding) VALUES(?, ?)",
-                (row[0], serialize_float32(embedding)),
-            )
-            await db.commit()
-    except Exception:
-        pass
-
     return {"id": str(result.id), "title": result.title, "tier": result.tier.value, "url": _permalink("stories", str(result.id))}
 
 
@@ -1870,33 +1850,9 @@ async def api_stories_rebuild_embeddings(request: Request) -> JSONResponse:
 
 async def _rebuild_story_embeddings(story_store: StoryStore) -> int:
     """Generate and store embeddings for all stories."""
-    from charlieverse.embeddings import encode_one
-
+    await story_store.rebuild_vec()
     all_stories = await story_store.list(limit=1000)
-    db = _rest_stores["db"]
-    count = 0
-
-    for story in all_stories:
-        text = f"{story.title}\n{story.content}"
-        try:
-            embedding = await encode_one(text)
-            # Get rowid
-            cursor = await db.execute(
-                "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
-            )
-            row = await cursor.fetchone()
-            if row:
-                from sqlite_vec import serialize_float32
-                await db.execute(
-                    "INSERT OR REPLACE INTO stories_vec(rowid, embedding) VALUES(?, ?)",
-                    (row[0], serialize_float32(embedding)),
-                )
-                count += 1
-        except Exception:
-            continue
-
-    await db.commit()
-    return count
+    return len(all_stories)
 
 
 # ============================================================

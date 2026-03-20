@@ -70,6 +70,7 @@ class StoryStore:
             ),
         )
         await self._sync_fts(story)
+        await self._sync_vec(story)
         await self.db.commit()
         return story
 
@@ -189,6 +190,7 @@ class StoryStore:
             ),
         )
         await self._sync_fts(story)
+        await self._sync_vec(story)
         await self.db.commit()
         return story
 
@@ -307,7 +309,51 @@ class StoryStore:
             )
         return [_row_to_story(row) for row in await cursor.fetchall()]
 
+    async def _sync_vec(self, story: Story) -> None:
+        """Sync a story's embedding to the vector index. Best-effort — never fails the caller."""
+        try:
+            from charlieverse.embeddings import encode_one
+            from sqlite_vec import serialize_float32
+
+            text = f"{story.title}\n{story.summary or ''}\n{story.content}"
+            embedding = await encode_one(text)
+
+            cursor = await self.db.execute(
+                "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
+            )
+            row = await cursor.fetchone()
+            if row:
+                await self.db.execute(
+                    "INSERT OR REPLACE INTO stories_vec(rowid, embedding) VALUES(?, ?)",
+                    (row[0], serialize_float32(embedding)),
+                )
+        except Exception:
+            pass  # Vec sync is best-effort — FTS still works
+
     async def rebuild_fts(self) -> None:
         """Rebuild the FTS index from scratch."""
         await self.db.execute("INSERT INTO stories_fts(stories_fts) VALUES('rebuild')")
+        await self.db.commit()
+
+    async def rebuild_vec(self) -> None:
+        """Rebuild all story embeddings from scratch."""
+        from charlieverse.embeddings import encode_one
+        from sqlite_vec import serialize_float32
+
+        all_stories = await self.list(limit=1000)
+        for story in all_stories:
+            try:
+                text = f"{story.title}\n{story.summary or ''}\n{story.content}"
+                embedding = await encode_one(text)
+                cursor = await self.db.execute(
+                    "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
+                )
+                row = await cursor.fetchone()
+                if row:
+                    await self.db.execute(
+                        "INSERT OR REPLACE INTO stories_vec(rowid, embedding) VALUES(?, ?)",
+                        (row[0], serialize_float32(embedding)),
+                    )
+            except Exception:
+                continue
         await self.db.commit()
