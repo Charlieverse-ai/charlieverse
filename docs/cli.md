@@ -61,25 +61,25 @@ charlie config api         # API base URL
 
 ---
 
-## Skills
+## Tricks
 
-Discover and inspect skills.
+Discover and inspect Charlie's tricks (and provider skills).
 
 ```bash
-charlie skill              # Show help
-charlie skill list         # List all discovered skills
-charlie skill list --json  # List as JSON
-charlie skill find NAME    # Print path to a skill's SKILL.md
-charlie skill info NAME    # Show metadata (panel with description, source, tools, files)
-charlie skill read NAME    # Print full SKILL.md contents
+charlie trick              # Show help
+charlie trick list         # List all discovered tricks and skills
+charlie trick list --json  # List as JSON
+charlie trick find NAME    # Print path to a trick's SKILL.md
+charlie trick info NAME    # Show metadata (panel with description, source, tools, files)
+charlie trick read NAME    # Print full SKILL.md contents
 ```
 
 ### Discovery paths
 
-Skills are auto-discovered from these locations, in order:
+Tricks and skills are auto-discovered from these locations, in order:
 
-1. `~/.charlieverse/skills/` — Charlie-managed
-2. `.charlie/skills/` — project-local
+1. `~/.charlieverse/tricks/` — Charlie-managed
+2. `.charlie/tricks/` — project-local
 3. `~/.agents/skills/` — cross-platform standard
 4. Provider paths: `~/.copilot/skills/`, `~/.cursor/skills/`, `~/.codex/skills/`, `~/.gemini/skills/`
 5. Project-level: `.agents/skills/`, `.claude/skills/`, `.github/skills/`, `.cursor/skills/`

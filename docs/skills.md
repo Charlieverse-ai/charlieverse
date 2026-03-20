@@ -1,10 +1,10 @@
-# Skills Reference
+# Tricks Reference
 
-Skills are portable capability packages that agents load on demand. They follow the [AgentSkills.io open standard](https://agentskills.io/specification).
+Tricks are Charlie's name for portable capability packages that agents load on demand. They follow the [AgentSkills.io SKILL.md standard](https://agentskills.io/specification) for maximum compatibility.
 
 ---
 
-## Bundled skills
+## Bundled tricks
 
 ### `session-save`
 
@@ -44,7 +44,7 @@ Run skills by name or path.
 
 **Usage:** `/charlie-skill [name or path]`
 
-- No args: lists available skills via `charlie skill list`
+- No args: lists available skills via `charlie trick list`
 - Name: resolves via `charlie skill find`, spawns Skill agent
 - Path: spawns Skill agent directly
 
@@ -100,8 +100,8 @@ Drop the skill directory into any of these locations:
 
 | Path | Scope |
 |------|-------|
-| `~/.charlieverse/skills/` | Charlie-managed (global) |
-| `.charlie/skills/` | Project-local (gitignored) |
+| `~/.charlieverse/tricks/` | Charlie-managed (global) |
+| `.charlie/tricks/` | Project-local (gitignored) |
 | `~/.agents/skills/` | Cross-platform standard |
 | `~/.claude/skills/`, `~/.copilot/skills/`, etc. | Provider-specific |
 | `.agents/skills/`, `.github/skills/`, etc. | Project-level |
@@ -109,5 +109,5 @@ Drop the skill directory into any of these locations:
 Verify discovery:
 
 ```bash
-charlie skill list
+charlie trick list
 ```

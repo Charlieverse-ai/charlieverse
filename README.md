@@ -13,7 +13,7 @@
   <a href="docs/cli.md">CLI</a> &middot;
   <a href="docs/api.md">API</a> &middot;
   <a href="docs/mcp-tools.md">MCP Tools</a> &middot;
-  <a href="docs/skills.md">Skills</a> &middot;
+  <a href="docs/skills.md">Tricks</a> &middot;
   <a href="docs/agents.md">Agents</a> &middot;
   <a href="docs/hooks.md">Hooks</a> &middot;
   <a href="CHANGELOG.md">Changelog</a>
