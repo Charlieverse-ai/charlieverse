@@ -6,11 +6,16 @@ import asyncio
 
 import typer
 
+from charlieverse.config import config
+
+DEFAULT_HOST = config.server.ip_address()
+DEFAULT_PORT = config.server.port
+
 
 def log(
     content: str = typer.Argument(..., help="Logbook entry content"),
-    host: str = typer.Option("127.0.0.1", help="Server host"),
-    port: int = typer.Option(8765, help="Server port"),
+    host: str = typer.Option(DEFAULT_HOST, help="Server host"),
+    port: int = typer.Option(DEFAULT_PORT, help="Server port"),
     session_id: str | None = typer.Option(None, "--session", "-s", help="Session ID"),
     tags: str | None = typer.Option(None, "--tags", "-t", help="Comma-separated tags"),
 ) -> None:

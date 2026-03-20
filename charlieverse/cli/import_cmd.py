@@ -28,7 +28,7 @@ from charlieverse.config import config
 
 DEFAULT_OUTPUT = config.path / "import" / "conversations.jsonl"
 DEFAULT_SPLIT_DIR = config.path / "import" / "weekly"
-DEFAULT_HOST = config.server.ip_address
+DEFAULT_HOST = config.server.ip_address()
 DEFAULT_PORT = config.server.port
 
 

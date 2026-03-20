@@ -20,13 +20,10 @@ class SearchMemoriesRule(ReminderRule):
 
         from charlieverse.config import config
 
-        host = config.server.host
-        port = config.server.port
-
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
                 resp = await client.post(
-                    f"http://{host}:{port}/api/context/enrich",
+                    config.server.api_url("context/enrich"),
                     json={
                         "text": ctx.message,
                         "session_id": ctx.session_id,

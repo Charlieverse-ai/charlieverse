@@ -11,12 +11,17 @@ import json
 
 import typer
 
+from charlieverse.config import config
+
+DEFAULT_HOST = config.server.ip_address()
+DEFAULT_PORT = config.server.port
+
 
 def story_data(
     target: str = typer.Argument(help="Session ID or tier name (daily, weekly, monthly, quarterly, yearly)"),
     date: str | None = typer.Argument(None, help="Date for tier rollups (ISO format, e.g. 2026-03-16)"),
-    host: str = typer.Option("127.0.0.1", help="Server host"),
-    port: int = typer.Option(8765, help="Server port"),
+    host: str = typer.Option(DEFAULT_HOST, help="Server host"),
+    port: int = typer.Option(DEFAULT_PORT, help="Server port"),
 ) -> None:
     """Fetch story data from the server. Outputs JSON to stdout for skill injection."""
     asyncio.run(_story_data(target, date, host, port))

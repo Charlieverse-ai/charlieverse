@@ -42,36 +42,51 @@ class Config:
     hooks: Path = field(default_factory=Path)
     logs: Path = field(default_factory=Path)
 
-def _find_config() -> Path | None:
-    """Walk up from this file to find config.yaml at the project root."""
+def _find_config_dir() -> Path | None:
+    """Find the project root containing config.yaml."""
     current = Path(__file__).parent.parent
-    config_path = current / "config.yaml"
-    if config_path.exists():
-        return config_path
+    if (current / "config.yaml").exists():
+        return current
     return None
 
 
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override into base. Override wins for leaf values."""
+    merged = base.copy()
+    for key, value in override.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
 def load() -> Config:
-    """Load configuration from config.yaml, falling back to defaults."""
-    config_path = _find_config()
-    if not config_path:
-        # TODO Error?
+    """Load config.yaml, then merge config.local.yaml on top (if it exists)."""
+    config_dir = _find_config_dir()
+    if not config_dir:
         return Config()
 
-    with open(config_path) as f:
+    with open(config_dir / "config.yaml") as f:
         raw = yaml.safe_load(f) or {}
+
+    # Merge local overrides (gitignored, per-machine customization)
+    local_path = config_dir / "config.local.yaml"
+    if local_path.exists():
+        with open(local_path) as f:
+            local = yaml.safe_load(f) or {}
+        raw = _deep_merge(raw, local)
 
     path: str | None = raw.get("path")
     server = ServerConfig(**raw.get("server", {}))
 
     if not path:
-        # TODO Error?
         return Config()
 
     full_path = Path(path).expanduser()
 
     return Config(
-        server=server, 
+        server=server,
         path=full_path,
         database=full_path / "charlie.db",
         logs=full_path / "logs",

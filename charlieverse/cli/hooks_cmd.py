@@ -29,7 +29,7 @@ app = typer.Typer(
     no_args_is_help=True,
     )
 
-DEFAULT_HOST = config.server.ip_address
+DEFAULT_HOST = config.server.ip_address()
 DEFAULT_PORT = config.server.port
 LOG_FILE = config.logs / "hooks.log"
 
@@ -74,6 +74,14 @@ def _parse_stdin() -> dict | None:
         except (json.JSONDecodeError, TypeError):
             return None
     return None
+
+
+def _is_subagent(stdin_data: dict | None) -> bool:
+    """Check if this hook is firing inside a subagent call.
+
+    Claude Code includes `agent_id` in stdin only for subagent contexts.
+    """
+    return bool(stdin_data and stdin_data.get("agent_id"))
 
 
 
@@ -172,8 +180,13 @@ def session_start(
     session_id: str | None = typer.Option(None, help="Session ID to resume"),
 ) -> None:
     """Hook: SessionStart. Prints activation context to stdout."""
-    # Providers send cwd in stdin JSON — use it as workspace if not passed via CLI
     stdin_data = _parse_stdin()
+
+    # Skip activation context for subagents — they don't need the full boot sequence
+    if _is_subagent(stdin_data):
+        return
+
+    # Providers send cwd in stdin JSON — use it as workspace if not passed via CLI
     if not workspace and stdin_data:
         workspace = stdin_data.get("cwd")
     if not session_id and stdin_data:
@@ -223,6 +236,11 @@ def prompt_submit(
 ) -> None:
     """Hook: UserPromptSubmit. Captures user message, runs reminders engine."""
     stdin_data = _parse_stdin()
+
+    # Skip reminders engine for subagents — no memory hints, no temporal context
+    if _is_subagent(stdin_data):
+        return
+
     session_id = stdin_data.get("session_id") if stdin_data else None
     _log("prompt-submit", f"session={session_id}")
     user_prompt = stdin_data.get("user_prompt") or stdin_data.get("content") or stdin_data.get("prompt") or "" if stdin_data else ""
@@ -310,6 +328,10 @@ def stop(
         _log("stop", "no stdin data")
         return
 
+    # Skip message capture for subagents
+    if _is_subagent(stdin_data):
+        return
+
     session_id = stdin_data.get("session_id")
     _log("stop", f"session={session_id}", stdin_data)
 
@@ -325,7 +347,10 @@ def stop(
         ))
 
     # Run user hooks from ~/.charlieverse/hooks/stop/
-    user_hook_output = asyncio.run(_run_user_hooks("stop", session_id=session_id or ""))
+    user_hook_output = asyncio.run(
+        _run_user_hooks("stop", session_id=session_id or "", last_assistant_message=last_message)
+    )
+    
     if user_hook_output:
         _output_context(user_hook_output, hook_event="Stop")
 

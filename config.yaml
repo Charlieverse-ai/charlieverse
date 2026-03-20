@@ -1,4 +1,8 @@
 # Charlieverse Server Configuration
+# Per-machine overrides: create config.local.yaml (gitignored) with just your changes.
+# Example: to change the port on your work machine, config.local.yaml with:
+#   server:
+#     port: 9000
 
 server:
   host: "0.0.0.0"

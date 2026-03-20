@@ -7,10 +7,15 @@ import json
 
 import typer
 
+from charlieverse.config import config
+
+DEFAULT_HOST = config.server.ip_address()
+DEFAULT_PORT = config.server.port
+
 
 def events(
-    host: str = typer.Option("127.0.0.1", help="Server host"),
-    port: int = typer.Option(8765, help="Server port"),
+    host: str = typer.Option(DEFAULT_HOST, help="Server host"),
+    port: int = typer.Option(DEFAULT_PORT, help="Server port"),
     session_id: str | None = typer.Option(None, "--session", "-s", help="Filter by session ID"),
     since: str | None = typer.Option(None, help="Events since (ISO datetime)"),
     limit: int = typer.Option(50, "-n", help="Max events to return"),
