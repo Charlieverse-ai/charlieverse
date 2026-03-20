@@ -101,6 +101,25 @@ def _is_running() -> bool:
         return False
 
 
+def _kill_port_holder(port: int) -> bool:
+    """Find and kill whatever process is holding the port. Returns True if something was killed."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        pids = [int(p.strip()) for p in result.stdout.strip().split("\n") if p.strip()]
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+        return bool(pids)
+    except Exception:
+        return False
+
+
 @app.command("start")
 def start(
     host: str = typer.Option(DEFAULT_HOST, help="Host to bind to"),
@@ -112,6 +131,20 @@ def start(
     if _is_running():
         typer.echo(f"Charlieverse is already running (PID {_read_pid()})")
         return
+
+    # Kill any orphan process holding the port (stale PID file scenarios)
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.settimeout(1)
+        sock.connect(("127.0.0.1", port))
+        sock.close()
+        # Port is occupied by something we don't know about — kill it
+        if _kill_port_holder(port):
+            typer.echo(f"Killed orphan process on port {port}")
+            _wait_for_port_free(port)
+    except (ConnectionRefusedError, OSError):
+        pass  # Port is free
 
     if not foreground and transport != "stdio":
         # Fork to background
