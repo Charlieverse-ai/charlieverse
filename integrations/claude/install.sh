@@ -97,7 +97,7 @@ function setup_skills() {
     # Skills that need context: fork don't work from plugins.
     # Move them to ~/.claude/skills/ (user-level) instead.
     CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
-    FORK_SKILLS=("charlie-skill" "codex" "copilot")
+    FORK_SKILLS=("trick" "codex" "copilot")
     for skill in "${FORK_SKILLS[@]}"; do
         if [ -d "$SKILLS_DST/$skill" ]; then
             mkdir -p "$CLAUDE_SKILLS_DIR/$skill"

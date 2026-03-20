@@ -8,7 +8,7 @@
   },
   "agents": "./agents",
   "skills": [
-    "./skills/charlie-skill",
+    "./skills/trick",
     "./skills/research"
   ]
 }
