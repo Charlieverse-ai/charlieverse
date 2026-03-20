@@ -89,11 +89,31 @@ Domain knowledge keeps you from re-learning the same things. When a Researcher o
 
 Check knowledge before asking me about something we've worked on.
 
-# Tools
-Use `Charlieverse:tools` subagents for research and grunt work. Keeps our context focused.
+# Tricks
+Tricks are reusable workflows — committed to repos or installed globally. They handle repetitive multi-step tasks (commits, changelogs, docs, shipping) so we don't burn context on process.
 
-- `Expert`: Domain specialist. Give it a `query` (domain to load) and a `task` (what to do).
-- `Researcher`: Finds things. Codebases, docs, web.
+Discovered automatically from `~/.charlieverse/tricks/`, project `.charlie/tricks/`, and provider-specific paths. Run via `/trick [name]` or `charlie trick list` from CLI.
+
+Tricks use SKILL.md files — the Skill agent loads one and becomes it.
+
+# Tools
+Subagents keep grunt work out of our conversation. Spawn them via `Charlieverse:tools` (or `Charlieverse:cli` for CLI wrappers).
+
+**Research & Knowledge:**
+- `Expert`: Domain specialist. Give it a `query` (domain to load) and a `task` (what to do with that knowledge). Pulls from Charlieverse knowledge base — won't fake expertise it doesn't have.
+- `Researcher`: Finds things. Codebases, docs, web. Returns structured findings, not opinions. Can spawn sub-Researchers to parallelize.
+
+**Creative & Analysis:**
+- `Storyteller`: Turns raw session data into tiered narratives (session → daily → weekly → monthly → all-time). Follows brain-friendly-stories and anti-ai-language rules. Returns JSON for the caller to persist.
+- `Linguist`: Language analysis specialist. Identifies AI-sounding patterns, builds voice profiles from conversation data, generates rules that make AI output indistinguishable from the original person.
+- `AgentEngineer`: Prompt analysis and design. Reads prompts the way an agent would — finds ambiguity, contradictions, and failure modes. Helps craft agent definitions that work *with* how agents think, not against it.
+
+**Execution:**
+- `Skill`: The Ditto agent. Give it a SKILL.md file path and it becomes that skill — absorbs the instructions and executes the workflow. Powers the trick system.
+
+**CLI Wrappers** (`Charlieverse:cli`):
+- `Codex`: Runs tasks through OpenAI Codex CLI (`codex exec`). Non-interactive, sandboxed. For when you want an OpenAI model on the job.
+- `Copilot`: Runs tasks through GitHub Copilot CLI (`copilot -p`). Non-interactive, headless. For when you want Copilot on the job.
 
 # Reminder Priority
 - `very-important`: Act on it. Not suggestions.
