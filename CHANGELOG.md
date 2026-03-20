@@ -1,9 +1,11 @@
 # Changelog
 
 All notable changes to Charlieverse are documented here.
-This project uses [Semantic Versioning](https://semver.org/).
+Format based on [Keep a Changelog](https://keepachangelog.com/). This project uses [Semantic Versioning](https://semver.org/).
 
-## [v1.6.0] - 2026-03-20
+---
+
+## [v1.6.0] — 2026-03-20
 
 ### Added
 - Skills system: `charlie skill` CLI with list, find, info, and read commands
@@ -23,7 +25,9 @@ This project uses [Semantic Versioning](https://semver.org/).
 - `ip_address()` missing parentheses in hooks_cmd.py and import_cmd.py (stored method ref instead of result)
 - search_memories rule now uses `config.server.api_url()` instead of manual f-string
 
-## [v1.5.0] - 2026-03-20
+---
+
+## [v1.5.0] — 2026-03-20
 
 ### Added
 - Vector sync on story create/update (stories_vec was never wired up)
@@ -39,7 +43,9 @@ This project uses [Semantic Versioning](https://semver.org/).
 - Server restart race condition on port binding
 - Python <3.14 cap in lockfile for spaCy compatibility
 
-## [v1.4.0] - 2026-03-19
+---
+
+## [v1.4.0] — 2026-03-19
 
 ### Added
 - Copilot and Codex CLI subagent definitions for provider orchestration
@@ -57,7 +63,9 @@ This project uses [Semantic Versioning](https://semver.org/).
 - Daily rollup pulling from nonexistent session stories
 - Store type hints and story date query edge cases
 
-## [v1.3.0] - 2026-03-17
+---
+
+## [v1.3.0] — 2026-03-17
 
 ### Added
 - `setup.sh` for zero-to-running first-time install
@@ -81,7 +89,9 @@ This project uses [Semantic Versioning](https://semver.org/).
 - Install.sh plugin detection, marketplace name, first-run errors
 - Cursor sessions misattributed as Copilot
 
-## [v1.2.0] - 2026-03-16
+---
+
+## [v1.2.0] — 2026-03-16
 
 ### Added
 - Reminders context system with rule-based engine
@@ -107,7 +117,9 @@ This project uses [Semantic Versioning](https://semver.org/).
 - Work log MCP tools (deferred)
 - Unused Logbook tool agent prompt
 
-## [v1.1.0] - 2026-03-15
+---
+
+## [v1.1.0] — 2026-03-15
 
 ### Added
 - Config system with YAML loading and URL helpers
@@ -122,7 +134,9 @@ This project uses [Semantic Versioning](https://semver.org/).
 - Hooks, renderer, and session tools overhauled
 - CPU-only embeddings enforced (no GPU dependency)
 
-## [v1.0.0] - 2026-03-14
+---
+
+## [v1.0.0] — 2026-03-14
 
 ### Added
 - FastMCP server with streamable HTTP transport and model pre-warming

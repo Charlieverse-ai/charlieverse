@@ -1,83 +1,98 @@
 # CLI Reference
 
-The `charlie` CLI manages the Charlieverse server and provides tools for interacting with Charlie from the terminal.
+The `charlie` CLI manages the Charlieverse server and provides tools for working with memories, hooks, skills, and configuration from the terminal.
+
+---
 
 ## Server
 
-| Command | Description |
-|---------|-------------|
-| `charlie server start` | Start the MCP server (daemonized) |
-| `charlie server stop` | Stop the running server |
-| `charlie server status` | Show server status (running/stopped, PID, URL) |
-| `charlie server restart` | Restart the server |
-| `charlie server url` | Print the server URL |
+Manage the MCP server process.
 
-Options for `start` and `restart`:
-- `--host` — Bind address (default: from config)
-- `--port` — Port number (default: from config)
-- `--foreground` — Run in foreground instead of daemonizing
+```bash
+charlie server start       # Start the server (daemonized)
+charlie server stop        # Stop the running server
+charlie server status      # Show status (running/stopped, PID, URL)
+charlie server restart     # Restart the server
+charlie server url         # Print the server URL
+```
+
+**Options** for `start` and `restart`:
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--host` | Bind address | from config |
+| `--port` | Port number | from config |
+| `--foreground` | Run in foreground instead of daemonizing | off |
+
+---
 
 ## Hooks
 
 Provider lifecycle hooks. Called by Claude Code, Copilot, etc. via their hook systems.
 
-| Command | Hook Event | Description |
-|---------|-----------|-------------|
-| `charlie hooks session-start` | SessionStart | Boot activation context |
-| `charlie hooks prompt-submit` | UserPromptSubmit | Run reminders engine, capture message |
-| `charlie hooks stop` | Stop | Capture assistant response |
-| `charlie hooks tool-use` | PostToolUse | Log tool calls |
-| `charlie hooks save-reminder` | PreCompact | Remind to save before compaction |
+```bash
+charlie hooks session-start    # Boot activation context
+charlie hooks prompt-submit    # Run reminders engine, capture message
+charlie hooks stop             # Capture assistant response
+charlie hooks tool-use         # Log tool calls
+charlie hooks save-reminder    # Remind to save before compaction
+```
 
-Common options:
-- `--host` / `--port` — Server address
-- `--source` — Provider identifier (e.g., `claude-plugin`)
+**Common options:** `--host`, `--port`, `--source`
 
 All hooks skip processing when `agent_id` is present in stdin (subagent context).
 
+---
+
 ## Config
 
-| Command | Description |
-|---------|-------------|
-| `charlie config` | Show all config values as a table |
-| `charlie config path` | Print the Charlieverse data path |
-| `charlie config database` | Print the database path |
-| `charlie config logs` | Print the logs directory |
-| `charlie config hooks` | Print the hooks directory |
-| `charlie config dashboard` | Print the dashboard URL |
-| `charlie config mcp` | Print the MCP endpoint URL |
-| `charlie config api` | Print the API base URL |
+View and inspect configuration.
+
+```bash
+charlie config             # Show all config values as a table
+charlie config path        # Charlieverse data path
+charlie config database    # Database path
+charlie config logs        # Logs directory
+charlie config hooks       # Hooks directory
+charlie config dashboard   # Dashboard URL
+charlie config mcp         # MCP endpoint URL
+charlie config api         # API base URL
+```
+
+---
 
 ## Skills
 
-| Command | Description |
-|---------|-------------|
-| `charlie skill` | Show help |
-| `charlie skill list` | List all discovered skills |
-| `charlie skill list --json` | List skills as JSON |
-| `charlie skill find NAME` | Print the path to a skill's SKILL.md |
-| `charlie skill info NAME` | Show skill metadata (panel with description, source, tools, files) |
-| `charlie skill read NAME` | Print the full SKILL.md contents |
+Discover and inspect skills.
 
-Skills are auto-discovered from:
-1. `~/.charlieverse/skills/` — Charlie-managed skills
-2. `.charlie/skills/` — project-local skills
+```bash
+charlie skill              # Show help
+charlie skill list         # List all discovered skills
+charlie skill list --json  # List as JSON
+charlie skill find NAME    # Print path to a skill's SKILL.md
+charlie skill info NAME    # Show metadata (panel with description, source, tools, files)
+charlie skill read NAME    # Print full SKILL.md contents
+```
+
+### Discovery paths
+
+Skills are auto-discovered from these locations, in order:
+
+1. `~/.charlieverse/skills/` — Charlie-managed
+2. `.charlie/skills/` — project-local
 3. `~/.agents/skills/` — cross-platform standard
-4. `~/.copilot/skills/`, `~/.cursor/skills/`, `~/.codex/skills/`, `~/.gemini/skills/` — provider paths
-5. `.agents/skills/`, `.claude/skills/`, `.github/skills/`, `.cursor/skills/` — project-level
+4. Provider paths: `~/.copilot/skills/`, `~/.cursor/skills/`, `~/.codex/skills/`, `~/.gemini/skills/`
+5. Project-level: `.agents/skills/`, `.claude/skills/`, `.github/skills/`, `.cursor/skills/`
 
-## Other Commands
+---
 
-| Command | Description |
-|---------|-------------|
-| `charlie init` | First-run setup (database, directories, web build) |
-| `charlie context` | Preview the activation context |
-| `charlie log CONTENT` | Record a logbook entry |
-| `charlie events` | List recent hook events |
-| `charlie story-data TARGET` | Fetch story data (session ID or tier name) |
-| `charlie import` | Import conversation history from providers |
+## Import
 
-### Import options
+Bootstrap Charlie's memory from existing AI conversation history.
+
+```bash
+charlie import --messages --recent-days 30
+```
 
 | Flag | Description |
 |------|-------------|
@@ -88,7 +103,21 @@ Skills are auto-discovered from:
 | `--from-file PATH` | Import from existing JSONL instead of auto-discovering |
 | `--dir PATH` | Scan additional directories |
 
-## Configuration
+---
+
+## Other commands
+
+```bash
+charlie init               # First-run setup (database, directories, web build)
+charlie context            # Preview the activation context
+charlie log CONTENT        # Record a logbook entry
+charlie events             # List recent hook events
+charlie story-data TARGET  # Fetch story data (session ID or tier name)
+```
+
+---
+
+## Configuration files
 
 Config loads from `config.yaml` at the project root, with `config.local.yaml` merged on top (gitignored). Per-machine overrides go in the local file.
 
@@ -101,7 +130,7 @@ path: "~/.charlieverse"
 ```
 
 ```yaml
-# config.local.yaml (your overrides)
+# config.local.yaml (your overrides, gitignored)
 server:
   port: 9000
 ```

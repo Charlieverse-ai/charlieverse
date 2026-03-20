@@ -2,9 +2,12 @@
 
 These tools are available to any MCP-compatible client connected to the Charlieverse server.
 
-## Memory Tools
+---
 
-### remember_decision
+## Memory tools
+
+### `remember_decision`
+
 Store a decision and why it was made.
 
 | Parameter | Type | Required | Description |
@@ -14,7 +17,8 @@ Store a decision and why it was made.
 | `tags` | string[] | no | Tags for categorization |
 | `pinned` | bool | no | Pin to always appear in context |
 
-### remember_solution
+### `remember_solution`
+
 Store a problem and how it was solved.
 
 | Parameter | Type | Required | Description |
@@ -24,7 +28,8 @@ Store a problem and how it was solved.
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
-### remember_preference
+### `remember_preference`
+
 Store a working style preference.
 
 | Parameter | Type | Required | Description |
@@ -33,7 +38,8 @@ Store a working style preference.
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
-### remember_person
+### `remember_person`
+
 Store info about a person.
 
 | Parameter | Type | Required | Description |
@@ -42,7 +48,8 @@ Store info about a person.
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
-### remember_milestone
+### `remember_milestone`
+
 Store a significant achievement.
 
 | Parameter | Type | Required | Description |
@@ -52,7 +59,8 @@ Store a significant achievement.
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
-### remember_moment
+### `remember_moment`
+
 Store a relationship moment (journal-style).
 
 | Parameter | Type | Required | Description |
@@ -63,7 +71,12 @@ Store a relationship moment (journal-style).
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
-### recall
+---
+
+## Search and management
+
+### `recall`
+
 Search across all memories, knowledge, and messages.
 
 | Parameter | Type | Required | Description |
@@ -72,7 +85,8 @@ Search across all memories, knowledge, and messages.
 | `type` | string | no | Filter by entity type |
 | `limit` | int | no | Max results (default: 10) |
 
-### update_memory
+### `update_memory`
+
 Edit an existing memory's content and/or tags.
 
 | Parameter | Type | Required | Description |
@@ -81,24 +95,29 @@ Edit an existing memory's content and/or tags.
 | `content` | string | no | New content |
 | `tags` | string[] | no | New tags |
 
-### forget
+### `forget`
+
 Soft-delete a memory.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `id` | string | yes | Memory ID |
 
-### pin
-Pin or unpin a memory (pinned = always in activation context).
+### `pin`
+
+Pin or unpin a memory. Pinned memories always appear in activation context.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `id` | string | yes | Memory ID |
 | `pinned` | bool | yes | Pin state |
 
-## Knowledge Tools
+---
 
-### search_knowledge
+## Knowledge tools
+
+### `search_knowledge`
+
 Search the knowledge base.
 
 | Parameter | Type | Required | Description |
@@ -106,7 +125,8 @@ Search the knowledge base.
 | `query` | string | yes | Search query |
 | `limit` | int | no | Max results (default: 5) |
 
-### update_knowledge
+### `update_knowledge`
+
 Create or update a knowledge article.
 
 | Parameter | Type | Required | Description |
@@ -116,9 +136,12 @@ Create or update a knowledge article.
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
-## Message Tools
+---
 
-### search_messages
+## Message tools
+
+### `search_messages`
+
 Full-text search past conversation messages.
 
 | Parameter | Type | Required | Description |
@@ -126,9 +149,12 @@ Full-text search past conversation messages.
 | `query` | string | yes | Search query |
 | `limit` | int | no | Max results (default: 20) |
 
-## Session Tools
+---
 
-### session_update
+## Session tools
+
+### `session_update`
+
 Save a session snapshot.
 
 | Parameter | Type | Required | Description |
@@ -138,22 +164,26 @@ Save a session snapshot.
 | `tags` | string[] | no | Tags |
 | `workspace` | string | no | Workspace path |
 
-## Story Tools
+---
 
-### upsert_story
+## Story tools
+
+### `upsert_story`
+
 Create or update a story.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `title` | string | yes | Story title |
 | `content` | string | yes | Story content |
-| `tier` | string | yes | Tier: session, daily, weekly, monthly, yearly, all-time |
+| `tier` | string | yes | `session`, `daily`, `weekly`, `monthly`, `yearly`, or `all-time` |
 | `period_start` | string | yes | ISO date |
 | `period_end` | string | yes | ISO date |
 | `summary` | string | no | Short summary |
 | `tags` | string[] | no | Tags |
 
-### list_stories
+### `list_stories`
+
 List stories, optionally filtered by tier.
 
 | Parameter | Type | Required | Description |
@@ -161,23 +191,26 @@ List stories, optionally filtered by tier.
 | `tier` | string | no | Filter by tier |
 | `limit` | int | no | Max results (default: 20) |
 
-### get_story
+### `get_story`
+
 Get a story by ID.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `id` | string | yes | Story ID |
 
-### delete_story
+### `delete_story`
+
 Delete a story.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `id` | string | yes | Story ID |
 
-### get_story_data
-Get data for generating stories.
+### `get_story_data`
+
+Get data for generating stories. Used by the Storyteller agent.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `target` | string | yes | Session ID or tier name (daily, weekly, monthly) |
+| `target` | string | yes | Session ID or tier name (`daily`, `weekly`, `monthly`) |
