@@ -46,6 +46,29 @@ def _clear_pid() -> None:
         PID_FILE.unlink()
 
 
+def _wait_for_health(timeout: float = 30, interval: float = 0.3) -> bool:
+    """Poll the health endpoint until the server responds or timeout."""
+    import time
+    import urllib.request
+    import urllib.error
+
+    url = config.server.api_url("health")
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        # Check process is still alive first
+        if not _is_running():
+            return False
+        try:
+            with urllib.request.urlopen(url, timeout=2) as resp:
+                if resp.status == 200:
+                    return True
+        except (urllib.error.URLError, OSError, TimeoutError):
+            pass
+        time.sleep(interval)
+    return False
+
+
 def _is_running() -> bool:
     pid = _read_pid()
     if pid is None:
@@ -74,16 +97,12 @@ def start(
         # Fork to background
         pid = os.fork()
         if pid > 0:
-            # Parent — wait and check
-            import time
-
-            time.sleep(2)
-            if _is_running():
+            # Parent — poll health endpoint until server is ready
+            if _wait_for_health():
                 typer.echo(f"Charlieverse started (PID {_read_pid()})")
                 typer.echo(f"Listening on {config.server.base_url()}")
             else:
                 typer.echo("Failed to start Charlieverse", err=True)
-                # Show the last few lines of the log so the error is visible
                 if LOG_FILE.exists():
                     lines = LOG_FILE.read_text().strip().splitlines()
                     tail = lines[-15:] if len(lines) > 15 else lines
@@ -151,9 +170,12 @@ def restart(
 ) -> None:
     """Restart the Charlieverse server."""
     stop()
+    # Wait for the old process to release the port
     import time
-
-    time.sleep(1)
+    for _ in range(20):
+        if not _is_running():
+            break
+        time.sleep(0.2)
     start(host=host, port=port, foreground=False, transport=transport)
 
 @app.command("url")
