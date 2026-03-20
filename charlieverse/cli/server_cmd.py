@@ -97,7 +97,14 @@ def start(
         # Fork to background
         pid = os.fork()
         if pid > 0:
-            # Parent — poll health endpoint until server is ready
+            # Parent — wait for child to write PID, then poll health
+            import time
+            for _ in range(20):
+                child_pid = _read_pid()
+                if child_pid and child_pid != pid:
+                    break
+                time.sleep(0.2)
+
             if _wait_for_health():
                 typer.echo(f"Charlieverse started (PID {_read_pid()})")
                 typer.echo(f"Listening on {config.server.base_url()}")
@@ -169,13 +176,19 @@ def restart(
     transport: str = typer.Option("http", help="Transport: http, sse, or stdio"),
 ) -> None:
     """Restart the Charlieverse server."""
+    pid = _read_pid()
     stop()
-    # Wait for the old process to release the port
+    # Wait for the old process to fully die and release the port
     import time
-    for _ in range(20):
-        if not _is_running():
-            break
-        time.sleep(0.2)
+    if pid:
+        for _ in range(50):
+            try:
+                os.kill(pid, 0)
+                time.sleep(0.2)
+            except OSError:
+                break
+    # Extra wait for port release (OS may hold it briefly after process dies)
+    time.sleep(0.5)
     start(host=host, port=port, foreground=False, transport=transport)
 
 @app.command("url")
