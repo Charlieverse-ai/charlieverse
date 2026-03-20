@@ -17,6 +17,7 @@ from charlieverse.config import config
 from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
 from charlieverse.db import database
+from charlieverse.db.fts import sanitize_fts_query
 from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore, WorkLogStore
 from charlieverse.models import EntityType, Session, StoryTier, Entity, Knowledge
 from charlieverse.tools import knowledge as knowledge_tools
@@ -302,13 +303,16 @@ async def search_messages(
 ):
     """Search past messages in conversations. Returns matching messages with role and date."""
     db = _stores(ctx)["db"]
+    safe_query = sanitize_fts_query(query)
+    if not safe_query:
+        return {"messages": []}
     if session_id:
         cursor = await db.execute(
             """SELECT m.* FROM messages m
                JOIN messages_fts fts ON m.rowid = fts.rowid
                WHERE messages_fts MATCH ? AND m.session_id = ?
                ORDER BY bm25(messages_fts) LIMIT ?""",
-            (query, session_id, limit),
+            (safe_query, session_id, limit),
         )
     else:
         cursor = await db.execute(
@@ -316,7 +320,7 @@ async def search_messages(
                JOIN messages_fts fts ON m.rowid = fts.rowid
                WHERE messages_fts MATCH ?
                ORDER BY bm25(messages_fts) LIMIT ?""",
-            (query, limit),
+            (safe_query, limit),
         )
 
     rows = await cursor.fetchall()
@@ -1033,6 +1037,9 @@ async def api_search_messages(request: Request) -> JSONResponse:
     query = body.get("query", "")
     limit = body.get("limit", 20)
     session_id = body.get("session_id")
+    safe_query = sanitize_fts_query(query)
+    if not safe_query:
+        return JSONResponse({"messages": []})
 
     if session_id:
         cursor = await db.execute(
@@ -1040,7 +1047,7 @@ async def api_search_messages(request: Request) -> JSONResponse:
                JOIN messages_fts fts ON m.rowid = fts.rowid
                WHERE messages_fts MATCH ? AND m.session_id = ?
                ORDER BY bm25(messages_fts) LIMIT ?""",
-            (query, session_id, limit),
+            (safe_query, session_id, limit),
         )
     else:
         cursor = await db.execute(
@@ -1048,7 +1055,7 @@ async def api_search_messages(request: Request) -> JSONResponse:
                JOIN messages_fts fts ON m.rowid = fts.rowid
                WHERE messages_fts MATCH ?
                ORDER BY bm25(messages_fts) LIMIT ?""",
-            (query, limit),
+            (safe_query, limit),
         )
 
     rows = await cursor.fetchall()
@@ -1369,8 +1376,6 @@ async def api_get_knowledge(request: Request) -> JSONResponse:
 
 def _fts_query(raw: str) -> str:
     """Convert raw search input to FTS5 query with prefix matching."""
-    from charlieverse.db.fts import sanitize_fts_query
-
     return sanitize_fts_query(raw)
 
 

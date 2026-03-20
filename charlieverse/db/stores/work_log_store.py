@@ -112,6 +112,11 @@ class WorkLogStore:
 
     async def search(self, query: str, limit: int = 10) -> List[WorkLog]:
         """Full-text search across work logs using FTS5 + BM25 ranking."""
+        from charlieverse.db.fts import sanitize_fts_query
+
+        fts_query = sanitize_fts_query(query)
+        if not fts_query:
+            return []
         cursor = await self.db.execute(
             """SELECT w.* FROM work_logs w
                JOIN work_logs_fts fts ON w.rowid = fts.rowid
@@ -119,7 +124,7 @@ class WorkLogStore:
                AND w.deleted_at IS NULL
                ORDER BY bm25(work_logs_fts)
                LIMIT ?""",
-            (query, limit),
+            (fts_query, limit),
         )
         return [_row_to_work_log(row) for row in await cursor.fetchall()]
 
