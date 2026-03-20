@@ -65,20 +65,37 @@ The setup script handles everything: Python dependencies, server initialization,
 
 ### Manual setup
 
+**1. Install dependencies**
 ```bash
-# Install dependencies
 uv sync
-
-# Initialize
-charlie init
-
-# Start the server
-charlie server start
-
-# Install provider integration
-./integrations/claude/install.sh    # Claude Code
-./integrations/copilot/install.sh   # GitHub Copilot
 ```
+Installs all Python packages including FastMCP, sentence-transformers, spaCy, and the embedding model.
+
+**2. Initialize Charlie**
+```bash
+charlie init
+```
+Creates the `~/.charlieverse/` directory structure, runs database migrations, builds the web dashboard, and sets up hook script directories.
+
+**3. Start the server**
+```bash
+charlie server start
+```
+Launches the MCP server in the background on port 8765 (configurable in `config.yaml`). The server handles MCP tool requests, serves the REST API, and hosts the web dashboard.
+
+**4. Connect your AI tools**
+
+Pick the providers you use:
+
+```bash
+# Claude Code — installs plugin with hooks, agents, skills, and MCP config
+./integrations/claude/install.sh
+
+# GitHub Copilot — installs plugin with agents, hooks, and MCP config
+./integrations/copilot/install.sh
+```
+
+After installing, restart your AI tool and Charlie will be connected. The session-start hook injects activation context automatically — your AI wakes up knowing who you are.
 
 ## Architecture
 
