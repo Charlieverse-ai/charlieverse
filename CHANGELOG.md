@@ -5,6 +5,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.7.2] — 2026-03-20
+
+### Added
+- Architectural decision records (ADRs) in `docs/decisions/` covering 7 foundational and recent design choices: hybrid FTS5+sqlite-vec search, Python/FastMCP over Swift, tiered narrative compression, plugin-based distribution, raw sessions over derived stories, config local YAML overrides, and the Ditto agent pattern for tricks
+
+---
+
 ## [v1.7.1] — 2026-03-20
 
 ### Changed
