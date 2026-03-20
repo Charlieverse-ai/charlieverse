@@ -46,6 +46,26 @@ def _clear_pid() -> None:
         PID_FILE.unlink()
 
 
+def _wait_for_port_free(port: int, timeout: float = 15) -> None:
+    """Block until nothing is listening on the given port."""
+    import socket
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.settimeout(0.5)
+            sock.connect(("127.0.0.1", port))
+            sock.close()
+            # Connection succeeded — port still in use
+            time.sleep(0.3)
+        except (ConnectionRefusedError, OSError):
+            # Connection refused — port is free
+            return
+    # Timeout — proceed anyway and let start() fail with a clear error
+
+
 def _wait_for_health(timeout: float = 30, interval: float = 0.3) -> bool:
     """Poll the health endpoint until the server responds or timeout."""
     import time
@@ -178,17 +198,8 @@ def restart(
     """Restart the Charlieverse server."""
     pid = _read_pid()
     stop()
-    # Wait for the old process to fully die and release the port
-    import time
-    if pid:
-        for _ in range(50):
-            try:
-                os.kill(pid, 0)
-                time.sleep(0.2)
-            except OSError:
-                break
-    # Extra wait for port release (OS may hold it briefly after process dies)
-    time.sleep(0.5)
+    # Wait for the port to be free (not just the process to die)
+    _wait_for_port_free(port)
     start(host=host, port=port, foreground=False, transport=transport)
 
 @app.command("url")
