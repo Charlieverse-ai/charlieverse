@@ -5,6 +5,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.7.0] — 2026-03-20
+
+### Added
+- Tricks discovery: activation context renderer now surfaces available tricks from project and user directories
+- `charlie trick` CLI subcommand for executing project tricks
+
+### Changed
+- Renamed `charlie-skill` dispatcher to `trick` across all prompts, integrations, and CLI wiring
+- `skill_cmd` renamed to `trick_cmd` internally; `charlie skill` is now `charlie trick`
+- Documentation overhauled for scannability, visual hierarchy, and accuracy against current interfaces
+- Manual setup section expanded with step-by-step explanations
+- User hooks documentation added and linked from README
+
+### Fixed
+- Server crash when host is configured as `0.0.0.0` and hostname cannot resolve
+
+---
+
 ## [v1.6.0] — 2026-03-20
 
 ### Added
