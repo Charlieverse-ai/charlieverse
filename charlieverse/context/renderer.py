@@ -115,6 +115,11 @@ def render(bundle: ContextBundle) -> str:
     if bundle.all_time_story:
         parts.append(_render_all_time_story(bundle.all_time_story))
 
+    # Tricks discovery — list available tricks so Charlie knows what's loaded
+    tricks_section = _render_tricks(bundle.session.workspace)
+    if tricks_section:
+        parts.append(tricks_section)
+
     parts.append("</activation_output>")
     return "\n".join(parts)
 
@@ -142,6 +147,33 @@ def _render_first_run(bundle: ContextBundle) -> str:
 
     parts.append("</activation_output>")
     return "\n".join(parts)
+
+
+def _render_tricks(workspace: str | None) -> str:
+    """Discover tricks and render them for the activation context."""
+    try:
+        from charlieverse.cli.trick_cmd import _discover_skills, _source_label
+        tricks = _discover_skills()
+    except Exception:
+        return ""
+
+    if not tricks:
+        return ""
+
+    lines: list[str] = ["<tricks>"]
+    lines.append("Available tricks (`/trick [name]` or `charlie trick list`):\n")
+
+    for trick in tricks:
+        name = trick["name"]
+        desc = trick.get("description", "")
+        source, _ = _source_label(trick["path"])
+        if desc:
+            lines.append(f"- **{name}** ({source}): {desc}")
+        else:
+            lines.append(f"- **{name}** ({source})")
+
+    lines.append("</tricks>")
+    return "\n".join(lines)
 
 
 def _render_all_time_story(story: Story) -> str:
