@@ -3,13 +3,17 @@
 from __future__ import annotations
 from typing import List
 
+import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
 import aiosqlite
 
 from charlieverse.models.story import Story, StoryTier
+
+logger = logging.getLogger(__name__)
 
 
 def _tags_json(tags: list[str] | None) -> str | None:
@@ -46,6 +50,7 @@ class StoryStore:
 
     def __init__(self, db: aiosqlite.Connection) -> None:
         self.db = db
+        self._vec_lock = asyncio.Lock()
 
     async def create(self, story: Story) -> Story:
         """Insert a new story."""
@@ -323,12 +328,16 @@ class StoryStore:
             )
             row = await cursor.fetchone()
             if row:
-                await self.db.execute(
-                    "INSERT OR REPLACE INTO stories_vec(rowid, embedding) VALUES(?, ?)",
-                    (row[0], serialize_float32(embedding)),
-                )
+                async with self._vec_lock:
+                    await self.db.execute(
+                        "DELETE FROM stories_vec WHERE rowid = ?", (row[0],)
+                    )
+                    await self.db.execute(
+                        "INSERT INTO stories_vec(rowid, embedding) VALUES(?, ?)",
+                        (row[0], serialize_float32(embedding)),
+                    )
         except Exception:
-            pass  # Vec sync is best-effort — FTS still works
+            logger.warning("Vec sync failed for story %s", story.id, exc_info=True)
 
     async def rebuild_fts(self) -> None:
         """Rebuild the FTS index from scratch."""
@@ -341,6 +350,8 @@ class StoryStore:
         from sqlite_vec import serialize_float32
 
         all_stories = await self.list(limit=1000)
+
+        rows: list[tuple[int, bytes]] = []
         for story in all_stories:
             try:
                 text = f"{story.title}\n{story.summary or ''}\n{story.content}"
@@ -350,10 +361,16 @@ class StoryStore:
                 )
                 row = await cursor.fetchone()
                 if row:
-                    await self.db.execute(
-                        "INSERT OR REPLACE INTO stories_vec(rowid, embedding) VALUES(?, ?)",
-                        (row[0], serialize_float32(embedding)),
-                    )
+                    rows.append((row[0], serialize_float32(embedding)))
             except Exception:
+                logger.warning("Vec rebuild skipped story %s", story.id, exc_info=True)
                 continue
-        await self.db.commit()
+
+        async with self._vec_lock:
+            await self.db.execute("DELETE FROM stories_vec")
+            for rowid, embedding in rows:
+                await self.db.execute(
+                    "INSERT INTO stories_vec(rowid, embedding) VALUES(?, ?)",
+                    (rowid, embedding),
+                )
+            await self.db.commit()

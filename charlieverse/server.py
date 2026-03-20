@@ -1762,27 +1762,6 @@ async def api_upsert_story(request: Request) -> JSONResponse:
 
     result = await story_store.upsert(story)
 
-    # Sync embedding
-    try:
-        from charlieverse.embeddings import encode_one
-        from sqlite_vec import serialize_float32
-
-        text = f"{result.title}\n{result.summary or ''}\n{result.content}"
-        embedding = await encode_one(text)
-        db = _rest_stores["db"]
-        cursor = await db.execute(
-            "SELECT rowid FROM stories WHERE id = ?", (str(result.id),)
-        )
-        row = await cursor.fetchone()
-        if row:
-            await db.execute(
-                "INSERT OR REPLACE INTO stories_vec(rowid, embedding) VALUES(?, ?)",
-                (row[0], serialize_float32(embedding)),
-            )
-            await db.commit()
-    except Exception:
-        pass  # Embedding sync is best-effort
-
     return JSONResponse(_serialize_story(result))
 
 
