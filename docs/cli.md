@@ -124,23 +124,9 @@ charlie import --messages --recent-days 30
 charlie init               # First-run setup (database, directories, web build)
 charlie context            # Preview the activation context
 charlie log CONTENT        # Record a logbook entry
-charlie events             # List recent hook events
 charlie story-data TARGET [DATE]  # Fetch story data (session ID or tier name + optional date)
 charlie doctor             # Run environment health checks
 ```
-
-### `events`
-
-List recent hook events from the server.
-
-| Flag | Description |
-|------|-------------|
-| `--session` / `-s` | Filter by session ID |
-| `--since` | Events since this ISO datetime |
-| `-n` | Max events to return (default: 50) |
-| `--type` / `-t` | Filter by event type (e.g. `tool_use`, `stop`, `session_start`) |
-| `--verbose` / `-v` | Show full tool input details |
-| `--json` | Output raw JSON |
 
 ### `story-data`
 
