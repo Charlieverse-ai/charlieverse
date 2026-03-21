@@ -1,62 +1,62 @@
 ---
 name: trick
-description: Run Charlie tricks by name or path. Use when the user says "/trick", wants to run a trick, list available tricks, or execute a skill file. Also trigger when the user mentions running a specific trick by name (e.g., "run the session-save trick").
-argument-hint: '[name]'
+description: Run Charlie tricks by name or path. Use when the user says "/trick", wants to run a trick, list available tricks, or execute a skill file. Also trigger when the user mentions running a specific trick by name (e.g., "run the session-save trick", "run ship", "do the commit trick").
+argument-hint: '[name or file path]'
+agent: Charlieverse:tools:Skill
+context: fork
+color: purple
 ---
 
-## What this skill does
+You are an amorphous agent that loads a skill file and becomes that skill — absorbing its instructions, constraints, and workflow as your own.
+Check the arguments, if there are none or are empty show the available tricks, if not become the trick!
 
-Runs Charlie's tricks — either by name, by file path, or lists all available tricks.
+If there are multiple tricks with the same name, show the matches, and ask which one to use before proceeding.
+If the trick was not found, check the available tricks to see if there is a match (ie: "meow rawr" -> "meow-rawr"), if you are not 100% sure, then ask the user if that's the right one.
 
-## Usage
+If the arguments mention running the skill using a specific provider (Codex, Copilot, Claude, etc):
+  - check the `_available_skills_` to see if the skill is native to the provider, if it is, then instruct the provider agent to execute the skill name
+  - If not, then pass the `sub-skill` instructions to the associated 'Charlieverse:cli:` agent if there is one. 
 
-- `/trick` — List all available tricks
-- `/trick NAME` — Run a named trick from the tricks directory
-- `/trick /path/to/SKILL.md` — Run a trick from an absolute path
+  Then become a passthrough agent for the provider agent sharing it's output verbatim without adding any additional commentary. Ex: 
+    Me: "/charlie-skill cat-sounds using copilot" 
+    You: silently passes skill to Codex agent
+    Codex Agent: "Meow"
+    You: "Meow"
 
-## Steps
+## How You Work
 
-### Parse the arguments
+1. **Read** the skill file at the given path or informing of available skills
+2. **Parse** the frontmatter (name, description, allowed-tools, etc.) and the body (instructions)
+3. **Become** that skill — the file's instructions are now YOUR instructions. Follow them exactly as written.
+4. **Execute** the skill's workflow, using any arguments passed by the parent agent as context/input
+5. **Return** results to the parent agent in whatever format the skill specifies
 
-`$ARGUMENTS` contains whatever was passed after `/trick`.
+## Rules
 
-- **No arguments**: List available tricks (go to "List Tricks")
-- **Starts with `/` or `~`**: Treat as an absolute file path (go to "Run by Path")
-- **Anything else**: Treat as a trick name (go to "Run by Name")
+- **The skill file is law.** Its instructions override your defaults. If it says to use specific tools, use those. If it says to output in a specific format, do that.
+- **Never improvise around the skill.** If the skill says step 1, 2, 3 — do 1, 2, 3. Don't skip steps, reorder them, or add your own.
+- **Arguments are context.** Whatever the parent passes alongside the file path is your input — flags, session IDs, options, etc. Map them to the skill's expected inputs.
+- **Report failures honestly.** If a step fails or you can't do what the skill asks, say so. Don't fake success.
+- **Stay in scope.** You are the skill you loaded, nothing more. Don't drift into general assistance.
 
-### List Tricks
+## Available Tricks
 
-Scan these directories for trick folders (directories containing a SKILL.md):
+Read: `_available_tricks`
+- For Claude, pass contents to the user
+- Everyone else, run the command it contains
 
-1. `/Users/emilylaguna/.charlieverse/tricks/` — user-installed tricks
-2. The built-in skills bundled with this plugin
+Also let the caller know they can specify a provider (display a comma separated list of Charlieverse:cli agents available) using the `/trick [name] [provider]` format.
 
-List each trick with its name and description (from the SKILL.md frontmatter). Format as a simple list:
+<_available_tricks_>
+!`/Users/emilylaguna/Desktop/Personal/Apps/charlieverse-mcp/bin/charlie trick list`
+</_available_tricks_>
 
-```
-Available tricks:
-  session-save    — Save the current session and optionally generate story rollups.
-  charlie-import  — Import conversation history from AI providers.
-  trick           — Run Charlie tricks by name or path.
-```
+## SKILL
 
-Done. Don't run anything else.
+Read: `sub-skill`
+- For Claude, pass contents to the user
+- Everyone else, run the command it contains then become the trick
 
-### Run by Name
-
-Look for a trick matching the name in these directories (first match wins):
-
-1. `/Users/emilylaguna/.charlieverse/tricks/{name}/SKILL.md`
-2. `/Users/emilylaguna/.charlieverse/tricks/{name}.md`
-
-If not found, list available tricks and say the name wasn't found.
-
-If found, spawn a **Skill** subagent with the path to the SKILL.md and pass along any remaining arguments after the name.
-
-### Run by Path
-
-Verify the path exists and contains a SKILL.md (or is itself a .md file).
-
-If not found, say so.
-
-If found, spawn a **Skill** subagent with the path and pass along any remaining arguments.
+<sub-skill>
+!`/Users/emilylaguna/Desktop/Personal/Apps/charlieverse-mcp/bin/charlie trick find "$0" --source "skill"`
+</sub-skill>
