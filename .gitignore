@@ -53,9 +53,3 @@ import/
 
 # Local config overrides
 config.local.yaml
-
-# Charlie (local workspace — ideas, skills, notes)
-.charlie/
-
-# Claude
-.claude/
