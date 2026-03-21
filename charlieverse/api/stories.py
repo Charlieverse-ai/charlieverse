@@ -15,6 +15,21 @@ from charlieverse.models import Session, StoryTier
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _parse_uuid(value: str) -> UUID | None:
+    """Parse a UUID string, returning None on malformed input."""
+    try:
+        return UUID(value)
+    except (ValueError, AttributeError):
+        return None
+
+
+_BAD_UUID = JSONResponse({"error": "Invalid UUID format"}, status_code=400)
+
+
+# ---------------------------------------------------------------------------
 # Serializer
 # ---------------------------------------------------------------------------
 
@@ -96,9 +111,11 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_get_story(request: Request) -> JSONResponse:
         """Get a single story by ID."""
         stories: StoryStore = rest_stores["stories"]
-        story_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
 
-        story = await stories.get(UUID(story_id))
+        story = await stories.get(uid)
         if not story:
             return JSONResponse({"error": "Story not found"}, status_code=404)
 
@@ -173,13 +190,15 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_delete_story(request: Request) -> JSONResponse:
         """Delete a story."""
         story_store: StoryStore = rest_stores["stories"]
-        story_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
 
-        story = await story_store.get(UUID(story_id))
+        story = await story_store.get(uid)
         if not story:
             return JSONResponse({"error": "Story not found"}, status_code=404)
 
-        await story_store.delete(UUID(story_id))
+        await story_store.delete(uid)
         return JSONResponse({"deleted": True})
 
     @mcp.custom_route("/api/stories/cleanup", methods=["POST"])
@@ -209,12 +228,16 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
 
         Returns: messages, existing story, recent memories/knowledge since last save.
         """
-        session_id = request.path_params["session_id"]
+        raw_session_id = request.path_params["session_id"]
+        uid = _parse_uuid(raw_session_id)
+        if not uid:
+            return _BAD_UUID
+        session_id = raw_session_id
         db = rest_stores["db"]
         sessions_store: SessionStore = rest_stores["sessions"]
         story_store: StoryStore = rest_stores["stories"]
 
-        session = await sessions_store.get(UUID(session_id))
+        session = await sessions_store.get(uid)
         session_data = {
             "id": session_id,
             "workspace": session.workspace if session else None,
@@ -222,7 +245,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
             "created_at": session.created_at.isoformat() if session else None,
         }
 
-        existing_story = await story_store.find_by_session(UUID(session_id))
+        existing_story = await story_store.find_by_session(uid)
         existing_story_data = _serialize_story(existing_story) if existing_story else None
 
         last_update = existing_story.updated_at.isoformat() if existing_story else None

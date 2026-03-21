@@ -9,10 +9,24 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from charlieverse.db.fts import sanitize_fts_query
 from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore
 from charlieverse.embeddings import encode_one
 from charlieverse.models import Entity, EntityType, Knowledge
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _parse_uuid(value: str) -> UUID | None:
+    """Parse a UUID string, returning None on malformed input."""
+    try:
+        return UUID(value)
+    except (ValueError, AttributeError):
+        return None
+
+
+_BAD_UUID = JSONResponse({"error": "Invalid UUID format"}, status_code=400)
 
 
 # ---------------------------------------------------------------------------
@@ -83,9 +97,11 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_get_entity(request: Request) -> JSONResponse:
         """Get a single entity by ID."""
         memories: MemoryStore = rest_stores["memories"]
-        entity_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
 
-        entity = await memories.get(UUID(entity_id))
+        entity = await memories.get(uid)
         if not entity:
             return JSONResponse({"error": "Entity not found"}, status_code=404)
 
@@ -118,10 +134,12 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_update_entity(request: Request) -> JSONResponse:
         """Update an entity's content, tags, or pinned status."""
         memories: MemoryStore = rest_stores["memories"]
-        entity_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
         body = await request.json()
 
-        entity = await memories.get(UUID(entity_id))
+        entity = await memories.get(uid)
         if not entity:
             return JSONResponse({"error": "Entity not found"}, status_code=404)
 
@@ -148,28 +166,32 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_delete_entity(request: Request) -> JSONResponse:
         """Soft-delete an entity."""
         memories: MemoryStore = rest_stores["memories"]
-        entity_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
 
-        entity = await memories.get(UUID(entity_id))
+        entity = await memories.get(uid)
         if not entity:
             return JSONResponse({"error": "Entity not found"}, status_code=404)
 
-        await memories.delete(UUID(entity_id))
+        await memories.delete(uid)
         return JSONResponse({"deleted": True})
 
     @mcp.custom_route("/api/entities/{id}/pin", methods=["POST"])
     async def api_pin_entity(request: Request) -> JSONResponse:
         """Toggle pin status on an entity."""
         memories: MemoryStore = rest_stores["memories"]
-        entity_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
         body = await request.json()
 
-        entity = await memories.get(UUID(entity_id))
+        entity = await memories.get(uid)
         if not entity:
             return JSONResponse({"error": "Entity not found"}, status_code=404)
 
         pinned = body.get("pinned", not entity.pinned)
-        await memories.pin(UUID(entity_id), pinned)
+        await memories.pin(uid, pinned)
 
         entity.pinned = pinned
         return JSONResponse(_serialize_entity(entity))
@@ -188,9 +210,11 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_get_knowledge(request: Request) -> JSONResponse:
         """Get a single knowledge article by ID."""
         knowledge: KnowledgeStore = rest_stores["knowledge"]
-        article_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
 
-        article = await knowledge.get(UUID(article_id))
+        article = await knowledge.get(uid)
         if not article:
             return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
 
@@ -223,10 +247,12 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_update_knowledge(request: Request) -> JSONResponse:
         """Update a knowledge article's topic, content, tags, or pinned status."""
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
-        article_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
         body = await request.json()
 
-        article = await knowledge_store.get(UUID(article_id))
+        article = await knowledge_store.get(uid)
         if not article:
             return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
 
@@ -255,28 +281,32 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_delete_knowledge(request: Request) -> JSONResponse:
         """Delete a knowledge article."""
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
-        article_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
 
-        article = await knowledge_store.get(UUID(article_id))
+        article = await knowledge_store.get(uid)
         if not article:
             return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
 
-        await knowledge_store.delete(UUID(article_id))
+        await knowledge_store.delete(uid)
         return JSONResponse({"deleted": True})
 
     @mcp.custom_route("/api/knowledge/{id}/pin", methods=["POST"])
     async def api_pin_knowledge(request: Request) -> JSONResponse:
         """Toggle pin status on a knowledge article."""
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
-        article_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
         body = await request.json()
 
-        article = await knowledge_store.get(UUID(article_id))
+        article = await knowledge_store.get(uid)
         if not article:
             return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
 
         pinned = body.get("pinned", not article.pinned)
-        await knowledge_store.pin(UUID(article_id), pinned)
+        await knowledge_store.pin(uid, pinned)
 
         article.pinned = pinned
         return JSONResponse(_serialize_knowledge(article))
@@ -295,9 +325,11 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_get_session(request: Request) -> JSONResponse:
         """Get a single session by ID."""
         sessions: SessionStore = rest_stores["sessions"]
-        session_id = request.path_params["id"]
+        uid = _parse_uuid(request.path_params["id"])
+        if not uid:
+            return _BAD_UUID
 
-        session = await sessions.get(UUID(session_id))
+        session = await sessions.get(uid)
         if not session:
             return JSONResponse({"error": "Session not found"}, status_code=404)
 
@@ -316,17 +348,16 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         memories: MemoryStore = rest_stores["memories"]
         knowledge: KnowledgeStore = rest_stores["knowledge"]
 
-        fts_query = sanitize_fts_query(query)
         entity_results = []
         knowledge_results = []
 
         try:
-            entity_results = await memories.search(fts_query, limit=limit)
+            entity_results = await memories.search(query, limit=limit)
         except Exception:
             pass
 
         try:
-            knowledge_results = await knowledge.search(fts_query, limit=limit)
+            knowledge_results = await knowledge.search(query, limit=limit)
         except Exception:
             pass
 
