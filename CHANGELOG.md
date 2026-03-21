@@ -5,6 +5,20 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.9.3] — 2026-03-21
+
+### Added
+- Apache-2.0 `LICENSE` file added to the repository
+
+### Changed
+- License switched from MIT to Apache-2.0 — all plugin manifests and `pyproject.toml` updated
+- MCP config generation script now correctly wraps server entries under `mcpServers` key to match the MCP spec
+- Charlie system prompt updated with `human_vs_charlie_time` guidance: Charlie should not give time estimates or judge effort by human standards
+- Ship and changelog skill definitions clarified: ship workflow now explicitly includes `qc` step; changelog skill reminds to update `pyproject.toml` version
+- README updated to reflect current import sources (Cursor removed) and remove stale dashboard feature mention
+
+---
+
 ## [v1.9.2] — 2026-03-20
 
 ### Changed
