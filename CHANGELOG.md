@@ -5,6 +5,17 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.9.8] — 2026-03-21
+
+### Changed
+- CLI docs updated to remove stale `charlie events` command reference
+- Architectural decision records added for recent system changes
+
+### Fixed
+- `rebuild_vec` now drops and recreates vec tables instead of applying incremental updates, ensuring a clean rebuild
+
+---
+
 ## [v1.9.7] — 2026-03-21
 
 ### Added
