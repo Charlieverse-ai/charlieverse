@@ -613,9 +613,11 @@ def _run_check(fn: Callable[[], CheckResult | list[CheckResult]]) -> list[CheckR
     """Run a check function and always return a list, catching unexpected exceptions."""
     try:
         result = fn()
-        return result if isinstance(result, list) else [result]
+        checks: list[CheckResult] = result if isinstance(result, list) else [result]  # type: ignore[assignment]
+        return checks
     except Exception as exc:
-        return [_fail(fn.__name__, f"Unexpected error: {exc}")]
+        name = getattr(fn, "__name__", "unknown")
+        return [_fail(name, f"Unexpected error: {exc}")]
 
 
 def _status_icon(status: Status) -> str:
