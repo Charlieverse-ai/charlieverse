@@ -1,8 +1,10 @@
 cat <<JSON
 {
-  "charlie-tools" : {
-    "type" : "http",
-    "url" : "$1"
+  "mcpServers": {
+    "charlie-tools" : {
+      "type" : "http",
+      "url" : "$1"
+    }
   }
 }
 JSON
