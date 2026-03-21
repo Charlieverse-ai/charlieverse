@@ -63,7 +63,7 @@ class StoryStore:
                 story.deleted_at.isoformat() if story.deleted_at else None,
             ),
         )
-        await self._sync_fts(story)
+        await self._sync_fts_insert(story)
         await self._sync_vec(story)
         await self.db.commit()
         return story
@@ -164,6 +164,8 @@ class StoryStore:
     async def update(self, story: Story) -> Story:
         """Update an existing story."""
         now = datetime.now(timezone.utc)
+        # Delete old FTS entry BEFORE updating (needs old values from content table)
+        await self._sync_fts_delete(story.id)
         await self.db.execute(
             """UPDATE stories SET title = ?, summary = ?, content = ?, tier = ?,
                period_start = ?, period_end = ?, workspace = ?, session_id = ?,
@@ -183,7 +185,8 @@ class StoryStore:
                 str(story.id),
             ),
         )
-        await self._sync_fts(story)
+        # Insert new FTS entry AFTER updating
+        await self._sync_fts_insert(story)
         await self._sync_vec(story)
         await self.db.commit()
         return story
@@ -199,22 +202,30 @@ class StoryStore:
 
     # --- FTS ---
 
-    async def _sync_fts(self, story: Story) -> None:
-        """Sync a story to the FTS index."""
+    async def _sync_fts_insert(self, story: Story) -> None:
+        """Insert a new story into the FTS index."""
         cursor = await self.db.execute(
             "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
         )
         row = await cursor.fetchone()
         if not row:
             return
-        rowid = row[0]
-        await self.db.execute(
-            "INSERT INTO stories_fts(stories_fts, rowid, title, summary, content, tags) VALUES('delete', ?, ?, ?, ?, ?)",
-            (rowid, story.title, story.summary or "", story.content, _tags_json(story.tags) or ""),
-        )
         await self.db.execute(
             "INSERT INTO stories_fts(rowid, title, summary, content, tags) VALUES(?, ?, ?, ?, ?)",
-            (rowid, story.title, story.summary or "", story.content, _tags_json(story.tags) or ""),
+            (row[0], story.title, story.summary or "", story.content, _tags_json(story.tags) or ""),
+        )
+
+    async def _sync_fts_delete(self, story_id: UUID) -> None:
+        """Remove a story's FTS entry using values from the content table."""
+        cursor = await self.db.execute(
+            "SELECT rowid, title, summary, content, tags FROM stories WHERE id = ?", (str(story_id),)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return
+        await self.db.execute(
+            "INSERT INTO stories_fts(stories_fts, rowid, title, summary, content, tags) VALUES('delete', ?, ?, ?, ?, ?)",
+            (row[0], row[1], row[2] or "", row[3], row[4] or ""),
         )
 
     async def search(
