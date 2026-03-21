@@ -21,7 +21,8 @@ function firstSentence(content: string): string {
   for (const line of lines) {
     const trimmed = line.trim()
     if (!foundContent) {
-      if (!trimmed || trimmed.startsWith('#') || trimmed === '---' || trimmed.startsWith('**March') || trimmed.startsWith('**Week') || trimmed.startsWith('**Feb') || trimmed.startsWith('**Jan') || trimmed.startsWith('**Nov') || trimmed.startsWith('**Dec')) continue
+      // Skip empty lines, markdown headers, dividers, and bold date/period prefixes
+      if (!trimmed || trimmed.startsWith('#') || trimmed === '---' || /^\*\*[A-Z]/.test(trimmed)) continue
       foundContent = true
     }
     if (foundContent) {
