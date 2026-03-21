@@ -178,7 +178,6 @@ POST                   /api/rebuild      Rebuild FTS + vector indexes
 
 A React-based UI for browsing and managing everything Charlie knows. Runs at `http://localhost:8765`.
 
-- Timeline view with monthly chapters and weekly entries
 - Full-text search with `Cmd+K` quick find
 - Inline editing, deletion, and pinning
 - Story reader with markdown rendering
@@ -219,7 +218,7 @@ Bootstrap Charlie's memory from your existing conversation history:
 charlie import --messages --recent-days 30
 ```
 
-Auto-discovers and imports from Claude, GitHub Copilot (including Insiders), Cursor, and Codex. Recent messages import immediately, older ones process in the background. The Storyteller generates weekly/monthly narratives from the imported data.
+Auto-discovers and imports from Claude, GitHub Copilot (including Insiders), and Codex. Recent messages import immediately, older ones process in the background. The Storyteller generates weekly/monthly narratives from the imported data.
 
 ---
 
