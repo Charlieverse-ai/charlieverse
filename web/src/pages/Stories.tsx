@@ -10,6 +10,8 @@ const tiers: { value: StoryTier | null; label: string }[] = [
   { value: 'quarterly', label: 'Quarterly' },
   { value: 'monthly', label: 'Monthly' },
   { value: 'weekly', label: 'Weekly' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'session', label: 'Session' },
 ]
 
 interface StoriesProps {

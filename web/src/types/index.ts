@@ -31,7 +31,7 @@ export interface Knowledge {
   updated_at: string
 }
 
-export type StoryTier = 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'all-time'
+export type StoryTier = 'session' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'all-time'
 
 export interface Story {
   id: string
