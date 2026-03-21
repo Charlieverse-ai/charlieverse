@@ -5,6 +5,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.9.1] — 2026-03-20
+
+### Changed
+- Renamed "Skill" agent to "Trick" in docs and agent definitions to match current naming convention; added provider delegation note
+- CLI docs expanded: `events` command flags documented, `story-data` DATE argument and shortcuts documented, `session-start` optional flags clarified
+- MCP tools docs: `get_story_data` now lists `quarterly` and `yearly` as supported tier names
+
+---
+
 ## [v1.9.0] — 2026-03-20
 
 ### Added
