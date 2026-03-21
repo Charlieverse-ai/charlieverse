@@ -2,25 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from uuid import UUID
 from typing import List
 
 import aiosqlite
 
+from charlieverse.db.stores._utils import _tags_json, _tags_list
 from charlieverse.models import Entity, EntityType
-
-
-def _tags_json(tags: list[str] | None) -> str | None:
-    return json.dumps(tags) if tags else None
-
-
-def _tags_list(raw: str | None) -> list[str] | None:
-    if not raw:
-        return None
-    parsed = json.loads(raw)
-    return parsed if parsed else None
 
 
 def _row_to_entity(row: aiosqlite.Row) -> Entity:
@@ -55,13 +44,16 @@ class MemoryStore:
 
     async def rebuild_vec(self) -> None:
         """Rebuild all entity embeddings from scratch."""
-        from charlieverse.embeddings import encode_one, prepare_entity_text
+        from charlieverse.embeddings import encode, prepare_entity_text
 
         entities = await self.list(limit=5000)
-        for entity in entities:
+        if not entities:
+            return
+
+        texts = [prepare_entity_text(entity.content, entity.tags) for entity in entities]
+        embeddings = await encode(texts)
+        for entity, embedding in zip(entities, embeddings):
             try:
-                text = prepare_entity_text(entity.content, entity.tags)
-                embedding = await encode_one(text)
                 await self.upsert_embedding(entity.id, embedding)
             except Exception:
                 continue

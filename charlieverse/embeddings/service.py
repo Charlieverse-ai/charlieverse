@@ -33,7 +33,7 @@ async def encode(texts: list[str]) -> list[list[float]]:
     Runs the model in a thread pool to avoid blocking the event loop.
     Returns a list of float vectors (384 dimensions each).
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     embeddings = await loop.run_in_executor(
         _executor,
         lambda: _get_model().encode(texts).tolist(),

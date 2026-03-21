@@ -2,24 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from uuid import UUID
 
 import aiosqlite
 
+from charlieverse.db.stores._utils import _tags_json, _tags_list
 from charlieverse.models import Session
-
-
-def _tags_json(tags: list[str] | None) -> str | None:
-    return json.dumps(tags) if tags else None
-
-
-def _tags_list(raw: str | None) -> list[str] | None:
-    if not raw:
-        return None
-    parsed = json.loads(raw)
-    return parsed if parsed else None
 
 
 def _row_to_session(row: aiosqlite.Row) -> Session:

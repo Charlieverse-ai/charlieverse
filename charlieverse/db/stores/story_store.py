@@ -4,27 +4,16 @@ from __future__ import annotations
 from typing import List
 
 import asyncio
-import json
 import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
 import aiosqlite
 
+from charlieverse.db.stores._utils import _tags_json, _tags_list
 from charlieverse.models.story import Story, StoryTier
 
 logger = logging.getLogger(__name__)
-
-
-def _tags_json(tags: list[str] | None) -> str | None:
-    return json.dumps(tags) if tags else None
-
-
-def _tags_list(raw: str | None) -> list[str] | None:
-    if not raw:
-        return None
-    parsed = json.loads(raw)
-    return parsed if parsed else None
 
 
 def _row_to_story(row: aiosqlite.Row) -> Story:
@@ -346,16 +335,19 @@ class StoryStore:
 
     async def rebuild_vec(self) -> None:
         """Rebuild all story embeddings from scratch."""
-        from charlieverse.embeddings import encode_one
+        from charlieverse.embeddings import encode
         from sqlite_vec import serialize_float32
 
         all_stories = await self.list(limit=1000)
+        if not all_stories:
+            return
+
+        texts = [f"{story.title}\n{story.summary or ''}\n{story.content}" for story in all_stories]
+        embeddings = await encode(texts)
 
         rows: list[tuple[int, bytes]] = []
-        for story in all_stories:
+        for story, embedding in zip(all_stories, embeddings):
             try:
-                text = f"{story.title}\n{story.summary or ''}\n{story.content}"
-                embedding = await encode_one(text)
                 cursor = await self.db.execute(
                     "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
                 )

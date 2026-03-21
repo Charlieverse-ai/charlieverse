@@ -2,24 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import aiosqlite
 
 from datetime import datetime, timezone
 from uuid import UUID
 from typing import List
+
+from charlieverse.db.stores._utils import _tags_json, _tags_list
 from charlieverse.models import Knowledge
-
-
-def _tags_json(tags: list[str] | None) -> str | None:
-    return json.dumps(tags) if tags else None
-
-
-def _tags_list(raw: str | None) -> list[str] | None:
-    if not raw:
-        return None
-    parsed = json.loads(raw)
-    return parsed if parsed else None
 
 
 def _row_to_knowledge(row: aiosqlite.Row) -> Knowledge:
@@ -54,13 +44,16 @@ class KnowledgeStore:
 
     async def rebuild_vec(self) -> None:
         """Rebuild all knowledge embeddings from scratch."""
-        from charlieverse.embeddings import encode_one
+        from charlieverse.embeddings import encode
 
         articles = await self.list(limit=5000)
-        for article in articles:
+        if not articles:
+            return
+
+        texts = [f"{article.topic} {article.content}" for article in articles]
+        embeddings = await encode(texts)
+        for article, embedding in zip(articles, embeddings):
             try:
-                text = f"{article.topic} {article.content}"
-                embedding = await encode_one(text)
                 await self.upsert_embedding(article.id, embedding)
             except Exception:
                 continue

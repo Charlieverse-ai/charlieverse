@@ -6,7 +6,8 @@ import asyncio
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore
-from charlieverse.embeddings import encode_one, prepare_entity_text
+from charlieverse.embeddings import prepare_entity_text
+from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.models import Entity, EntityType
 from charlieverse.tools.responses import (
     AckResponse,
@@ -30,12 +31,8 @@ def _to_summary(e: Entity) -> EntitySummary:
 
 async def _fire_and_forget_embedding(memories: MemoryStore, entity: Entity) -> None:
     """Generate and store embedding in background. Best-effort, never fails the caller."""
-    try:
-        text = prepare_entity_text(entity.content, entity.tags)
-        embedding = await encode_one(text)
-        await memories.upsert_embedding(entity.id, embedding)
-    except Exception:
-        pass  # Embedding failures are silent — FTS still works
+    text = prepare_entity_text(entity.content, entity.tags)
+    await fire_and_forget_embedding(text, lambda emb: memories.upsert_embedding(entity.id, emb))
 
 
 async def remember_decision(

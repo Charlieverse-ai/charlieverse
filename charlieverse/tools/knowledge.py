@@ -6,19 +6,16 @@ import asyncio
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore
-from charlieverse.embeddings import encode_one, prepare_knowledge_text
+from charlieverse.embeddings import prepare_knowledge_text
+from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.models import Knowledge
 from charlieverse.tools.responses import ExpertResponse, IdResponse, KnowledgeSummary
 
 
 async def _fire_and_forget_embedding(knowledge_store: KnowledgeStore, knowledge: Knowledge) -> None:
     """Generate and store embedding in background."""
-    try:
-        text = prepare_knowledge_text(knowledge.topic, knowledge.content, knowledge.tags)
-        embedding = await encode_one(text)
-        await knowledge_store.upsert_embedding(knowledge.id, embedding)
-    except Exception:
-        pass
+    text = prepare_knowledge_text(knowledge.topic, knowledge.content, knowledge.tags)
+    await fire_and_forget_embedding(text, lambda emb: knowledge_store.upsert_embedding(knowledge.id, emb))
 
 
 async def search_knowledge(

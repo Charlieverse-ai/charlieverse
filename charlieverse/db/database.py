@@ -37,6 +37,9 @@ async def connect(db_path: str | Path) -> aiosqlite.Connection:
     # Enable WAL mode for concurrent reads
     await db.execute("PRAGMA journal_mode=WAL")
 
+    # Safe in WAL mode — reduces fsync overhead for local single-user server
+    await db.execute("PRAGMA synchronous=NORMAL")
+
     # Enable foreign keys
     await db.execute("PRAGMA foreign_keys=ON")
 

@@ -152,7 +152,7 @@ def _render_first_run(bundle: ContextBundle) -> str:
 def _render_tricks(workspace: str | None) -> str:
     """Discover tricks and render them for the activation context."""
     try:
-        from charlieverse.cli.trick_cmd import _discover_skills, _source_label
+        from charlieverse.skills import _discover_skills, _source_label
         tricks = _discover_skills()
     except Exception:
         return ""
