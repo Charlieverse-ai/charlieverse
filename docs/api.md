@@ -18,7 +18,7 @@ Base URL: `http://localhost:8765`
 | `GET` | `/api/sessions/{id}` | Get a specific session |
 
 **Query params** for `context`: `session_id`, `workspace`
-**Query params** for `list`: `limit`, `workspace`
+**Query params** for `list`: `limit`
 
 ---
 
@@ -33,7 +33,7 @@ Base URL: `http://localhost:8765`
 | `DELETE` | `/api/entities/{id}` | Soft-delete an entity |
 | `POST` | `/api/entities/{id}/pin` | Toggle pin status |
 
-**Query params** for `list`: `type`, `limit`, `pinned`
+**Query params** for `list`: `type`, `limit`
 
 ---
 
@@ -94,16 +94,6 @@ Used by the Storyteller agent to generate narratives.
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/api/context/enrich` | NLP entity extraction + memory lookup for a text input |
-
----
-
-## Hook events
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/hooks/events` | List recent hook events |
-
-**Body params** for `events`: `session_id` (optional), `since` (ISO datetime, optional), `limit` (default 50)
 
 ---
 
