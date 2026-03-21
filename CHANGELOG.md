@@ -5,6 +5,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.9.6] — 2026-03-21
+
+### Added
+- Unit tests for `StoryStore`, `KnowledgeStore`, and `SessionStore`
+- Back button added to `StoryReader` so users can navigate away from a story
+
+### Changed
+- Port-kill script now guards against terminating non-charlieverse processes
+- Dashboard `firstSentence` bold date-prefix stripping generalized to cover all month names
+
+### Fixed
+- FTS sync ordering in `StoryStore` corrected to prevent stale index entries on update
+- UUID path params validated before parsing to return proper 4xx errors instead of 500s on malformed input
+
+---
+
 ## [v1.9.5] — 2026-03-21
 
 ### Added
