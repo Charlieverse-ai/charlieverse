@@ -16,5 +16,3 @@ CREATE TABLE IF NOT EXISTS stories (
 CREATE INDEX IF NOT EXISTS idx_stories_tier ON stories(tier);
 CREATE INDEX IF NOT EXISTS idx_stories_period ON stories(period_start, period_end);
 CREATE INDEX IF NOT EXISTS idx_stories_deleted ON stories(deleted_at);
-
-PRAGMA user_version = 3;

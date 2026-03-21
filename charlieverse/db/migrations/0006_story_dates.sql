@@ -50,5 +50,3 @@ DROP TABLE IF EXISTS stories_vec;
 CREATE VIRTUAL TABLE IF NOT EXISTS stories_vec USING vec0(
     embedding float[384]
 );
-
-PRAGMA user_version = 6;

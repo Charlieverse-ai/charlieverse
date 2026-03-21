@@ -143,5 +143,3 @@ CREATE TABLE IF NOT EXISTS hook_events (
 CREATE INDEX IF NOT EXISTS idx_hook_events_session_id ON hook_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_hook_events_event_type ON hook_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_hook_events_created_at ON hook_events(created_at);
-
-PRAGMA user_version = 1;

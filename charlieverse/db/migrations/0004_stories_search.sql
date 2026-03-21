@@ -12,5 +12,3 @@ CREATE VIRTUAL TABLE IF NOT EXISTS stories_fts USING fts5(
 CREATE VIRTUAL TABLE IF NOT EXISTS stories_vec USING vec0(
     embedding float[384]
 );
-
-PRAGMA user_version = 4;
