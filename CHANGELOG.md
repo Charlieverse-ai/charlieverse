@@ -5,6 +5,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.9.5] — 2026-03-21
+
+### Added
+- `ErrorBoundary` component wraps the app shell to surface render errors with a recoverable UI instead of a blank screen
+- Stories page now includes `daily` and `session` tier filters
+- Settings page wires the `POST /api/rebuild` endpoint to a functional Rebuild button with loading and success/error states
+
+---
+
 ## [v1.9.4] — 2026-03-21
 
 ### Changed
