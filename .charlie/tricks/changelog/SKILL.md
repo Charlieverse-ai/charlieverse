@@ -63,6 +63,8 @@ Group commits by category. Write concise human-readable descriptions (not raw co
 
 ### 5. Commit the changelog
 
+Update the version in pyproject.toml
+
 ```bash
 git add CHANGELOG.md
 charlie-commit -m "Update CHANGELOG for vX.Y.Z
