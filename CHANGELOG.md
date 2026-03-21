@@ -5,6 +5,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.9.2] — 2026-03-20
+
+### Changed
+- Trick skill now routes to a subagent by default, making execution non-blocking so the parent agent can continue while the trick runs
+
+---
+
 ## [v1.9.1] — 2026-03-20
 
 ### Changed
