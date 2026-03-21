@@ -163,7 +163,12 @@ def start(
 
     if not foreground and transport != "stdio":
         # Fork to background
-        pid = os.fork()
+        try:
+            pid = os.fork()
+        except OSError as e:
+            typer.echo(f"Failed to fork: {e}", err=True)
+            raise typer.Exit(1)
+
         if pid > 0:
             # Parent — wait for child to write PID, then poll health
             import time
@@ -178,6 +183,14 @@ def start(
                 typer.echo(f"Listening on {config.server.base_url()}")
             else:
                 typer.echo("Failed to start Charlieverse", err=True)
+                # Clean up the child process if it's still around
+                child_pid = _read_pid()
+                if child_pid:
+                    try:
+                        os.kill(child_pid, signal.SIGTERM)
+                    except OSError:
+                        pass
+                    _clear_pid()
                 if LOG_FILE.exists():
                     lines = LOG_FILE.read_text().strip().splitlines()
                     tail = lines[-15:] if len(lines) > 15 else lines
