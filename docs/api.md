@@ -60,7 +60,7 @@ Base URL: `http://localhost:8765`
 | `GET` | `/api/stories` | List stories |
 | `GET` | `/api/stories/{id}` | Get a specific story |
 | `DELETE` | `/api/stories/{id}` | Delete a story |
-| `POST` | `/api/stories/cleanup` | Remove duplicate stories |
+| `POST` | `/api/stories/cleanup` | Delete stories with empty, short, or test titles |
 
 **Query params** for `list`: `tier`, `limit`
 
