@@ -9,6 +9,7 @@ from charlieverse.db.stores import KnowledgeStore
 from charlieverse.embeddings import encode_one, prepare_knowledge_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.models import Knowledge
+from charlieverse.tasks import track_task
 from charlieverse.tools.responses import ExpertResponse, IdResponse, KnowledgeSummary
 
 
@@ -74,5 +75,5 @@ async def update_knowledge(
         updated_session_id=UUID(session_id) if session_id else None,
     )
     result = await knowledge_store.upsert(knowledge)
-    asyncio.create_task(_fire_and_forget_embedding(knowledge_store, result))
+    track_task(asyncio.create_task(_fire_and_forget_embedding(knowledge_store, result)))
     return IdResponse(id=result.id)

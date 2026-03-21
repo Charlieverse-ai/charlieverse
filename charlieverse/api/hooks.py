@@ -18,8 +18,10 @@ from charlieverse.embeddings import encode_one
 from charlieverse.models import Session
 
 
-def register_routes(mcp: FastMCP, rest_stores: dict, activation_seen_ids: dict) -> None:
+def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     """Register hook REST endpoints on the given FastMCP instance."""
+    # Lazy import to avoid circular dependency (hooks → server → mcp → tools → server)
+    from charlieverse.server import get_seen_ids, set_seen_ids  # noqa: E402
 
     @mcp.custom_route("/api/sessions/context", methods=["GET"])
     async def api_session_context(request: Request) -> PlainTextResponse:
@@ -73,7 +75,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict, activation_seen_ids: dict) 
         bundle = await builder.build(session)
         activation = context_renderer.render(bundle)
 
-        activation_seen_ids[str(session.id)] = bundle.seen_ids
+        set_seen_ids(str(session.id), bundle.seen_ids)
 
         return JSONResponse({
             "session_id": str(session.id),
@@ -130,7 +132,14 @@ def register_routes(mcp: FastMCP, rest_stores: dict, activation_seen_ids: dict) 
                VALUES (?, ?, ?, ?, ?, ?)""",
             (entry_id, content, json.dumps(tags) if tags else None, session_id, now, now),
         )
-        await db.execute("INSERT INTO work_logs_fts(work_logs_fts) VALUES('rebuild')")
+        # Per-row FTS sync instead of full rebuild
+        cursor = await db.execute("SELECT rowid FROM work_logs WHERE id = ?", (entry_id,))
+        wl_row = await cursor.fetchone()
+        if wl_row:
+            await db.execute(
+                "INSERT INTO work_logs_fts(rowid, content, tags) VALUES(?, ?, ?)",
+                (wl_row[0], content, json.dumps(tags) if tags else ""),
+            )
         await db.commit()
 
         return JSONResponse({"id": entry_id})
@@ -146,12 +155,20 @@ def register_routes(mcp: FastMCP, rest_stores: dict, activation_seen_ids: dict) 
         role = body.get("role", "user")
         content = body.get("content", "")
 
-        await db.execute(
+        cursor = await db.execute(
             """INSERT OR IGNORE INTO messages (id, session_id, role, content, created_at)
                VALUES (?, ?, ?, ?, ?)""",
             (msg_id, session_id, role, content, datetime.now(timezone.utc).isoformat()),
         )
-        await db.execute("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')")
+        # Only sync FTS if the row was actually inserted (not a duplicate)
+        if cursor.rowcount > 0:
+            row_cursor = await db.execute("SELECT rowid FROM messages WHERE id = ?", (msg_id,))
+            msg_row = await row_cursor.fetchone()
+            if msg_row:
+                await db.execute(
+                    "INSERT INTO messages_fts(rowid, content) VALUES(?, ?)",
+                    (msg_row[0], content),
+                )
         await db.commit()
         return JSONResponse({"saved": True})
 
@@ -201,7 +218,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict, activation_seen_ids: dict) 
         session_id = body.get("session_id")
 
         if session_id:
-            seen_ids |= activation_seen_ids.get(session_id, set())
+            seen_ids |= get_seen_ids(session_id)
 
         if not text:
             return JSONResponse({"entities": [], "found": [], "not_found": [], "stories": []})
@@ -309,7 +326,9 @@ def register_routes(mcp: FastMCP, rest_stores: dict, activation_seen_ids: dict) 
                 prompt_ids.update(k["id"] for k in entry.get("knowledge", []))
             prompt_ids.update(s["id"] for s in stories_result)
             if prompt_ids:
-                activation_seen_ids.setdefault(session_id, set()).update(prompt_ids)
+                existing = get_seen_ids(session_id)
+                existing.update(prompt_ids)
+                set_seen_ids(session_id, existing)
 
         return JSONResponse({
             "entities": entities,

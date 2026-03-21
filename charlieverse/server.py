@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import time
 from typing import Literal, TypeAlias
 
 from fastmcp import FastMCP
@@ -15,6 +17,9 @@ from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, St
 from charlieverse.mcp import tools_memory, tools_knowledge, tools_sessions, tools_stories
 from charlieverse.mcp.context import StoreContext
 from charlieverse.api import hooks, entities, stories, spa
+from charlieverse.tasks import track_task
+
+logger = logging.getLogger(__name__)
 
 
 @lifespan
@@ -47,7 +52,7 @@ async def app_lifespan(server):
         await store_dict["knowledge"].rebuild_fts()
         await store_dict["stories"].rebuild_fts()
     except Exception:
-        pass
+        logger.exception("FTS rebuild failed on startup — search may be stale")
 
     # Rebuild vector indexes in the background (slow, don't block startup)
     async def _background_vec_rebuild():
@@ -56,9 +61,9 @@ async def app_lifespan(server):
             await store_dict["knowledge"].rebuild_vec()
             await store_dict["stories"].rebuild_vec()
         except Exception:
-            pass
+            logger.exception("Vector rebuild failed — semantic search may be stale")
 
-    rebuild_task = asyncio.create_task(_background_vec_rebuild())
+    rebuild_task = track_task(asyncio.create_task(_background_vec_rebuild()))
 
     try:
         yield store_dict
@@ -74,7 +79,31 @@ McpTransport: TypeAlias = Literal["stdio", "http", "sse", "streamable-http"]
 # Store references for REST routes (populated during lifespan).
 # Typed as dict so the api/ register_routes helpers (which accept dict) stay compatible.
 _rest_stores: dict = {}
-_activation_seen_ids: dict[str, set[str]] = {}  # session_id -> IDs delivered at activation
+
+# session_id -> (IDs delivered at activation, timestamp).
+# Entries older than 24h are evicted on access to prevent unbounded growth (C-02).
+_SEEN_IDS_TTL = 86400  # 24 hours
+_activation_seen_ids: dict[str, tuple[set[str], float]] = {}
+
+
+def get_seen_ids(session_id: str) -> set[str]:
+    """Get the set of activation IDs for a session, with TTL eviction."""
+    _evict_stale_seen_ids()
+    entry = _activation_seen_ids.get(session_id)
+    return entry[0] if entry else set()
+
+
+def set_seen_ids(session_id: str, ids: set[str]) -> None:
+    """Store activation IDs for a session."""
+    _activation_seen_ids[session_id] = (ids, time.monotonic())
+
+
+def _evict_stale_seen_ids() -> None:
+    """Remove entries older than TTL."""
+    now = time.monotonic()
+    stale = [k for k, (_, ts) in _activation_seen_ids.items() if now - ts > _SEEN_IDS_TTL]
+    for k in stale:
+        del _activation_seen_ids[k]
 
 
 # Patch lifespan to also populate REST store refs
@@ -106,7 +135,7 @@ tools_stories.register(mcp)
 # Register REST routes
 # ============================================================
 
-hooks.register_routes(mcp, _rest_stores, _activation_seen_ids)
+hooks.register_routes(mcp, _rest_stores)
 entities.register_routes(mcp, _rest_stores)
 stories.register_routes(mcp, _rest_stores)
 spa.register_routes(mcp)

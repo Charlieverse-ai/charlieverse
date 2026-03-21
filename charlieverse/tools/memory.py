@@ -9,6 +9,7 @@ from charlieverse.db.stores import KnowledgeStore, MemoryStore
 from charlieverse.embeddings import encode_one, prepare_entity_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.models import Entity, EntityType
+from charlieverse.tasks import track_task
 from charlieverse.tools.responses import (
     AckResponse,
     EntitySummary,
@@ -57,7 +58,7 @@ async def remember_decision(
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
-    asyncio.create_task(_fire_and_forget_embedding(memories, entity))
+    track_task(asyncio.create_task(_fire_and_forget_embedding(memories, entity)))
     return IdResponse(id=entity.id)
 
 
@@ -80,7 +81,7 @@ async def remember_solution(
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
-    asyncio.create_task(_fire_and_forget_embedding(memories, entity))
+    track_task(asyncio.create_task(_fire_and_forget_embedding(memories, entity)))
     return IdResponse(id=entity.id)
 
 
@@ -101,7 +102,7 @@ async def remember_preference(
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
-    asyncio.create_task(_fire_and_forget_embedding(memories, entity))
+    track_task(asyncio.create_task(_fire_and_forget_embedding(memories, entity)))
     return IdResponse(id=entity.id)
 
 
@@ -122,7 +123,7 @@ async def remember_person(
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
-    asyncio.create_task(_fire_and_forget_embedding(memories, entity))
+    track_task(asyncio.create_task(_fire_and_forget_embedding(memories, entity)))
     return IdResponse(id=entity.id)
 
 
@@ -148,7 +149,7 @@ async def remember_milestone(
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
-    asyncio.create_task(_fire_and_forget_embedding(memories, entity))
+    track_task(asyncio.create_task(_fire_and_forget_embedding(memories, entity)))
     return IdResponse(id=entity.id)
 
 
@@ -177,7 +178,7 @@ async def remember_moment(
         created_session_id=UUID(session_id) if session_id else UUID(int=0),
     )
     entity = await memories.create(entity)
-    asyncio.create_task(_fire_and_forget_embedding(memories, entity))
+    track_task(asyncio.create_task(_fire_and_forget_embedding(memories, entity)))
     return IdResponse(id=entity.id)
 
 
@@ -229,21 +230,22 @@ async def recall(
     if db:
         try:
             fts_query = sanitize_fts_query(query)
-            cursor = await db.execute(
-                """SELECT m.id, m.role, m.content, m.created_at FROM messages m
-                   JOIN messages_fts fts ON m.rowid = fts.rowid
-                   WHERE messages_fts MATCH ?
-                   ORDER BY bm25(messages_fts) LIMIT ?""",
-                (fts_query, min(limit, 5)),
-            )
-            rows = await cursor.fetchall()
-            message_results = [
-                MessageSummary(
-                    id=row["id"], role=row["role"],
-                    content=row["content"][:500], created_at=row["created_at"],
+            if fts_query:
+                cursor = await db.execute(
+                    """SELECT m.id, m.role, m.content, m.created_at FROM messages m
+                       JOIN messages_fts fts ON m.rowid = fts.rowid
+                       WHERE messages_fts MATCH ?
+                       ORDER BY bm25(messages_fts) LIMIT ?""",
+                    (fts_query, min(limit, 5)),
                 )
-                for row in rows
-            ]
+                rows = await cursor.fetchall()
+                message_results = [
+                    MessageSummary(
+                        id=row["id"], role=row["role"],
+                        content=row["content"][:500], created_at=row["created_at"],
+                    )
+                    for row in rows
+                ]
         except Exception:
             pass
 
@@ -282,7 +284,7 @@ async def update_memory(
         entity.updated_session_id = UUID(session_id)
 
     await memories.update(entity)
-    asyncio.create_task(_fire_and_forget_embedding(memories, entity))
+    track_task(asyncio.create_task(_fire_and_forget_embedding(memories, entity)))
     return AckResponse()
 
 
