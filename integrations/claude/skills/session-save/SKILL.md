@@ -24,14 +24,16 @@ Call `get_story_data` with target `"daily"` to see if there are session-tier sto
 
 If there are enough session stories (2+), or it's been a while since the last daily, spawn a **Storyteller** subagent with the data and have it generate a daily story. Save the result with `upsert_story`.
 
-### 3. Cascade (optional)
+### 3. Cascade
 
-If `$ARGUMENTS` contains "cascade" or "full", also generate weekly and monthly rollups:
+Always attempt weekly and monthly rollups after saving. The server falls back to raw sessions when lower-tier stories don't exist, so cascading always has data to work with.
 
-- Call `get_story_data` with target `"weekly"` → spawn Storyteller → `upsert_story`
-- Call `get_story_data` with target `"monthly"` → spawn Storyteller → `upsert_story`
+- Call `get_story_data` with target `"weekly"`. If it returns stories or sessions, spawn a **Storyteller** subagent to generate a weekly story. Save with `upsert_story`.
+- Call `get_story_data` with target `"monthly"`. Same process.
 
-Each tier depends on the one below it. If a tier returns no source stories, skip it and everything above.
+If a tier returns no data at all (empty stories AND no fallback sessions), skip it.
+
+Note: The response may include a `"fallback": "sessions"` field when raw sessions are used instead of lower-tier stories. The Storyteller handles both formats — stories have title/summary/content, sessions have what_happened/for_next_session.
 
 ### 4. Done
 

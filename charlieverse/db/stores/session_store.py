@@ -148,6 +148,38 @@ class SessionStore:
             )
         return [_row_to_session(row) for row in await cursor.fetchall()]
 
+    async def recent_within_range(
+        self,
+        range_start: str,
+        range_end: str,
+        workspace: str | None = None,
+    ) -> list[Session]:
+        """Fetch sessions with content within a specific date range (ISO date strings)."""
+        if workspace:
+            cursor = await self.db.execute(
+                """SELECT * FROM sessions
+                   WHERE (workspace = ? OR workspace IS NULL)
+                   AND what_happened IS NOT NULL
+                   AND for_next_session IS NOT NULL
+                   AND deleted_at IS NULL
+                   AND DATE(created_at, 'localtime') >= ?
+                   AND DATE(created_at, 'localtime') <= ?
+                   ORDER BY created_at DESC""",
+                (workspace, range_start, range_end),
+            )
+        else:
+            cursor = await self.db.execute(
+                """SELECT * FROM sessions
+                   WHERE what_happened IS NOT NULL
+                   AND for_next_session IS NOT NULL
+                   AND deleted_at IS NULL
+                   AND DATE(created_at, 'localtime') >= ?
+                   AND DATE(created_at, 'localtime') <= ?
+                   ORDER BY created_at DESC""",
+                (range_start, range_end),
+            )
+        return [_row_to_session(row) for row in await cursor.fetchall()]
+
     async def delete(self, session_id: UUID) -> None:
         """Soft-delete a session."""
         now = datetime.now(timezone.utc)

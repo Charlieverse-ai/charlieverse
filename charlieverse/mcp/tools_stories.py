@@ -252,7 +252,7 @@ def register(mcp: FastMCP) -> None:
             if source_tier:
                 stories = [s for s in stories if s.tier == source_tier]
 
-            return {
+            result: dict = {
                 "type": "rollup",
                 "tier": target,
                 "range_start": range_start,
@@ -270,6 +270,30 @@ def register(mcp: FastMCP) -> None:
                     for s in stories
                 ],
             }
+
+            # Fallback: if no lower-tier stories exist for the period,
+            # provide raw sessions so the Storyteller can still generate
+            # the rollup without requiring every intermediate tier.
+            if not stories and range_start and range_end:
+                sessions_store = stores["sessions"]
+                sessions = await sessions_store.recent_within_range(
+                    range_start, range_end,
+                )
+                if sessions:
+                    result["fallback"] = "sessions"
+                    result["sessions"] = [
+                        {
+                            "id": str(s.id),
+                            "what_happened": s.what_happened,
+                            "for_next_session": s.for_next_session,
+                            "workspace": s.workspace,
+                            "tags": s.tags,
+                            "created_at": s.created_at.isoformat(),
+                        }
+                        for s in sessions
+                    ]
+
+            return result
         else:
             session_id = target
             sessions_store: SessionStore = stores["sessions"]

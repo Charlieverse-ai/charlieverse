@@ -135,6 +135,32 @@ async def test_recent_filters_by_workspace(session_store):
 
 
 # ---------------------------------------------------------------------------
+# Recent within range
+# ---------------------------------------------------------------------------
+
+
+async def test_recent_within_range_returns_matching(session_store):
+    await session_store.create(_session())
+    # Use a wide range that covers today
+    results = await session_store.recent_within_range("2020-01-01", "2030-12-31")
+    assert len(results) >= 1
+
+
+async def test_recent_within_range_excludes_outside(session_store):
+    await session_store.create(_session())
+    # Range in the far past — should find nothing
+    results = await session_store.recent_within_range("2000-01-01", "2000-12-31")
+    assert len(results) == 0
+
+
+async def test_recent_within_range_excludes_incomplete(session_store):
+    # Session with no for_next_session should be excluded
+    await session_store.create(Session(what_happened="partial save"))
+    results = await session_store.recent_within_range("2020-01-01", "2030-12-31")
+    assert all(s.for_next_session is not None for s in results)
+
+
+# ---------------------------------------------------------------------------
 # Soft delete
 # ---------------------------------------------------------------------------
 
