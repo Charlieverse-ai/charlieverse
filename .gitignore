@@ -36,6 +36,9 @@ wheels/
 htmlcov/
 *.profraw
 
+# Hypothesis (property-based testing cache)
+.hypothesis/
+
 # Web UI
 web/node_modules/
 web/dist/
