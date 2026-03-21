@@ -102,20 +102,35 @@ def _is_running() -> bool:
 
 
 def _kill_port_holder(port: int) -> bool:
-    """Find and kill whatever process is holding the port. Returns True if something was killed."""
+    """Kill a Charlieverse process holding the port. Returns True if something was killed.
+
+    Only kills processes whose command line contains 'charlieverse' to avoid
+    terminating unrelated services that happen to use the same port.
+    """
     import subprocess
     try:
+        # Get PIDs and their command names for the port
         result = subprocess.run(
             ["lsof", "-ti", f":{port}"],
             capture_output=True, text=True, timeout=5,
         )
         pids = [int(p.strip()) for p in result.stdout.strip().split("\n") if p.strip()]
+        killed = False
         for pid in pids:
             try:
+                # Verify the process belongs to us before killing
+                cmd_result = subprocess.run(
+                    ["ps", "-p", str(pid), "-o", "command="],
+                    capture_output=True, text=True, timeout=5,
+                )
+                cmdline = cmd_result.stdout.strip().lower()
+                if "charlieverse" not in cmdline and "charlie" not in cmdline:
+                    continue
                 os.kill(pid, signal.SIGTERM)
+                killed = True
             except OSError:
                 pass
-        return bool(pids)
+        return killed
     except Exception:
         return False
 
