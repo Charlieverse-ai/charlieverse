@@ -125,7 +125,18 @@ charlie context            # Preview the activation context
 charlie log CONTENT        # Record a logbook entry
 charlie events             # List recent hook events
 charlie story-data TARGET  # Fetch story data (session ID or tier name)
+charlie doctor             # Run environment health checks
 ```
+
+### `doctor`
+
+Runs a suite of health checks and reports pass/warn/fail for each.
+
+| Flag | Description |
+|------|-------------|
+| `--verbose` / `-v` | Show all results, including passes |
+
+Checks: Python version, dependencies, spaCy model, data directory, database integrity, server status, provider installations, hooks registration, web dashboard build.
 
 ---
 

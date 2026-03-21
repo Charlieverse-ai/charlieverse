@@ -24,7 +24,7 @@ Used by the `/research` skill and spawned directly when Charlie needs to investi
 
 Amorphous executor that reads any SKILL.md file and becomes that skill.
 
-**Ditto pattern for skills:** Given a file path, reads the SKILL.md, absorbs its instructions, and executes the workflow. The skill's instructions override the agent's defaults.
+Given a skill name or file path, reads the SKILL.md, absorbs its instructions, and executes the workflow. The skill's instructions override the agent's defaults. If no args are provided, lists available tricks via `charlie trick list`.
 
 ### Storyteller
 

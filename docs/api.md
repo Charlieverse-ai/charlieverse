@@ -97,6 +97,16 @@ Used by the Storyteller agent to generate narratives.
 
 ---
 
+## Hook events
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/hooks/events` | List recent hook events |
+
+**Body params** for `events`: `session_id` (optional), `since` (ISO datetime, optional), `limit` (default 50)
+
+---
+
 ## Utility
 
 | Method | Path | Description |

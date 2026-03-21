@@ -80,6 +80,12 @@ Launches the MCP server on port 8765 (configurable in `config.yaml`).
 ./integrations/copilot/install.sh
 ```
 
+**5. Verify the setup**
+
+```bash
+charlie doctor
+```
+
 </details>
 
 ---
@@ -223,7 +229,7 @@ Auto-discovers and imports from Claude, GitHub Copilot (including Insiders), Cur
 charlieverse/
 ├── charlieverse/           # Python package
 │   ├── server.py           # FastMCP server — MCP tools + REST API
-│   ├── cli/                # Typer CLI (server, hooks, import, init)
+│   ├── cli/                # Typer CLI (server, hooks, import, init, doctor)
 │   ├── context/            # Activation builder, renderer, reminders engine
 │   ├── db/                 # SQLite + sqlite-vec + FTS5, migrations
 │   ├── models/             # Pydantic models (Entity, Knowledge, Session, Story)
@@ -232,6 +238,7 @@ charlieverse/
 ├── web/                    # React dashboard (Vite + Tailwind + TanStack Query)
 ├── integrations/           # Provider plugins (Claude, Copilot)
 ├── prompts/                # Charlie personality + agent definitions
+├── .charlie/tricks/        # Project tricks (commit, docs, ship, qc, adr, changelog)
 ├── bin/                    # CLI entry points
 └── setup.sh                # Zero-to-running installer
 ```

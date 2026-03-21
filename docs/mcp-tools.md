@@ -170,6 +170,7 @@ Save a session snapshot.
 |-----------|------|----------|-------------|
 | `what_happened` | string | yes | Summary of the session |
 | `for_next_session` | string | yes | What to pick up next time |
+| `session_id` | string | no | Session ID to update (defaults to a new UUID) |
 | `tags` | string[] | no | Tags |
 | `workspace` | string | no | Workspace path |
 

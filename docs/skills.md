@@ -4,6 +4,67 @@ Tricks are Charlie's name for portable capability packages that agents load on d
 
 ---
 
+## Project tricks
+
+These ship with the Charlieverse repo in `.charlie/tricks/` and are available to Charlie and compatible providers when working in this project.
+
+### `commit`
+
+Review changes and create logical atomic commits.
+
+**Usage:** `/commit [message]`
+
+- No message: groups changes into logical commits and commits each separately
+- With message: stages all changes and commits with that message
+
+Uses `charlie-commit` for all commits. Never pushes.
+
+### `docs`
+
+Generate or update documentation from source code.
+
+**Usage:** `/docs`
+
+Inventories all public interfaces (CLI commands, REST API, MCP tools, bundled skills, bundled agents), then generates or updates `docs/` and `README.md`. Commits the result.
+
+### `adr`
+
+Extract architectural decisions from commits and record them as ADRs.
+
+**Usage:** `/adr [commit range | "all"]`
+
+- No args: scans the last commit
+- Commit range (e.g., `HEAD~5..HEAD`): scans that range
+- `all`: scans full history
+
+Writes immutable ADR files to `docs/decisions/`. Decisions are never edited — amendments create new files.
+
+### `changelog`
+
+Generate or update `CHANGELOG.md` from git commits.
+
+**Usage:** `/changelog [patch|minor|major]`
+
+Finds commits since the last version tag, determines the version bump (from args or auto-detected from commit types), generates a changelog entry, commits it, and tags the version.
+
+### `qc`
+
+Run quality control checks on the codebase.
+
+**Usage:** `/qc [all|types|tests|smoke]`
+
+Stages: type checking (`ty check`), tests (`pytest`), server smoke test (health + REST + MCP), web dashboard check. Reports pass/fail for each stage.
+
+### `ship`
+
+Commit, docs, changelog, and push in one go.
+
+**Usage:** `/ship [patch|minor|major]`
+
+Runs: commit → docs → adr → changelog → push. The full pipeline for shipping a change.
+
+---
+
 ## Bundled skills
 
 These ship with the Charlieverse repo in `prompts/skills/` and are available to any compatible provider.
