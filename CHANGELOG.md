@@ -5,6 +5,19 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.9.0] — 2026-03-20
+
+### Added
+- Project trick suite committed to version control: `commit`, `docs`, `adr`, `changelog`, `qc`, and `ship` tricks now live in `.charlie/tricks/` alongside the codebase
+- Initial TUI idea document (`01-tui.md`) capturing the Charlie Terminal Command Center concept
+- ADR: decision to version `.charlie/` workspace as project development infrastructure
+
+### Changed
+- `.charlie/` removed from `.gitignore` — project tricks are treated as part of the dev toolchain, not ephemeral machine config
+- Copilot plugin version reverted to 1.0.0
+
+---
+
 ## [v1.8.0] — 2026-03-20
 
 ### Added
