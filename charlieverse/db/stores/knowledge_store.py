@@ -65,8 +65,13 @@ class KnowledgeStore:
         await self.db.commit()
 
     async def rebuild_vec(self) -> None:
-        """Rebuild all knowledge embeddings from scratch."""
+        """Rebuild all knowledge embeddings from scratch.
+
+        Drops and recreates the vec table to avoid corruption from partial
+        writes on the vec0 virtual table.
+        """
         from charlieverse.embeddings import encode
+        from sqlite_vec import serialize_float32
 
         articles = await self.list(limit=5000)
         if not articles:
@@ -74,11 +79,29 @@ class KnowledgeStore:
 
         texts = [f"{article.topic} {article.content}" for article in articles]
         embeddings = await encode(texts)
+
+        rows: list[tuple[int, bytes]] = []
         for article, embedding in zip(articles, embeddings):
             try:
-                await self.upsert_embedding(article.id, embedding)
+                cursor = await self.db.execute(
+                    "SELECT rowid FROM knowledge WHERE id = ?", (str(article.id),)
+                )
+                row = await cursor.fetchone()
+                if row:
+                    rows.append((row[0], serialize_float32(embedding)))
             except Exception:
                 continue
+
+        await self.db.execute("DROP TABLE IF EXISTS knowledge_vec")
+        await self.db.execute(
+            "CREATE VIRTUAL TABLE knowledge_vec USING vec0(embedding float[384])"
+        )
+        for rowid, embedding in rows:
+            await self.db.execute(
+                "INSERT INTO knowledge_vec(rowid, embedding) VALUES(?, ?)",
+                (rowid, embedding),
+            )
+        await self.db.commit()
 
     async def create(self, knowledge: Knowledge) -> Knowledge:
         """Insert a new knowledge article."""

@@ -323,12 +323,12 @@ class StoryStore:
             text = f"{story.title}\n{story.summary or ''}\n{story.content}"
             embedding = await encode_one(text)
 
-            cursor = await self.db.execute(
-                "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
-            )
-            row = await cursor.fetchone()
-            if row:
-                async with self._vec_lock:
+            async with self._vec_lock:
+                cursor = await self.db.execute(
+                    "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
+                )
+                row = await cursor.fetchone()
+                if row:
                     await self.db.execute(
                         "DELETE FROM stories_vec WHERE rowid = ?", (row[0],)
                     )
@@ -345,7 +345,11 @@ class StoryStore:
         await self.db.commit()
 
     async def rebuild_vec(self) -> None:
-        """Rebuild all story embeddings from scratch."""
+        """Rebuild all story embeddings from scratch.
+
+        Drops and recreates the vec table to avoid corruption from partial
+        DELETE + INSERT cycles on the vec0 virtual table.
+        """
         from charlieverse.embeddings import encode
         from sqlite_vec import serialize_float32
 
@@ -370,7 +374,12 @@ class StoryStore:
                 continue
 
         async with self._vec_lock:
-            await self.db.execute("DELETE FROM stories_vec")
+            # Drop and recreate is safer than DELETE for vec0 virtual tables,
+            # which don't release space on delete and can corrupt on partial writes.
+            await self.db.execute("DROP TABLE IF EXISTS stories_vec")
+            await self.db.execute(
+                "CREATE VIRTUAL TABLE stories_vec USING vec0(embedding float[384])"
+            )
             for rowid, embedding in rows:
                 await self.db.execute(
                     "INSERT INTO stories_vec(rowid, embedding) VALUES(?, ?)",
