@@ -5,6 +5,34 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.8.0] — 2026-03-20
+
+### Added
+- `charlie doctor` command: runs independent health checks across Python version, dependencies, spaCy model, data directory, database integrity, server status, provider integrations (Claude Code, Copilot, Cursor, Codex), hook registration, and web build — each with Rich pass/fail/warn output and fix commands
+- Codex and Copilot passthrough skills in the Copilot plugin, allowing tasks to be delegated directly to those providers via `/codex` and `/copilot`
+- Testing foundation: pytest-cov, Hypothesis property-based testing, and store fixtures
+- Competitive intelligence research document for AI coding tools
+
+### Changed
+- Trick SKILL.md rewritten as a full amorphous agent identity (absorbs and becomes the loaded skill) with provider passthrough support — no longer just step-by-step dispatch instructions
+- Copilot plugin.json bumped to 1.0.2 and now registers the codex, copilot, research, and trick skills
+- Charlie prompt restructured with XML semantic blocks (`personality`, `communication`, `how_we_work`, `dont_just_do_shit`) for clarity and parseability; removed stale session activation check
+- Getting-started and troubleshooting documentation added to `docs/`
+
+### Fixed
+- `stories_vec` corruption from double writes and concurrent access
+- Missing `encode_one` imports in memory and knowledge tools
+- Import layering issues and runtime errors from utility extraction
+- `ty check` diagnostic in `doctor_cmd` type narrowing
+- MCP tools now raise `ToolError` for empty required inputs instead of producing opaque errors; `StoreContext` TypedDict eliminates unresolved-attribute diagnostics in server.py
+- Background vec rebuild task now cancelled on server shutdown to prevent task leaks
+
+### Removed
+- Stale auto-generated SKILL.md from project root
+- Rich output on server commands (reverted due to fork crash)
+
+---
+
 ## [v1.7.2] — 2026-03-20
 
 ### Added
