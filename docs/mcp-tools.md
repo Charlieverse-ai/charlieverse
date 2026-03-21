@@ -223,4 +223,4 @@ Get data for generating stories. Used by the Storyteller agent.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `target` | string | yes | Session ID or tier name (`daily`, `weekly`, `monthly`) |
+| `target` | string | yes | Session ID or tier name (`daily`, `weekly`, `monthly`, `quarterly`, `yearly`) |

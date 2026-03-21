@@ -50,7 +50,8 @@ charlie hooks session-end      # End a session
 
 **Common options:** `--host`, `--port`, `--source`
 
-`session-start` and `session-end` also require `--session-id`.
+`session-start` also accepts `--workspace` and `--session-id` (optional — both can be read from stdin JSON instead).
+`session-end` requires `--session-id`.
 
 All hooks skip processing when `agent_id` is present in stdin (subagent context).
 
@@ -124,9 +125,31 @@ charlie init               # First-run setup (database, directories, web build)
 charlie context            # Preview the activation context
 charlie log CONTENT        # Record a logbook entry
 charlie events             # List recent hook events
-charlie story-data TARGET  # Fetch story data (session ID or tier name)
+charlie story-data TARGET [DATE]  # Fetch story data (session ID or tier name + optional date)
 charlie doctor             # Run environment health checks
 ```
+
+### `events`
+
+List recent hook events from the server.
+
+| Flag | Description |
+|------|-------------|
+| `--session` / `-s` | Filter by session ID |
+| `--since` | Events since this ISO datetime |
+| `-n` | Max events to return (default: 50) |
+| `--type` / `-t` | Filter by event type (e.g. `tool_use`, `stop`, `session_start`) |
+| `--verbose` / `-v` | Show full tool input details |
+| `--json` | Output raw JSON |
+
+### `story-data`
+
+Fetch data used by the Storyteller to generate or update a story. Outputs JSON to stdout.
+
+| Argument | Description |
+|----------|-------------|
+| `TARGET` | Session ID or tier name: `daily`, `weekly`, `monthly`, `quarterly`, `yearly` |
+| `DATE` | ISO date for tier rollups (e.g. `2026-03-16`). Accepts shortcuts: `today`, `yesterday`, `this-week`, `this-month` |
 
 ### `doctor`
 
