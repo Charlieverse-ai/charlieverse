@@ -5,6 +5,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.9.7] — 2026-03-21
+
+### Added
+- `session_store.recent_within_range` for date-bounded session queries
+
+### Changed
+- Architectural decision records added for recent system changes
+- API documentation updated to match registered routes
+- Web README updated with project documentation instead of Vite boilerplate
+
+### Removed
+- `events` CLI command removed
+
+### Fixed
+- Server fork hardened: catches `OSError` and cleans up child process on failed start
+
+---
+
 ## [v1.9.6] — 2026-03-21
 
 ### Added
