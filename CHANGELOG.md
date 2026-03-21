@@ -5,6 +5,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.9.4] — 2026-03-21
+
+### Changed
+- FTS index writes in `MemoryStore` and `KnowledgeStore` now use per-row insert/delete instead of full-table rebuild, reducing write cost from O(n) to O(1)
+- Migration system rewritten: `PRAGMA user_version` removed from SQL files; Python now manages version bumping with per-statement execution and full rollback on failure
+- `_activation_seen_ids` map now uses TTL-based eviction (24h) via `get_seen_ids`/`set_seen_ids` accessors to prevent unbounded memory growth
+
+### Fixed
+- FTS sync for `work_logs` and `messages` in hooks API now uses per-row insert instead of full rebuild; messages FTS insert skips duplicates
+- Empty FTS query string no longer triggers a SQLite error in `recall`
+- `_tags_json` correctly returns `'[]'` for empty lists rather than `None`
+- Circular import between `hooks.py` and `server.py` resolved via lazy import
+- Background asyncio tasks are now tracked to prevent garbage collection before completion
+
+---
+
 ## [v1.9.3] — 2026-03-21
 
 ### Added
