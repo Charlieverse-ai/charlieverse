@@ -33,13 +33,35 @@ class KnowledgeStore:
     def __init__(self, db: aiosqlite.Connection) -> None:
         self.db = db
 
-    async def _rebuild_fts(self) -> None:
-        """Rebuild FTS index from source table."""
-        await self.db.execute("INSERT INTO knowledge_fts(knowledge_fts) VALUES('rebuild')")
+    async def _sync_fts_insert(self, knowledge: Knowledge) -> None:
+        """Insert a new knowledge article into the FTS index."""
+        cursor = await self.db.execute(
+            "SELECT rowid FROM knowledge WHERE id = ?", (str(knowledge.id),)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return
+        await self.db.execute(
+            "INSERT INTO knowledge_fts(rowid, topic, content, tags) VALUES(?, ?, ?, ?)",
+            (row[0], knowledge.topic, knowledge.content, _tags_json(knowledge.tags) or ""),
+        )
+
+    async def _sync_fts_delete(self, knowledge_id: UUID) -> None:
+        """Remove a knowledge article's current FTS entry using values from the content table."""
+        cursor = await self.db.execute(
+            "SELECT rowid, topic, content, tags FROM knowledge WHERE id = ?", (str(knowledge_id),)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return
+        await self.db.execute(
+            "INSERT INTO knowledge_fts(knowledge_fts, rowid, topic, content, tags) VALUES('delete', ?, ?, ?, ?)",
+            (row[0], row[1], row[2], row[3] or ""),
+        )
 
     async def rebuild_fts(self) -> None:
-        """Public FTS rebuild."""
-        await self._rebuild_fts()
+        """Full FTS rebuild — used on startup, not per-write."""
+        await self.db.execute("INSERT INTO knowledge_fts(knowledge_fts) VALUES('rebuild')")
         await self.db.commit()
 
     async def rebuild_vec(self) -> None:
@@ -77,7 +99,7 @@ class KnowledgeStore:
                 knowledge.deleted_at.isoformat() if knowledge.deleted_at else None,
             ),
         )
-        await self._rebuild_fts()
+        await self._sync_fts_insert(knowledge)
         await self.db.commit()
         return knowledge
 
@@ -104,6 +126,8 @@ class KnowledgeStore:
         existing = await self.find_by_topic(knowledge.topic)
         if existing:
             now = datetime.now(timezone.utc)
+            # Delete old FTS entry BEFORE updating (needs old values from content table)
+            await self._sync_fts_delete(existing.id)
             await self.db.execute(
                 """UPDATE knowledge SET content = ?, tags = ?, pinned = ?,
                    updated_session_id = ?, updated_at = ?
@@ -117,7 +141,10 @@ class KnowledgeStore:
                     str(existing.id),
                 ),
             )
-            await self._rebuild_fts()
+            # Insert new FTS entry AFTER updating
+            existing.content = knowledge.content
+            existing.tags = knowledge.tags
+            await self._sync_fts_insert(existing)
             await self.db.commit()
             return existing
         return await self.create(knowledge)

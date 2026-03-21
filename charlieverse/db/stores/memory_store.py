@@ -33,13 +33,35 @@ class MemoryStore:
     def __init__(self, db: aiosqlite.Connection) -> None:
         self.db = db
 
-    async def _rebuild_fts(self) -> None:
-        """Rebuild FTS index from source table."""
-        await self.db.execute("INSERT INTO entities_fts(entities_fts) VALUES('rebuild')")
+    async def _sync_fts_insert(self, entity: Entity) -> None:
+        """Insert a new entity into the FTS index."""
+        cursor = await self.db.execute(
+            "SELECT rowid FROM entities WHERE id = ?", (str(entity.id),)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return
+        await self.db.execute(
+            "INSERT INTO entities_fts(rowid, content, tags) VALUES(?, ?, ?)",
+            (row[0], entity.content, _tags_json(entity.tags) or ""),
+        )
+
+    async def _sync_fts_delete(self, entity_id: UUID) -> None:
+        """Remove an entity's current FTS entry using values from the content table."""
+        cursor = await self.db.execute(
+            "SELECT rowid, content, tags FROM entities WHERE id = ?", (str(entity_id),)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return
+        await self.db.execute(
+            "INSERT INTO entities_fts(entities_fts, rowid, content, tags) VALUES('delete', ?, ?, ?)",
+            (row[0], row[1], row[2] or ""),
+        )
 
     async def rebuild_fts(self) -> None:
-        """Public FTS rebuild."""
-        await self._rebuild_fts()
+        """Full FTS rebuild — used on startup, not per-write."""
+        await self.db.execute("INSERT INTO entities_fts(entities_fts) VALUES('rebuild')")
         await self.db.commit()
 
     async def rebuild_vec(self) -> None:
@@ -77,7 +99,7 @@ class MemoryStore:
                 entity.deleted_at.isoformat() if entity.deleted_at else None,
             ),
         )
-        await self._rebuild_fts()
+        await self._sync_fts_insert(entity)
         await self.db.commit()
         return entity
 
@@ -111,6 +133,8 @@ class MemoryStore:
     async def update(self, entity: Entity) -> Entity:
         """Update an existing entity."""
         now = datetime.now(timezone.utc)
+        # Delete old FTS entry BEFORE updating (needs old values from content table)
+        await self._sync_fts_delete(entity.id)
         await self.db.execute(
             """UPDATE entities SET content = ?, tags = ?, pinned = ?,
                updated_session_id = ?, updated_at = ?
@@ -124,7 +148,8 @@ class MemoryStore:
                 str(entity.id),
             ),
         )
-        await self._rebuild_fts()
+        # Insert new FTS entry AFTER updating
+        await self._sync_fts_insert(entity)
         await self.db.commit()
         return entity
 

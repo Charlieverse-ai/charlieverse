@@ -6,7 +6,9 @@ import json
 
 
 def _tags_json(tags: list[str] | None) -> str | None:
-    return json.dumps(tags) if tags else None
+    if tags is None:
+        return None
+    return json.dumps(tags)
 
 
 def _tags_list(raw: str | None) -> list[str] | None:
