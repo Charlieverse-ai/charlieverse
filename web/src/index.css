@@ -1456,6 +1456,24 @@ html, body {
   animation: readerIn 300ms var(--spring) both;
 }
 
+.reader-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 6px 0;
+  margin-bottom: 12px;
+  transition: color 150ms ease;
+}
+
+.reader-back:hover {
+  color: var(--text-primary);
+}
+
 @keyframes readerIn {
   from { opacity: 0; transform: translateX(20px); }
   to { opacity: 1; transform: translateX(0); }

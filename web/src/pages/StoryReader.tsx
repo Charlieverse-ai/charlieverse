@@ -6,9 +6,12 @@ interface StoryReaderProps {
   onBack: () => void
 }
 
-export function StoryReader({ story }: StoryReaderProps) {
+export function StoryReader({ story, onBack }: StoryReaderProps) {
   return (
     <div className="reader">
+      <button className="reader-back" onClick={onBack}>
+        ← Back
+      </button>
       <article className="reader-article prose">
         <Markdown content={story.content} />
       </article>
