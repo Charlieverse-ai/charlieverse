@@ -10,17 +10,6 @@ import typer
 
 from charlieverse.config import config
 
-
-_rich_console = None
-
-def _console():
-    """Lazy console to avoid Rich initialization before fork()."""
-    global _rich_console
-    if _rich_console is None:
-        from rich.console import Console
-        _rich_console = Console()
-    return _rich_console
-
 app = typer.Typer(
     name="server",
     help="Manage the Charlieverse MCP server.",
@@ -152,14 +141,12 @@ def start(
         sock.close()
         # Port is occupied by something we don't know about — kill it
         if _kill_port_holder(port):
-            _console().print(f"[yellow]![/] Killed orphan process on port {port}")
+            typer.echo(f"Killed orphan process on port {port}")
             _wait_for_port_free(port)
     except (ConnectionRefusedError, OSError):
         pass  # Port is free
 
     if not foreground and transport != "stdio":
-        # Prevent macOS fork() crash from Rich/objc NSNumber initialization
-        os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
         # Fork to background
         pid = os.fork()
         if pid > 0:
@@ -171,21 +158,18 @@ def start(
                     break
                 time.sleep(0.2)
 
-            with _console().status("[bold purple]Starting Charlieverse...", spinner="dots"):
-                healthy = _wait_for_health()
-
-            if healthy:
-                _console().print(f"[bold green]✓[/] Charlieverse started (PID {_read_pid()})")
-                _console().print(f"[dim]  Listening on {config.server.base_url()}[/]")
+            if _wait_for_health():
+                typer.echo(f"Charlieverse started (PID {_read_pid()})")
+                typer.echo(f"Listening on {config.server.base_url()}")
             else:
-                _console().print("[bold red]✗[/] Failed to start Charlieverse", style="red")
+                typer.echo("Failed to start Charlieverse", err=True)
                 if LOG_FILE.exists():
                     lines = LOG_FILE.read_text().strip().splitlines()
                     tail = lines[-15:] if len(lines) > 15 else lines
                     if tail:
-                        _console().print("\n[dim]Server log:[/]")
+                        typer.echo("\nServer log:", err=True)
                         for line in tail:
-                            _console().print(f"  [dim]{line}[/]")
+                            typer.echo(f"  {line}", err=True)
                 raise typer.Exit(1)
             return
 
@@ -210,7 +194,7 @@ def start(
     if foreground:
         typer.echo(f"Starting Charlieverse on {config.server.mcp_url})")
 
-    mcp.run(transport=cast(McpTransport, transport), host=host, port=port, show_banner=False)
+    mcp.run(transport=cast(McpTransport, transport), host=host, port=port)
 
 
 @app.command("stop")
@@ -218,14 +202,14 @@ def stop() -> None:
     """Stop the Charlieverse server."""
     pid = _read_pid()
     if pid is None:
-        _console().print("[dim]Charlieverse is not running[/]")
+        typer.echo("Charlieverse is not running")
         return
     try:
         os.kill(pid, signal.SIGTERM)
-        _console().print(f"[bold green]✓[/] Stopped Charlieverse (PID {pid})")
+        typer.echo(f"Stopped Charlieverse (PID {pid})")
         _clear_pid()
     except OSError as e:
-        _console().print(f"[bold red]✗[/] Failed to stop: {e}")
+        typer.echo(f"Failed to stop: {e}")
         _clear_pid()
 
 
@@ -233,9 +217,9 @@ def stop() -> None:
 def status() -> None:
     """Check if the server is running."""
     if _is_running():
-        _console().print(f"[bold green]●[/] Charlieverse is running (PID {_read_pid()})")
+        typer.echo(f"Charlieverse is running (PID {_read_pid()})")
     else:
-        _console().print("[dim]○[/] Charlieverse is not running")
+        typer.echo("Charlieverse is not running")
 
 
 @app.command("restart")
@@ -248,8 +232,7 @@ def restart(
     pid = _read_pid()
     stop()
     # Wait for the port to be free (not just the process to die)
-    with _console().status("[bold purple]Waiting for port to free...", spinner="dots"):
-        _wait_for_port_free(port)
+    _wait_for_port_free(port)
     start(host=host, port=port, foreground=False, transport=transport)
 
 @app.command("url")
