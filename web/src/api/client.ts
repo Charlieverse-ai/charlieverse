@@ -84,4 +84,7 @@ export const api = {
 
   // Health
   health: () => request<{ status: string }>('/health'),
+
+  // Maintenance
+  rebuild: () => request<{ status: string }>('/rebuild', { method: 'POST' }),
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 
@@ -8,7 +9,21 @@ export function SettingsPage() {
     refetchInterval: 5000,
   })
 
+  const [rebuildStatus, setRebuildStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+
   const isHealthy = health?.status === 'healthy'
+
+  const handleRebuild = async () => {
+    setRebuildStatus('running')
+    try {
+      await api.rebuild()
+      setRebuildStatus('done')
+      setTimeout(() => setRebuildStatus('idle'), 3000)
+    } catch {
+      setRebuildStatus('error')
+      setTimeout(() => setRebuildStatus('idle'), 3000)
+    }
+  }
 
   return (
     <div>
@@ -49,16 +64,17 @@ export function SettingsPage() {
       <div className="s-card">
         <div className="s-title">Maintenance</div>
         <div className="s-row">
-          <span className="s-label">Rebuild all embeddings</span>
-          <button className="s-btn secondary">Reembed</button>
-        </div>
-        <div className="s-row">
-          <span className="s-label">Rebuild FTS indexes</span>
-          <button className="s-btn secondary">Rebuild</button>
-        </div>
-        <div className="s-row">
-          <span className="s-label">Export database</span>
-          <button className="s-btn secondary">Export</button>
+          <span className="s-label">Rebuild FTS + vector indexes</span>
+          <button
+            className="s-btn secondary"
+            onClick={handleRebuild}
+            disabled={rebuildStatus === 'running'}
+          >
+            {rebuildStatus === 'running' ? 'Rebuilding...' :
+             rebuildStatus === 'done' ? 'Done' :
+             rebuildStatus === 'error' ? 'Failed' :
+             'Rebuild'}
+          </button>
         </div>
       </div>
     </div>
