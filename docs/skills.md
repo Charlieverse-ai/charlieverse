@@ -61,7 +61,7 @@ Commit, docs, changelog, and push in one go.
 
 **Usage:** `/ship [patch|minor|major]`
 
-Runs: commit → docs → adr → changelog → push. The full pipeline for shipping a change.
+Runs: qc → commit → docs → adr → changelog → push. The full pipeline for shipping a change.
 
 ---
 

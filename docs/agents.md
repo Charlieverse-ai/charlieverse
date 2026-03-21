@@ -24,13 +24,13 @@ Used by the `/research` skill and spawned directly when Charlie needs to investi
 
 Amorphous executor that reads any SKILL.md file and becomes that skill.
 
-Given a skill name or file path, reads the SKILL.md, absorbs its instructions, and executes the workflow. The skill's instructions override the agent's defaults. If no args are provided, lists available tricks via `charlie trick list`. Supports provider delegation — tricks can be routed to Codex or Copilot CLI agents.
+Given a skill file path (provided by the parent agent), reads the SKILL.md, absorbs its instructions, and executes the workflow. The skill's instructions override the agent's defaults. Reports failures honestly; never fakes success.
 
 ### Storyteller
 
 Narrative compression agent that turns raw session data into stories.
 
-Generates session, daily, weekly, monthly, yearly, and all-time narratives following brain-friendly writing rules (concrete details over abstractions, sensory language, emotional beats).
+Generates session, daily, weekly, monthly, yearly, and all-time narratives following brain-friendly writing rules (concrete details over abstractions, sensory language, emotional beats). Peer-reviews stories with a second Storyteller subagent before finalizing to ensure factual accuracy. Returns a JSON payload — the caller handles persistence.
 
 ### Linguist
 

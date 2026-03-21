@@ -83,7 +83,7 @@ Store a relationship moment (journal-style).
 
 ### `recall`
 
-Search across all memories, knowledge, and messages.
+Search across all memories and knowledge. Results are relevance-ordered (semantic + FTS).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -180,7 +180,7 @@ Save a session snapshot.
 
 ### `upsert_story`
 
-Create or update a story.
+Create or update a story. For session stories, matches on `session_id`.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -190,6 +190,8 @@ Create or update a story.
 | `period_start` | string | yes | ISO date |
 | `period_end` | string | yes | ISO date |
 | `summary` | string | no | Short summary |
+| `session_id` | string | no | Session to associate with (used for upsert matching) |
+| `workspace` | string | no | Workspace path |
 | `tags` | string[] | no | Tags |
 
 ### `list_stories`
