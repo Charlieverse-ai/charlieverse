@@ -2,13 +2,28 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
+
+import aiosqlite
 from fastmcp import Context
 
 from charlieverse.config import config
+from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore, WorkLogStore
 
 
-def _stores(ctx: Context) -> dict:
-    return ctx.lifespan_context
+class StoreContext(TypedDict):
+    """Typed lifespan context passed to every MCP tool via ctx.lifespan_context."""
+
+    db: aiosqlite.Connection
+    memories: MemoryStore
+    knowledge: KnowledgeStore
+    sessions: SessionStore
+    stories: StoryStore
+    work_logs: WorkLogStore
+
+
+def _stores(ctx: Context) -> StoreContext:
+    return ctx.lifespan_context  # type: ignore[return-value]
 
 
 def _permalink(kind: str, id: str) -> str:

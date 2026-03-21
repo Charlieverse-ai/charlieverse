@@ -13,6 +13,7 @@ from charlieverse.db import database
 from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore, WorkLogStore
 
 from charlieverse.mcp import tools_memory, tools_knowledge, tools_sessions, tools_stories
+from charlieverse.mcp.context import StoreContext
 from charlieverse.api import hooks, entities, stories, spa
 
 
@@ -31,7 +32,7 @@ async def app_lifespan(server):
     from charlieverse.nlp.extractor import _get_nlp
     _get_nlp()
 
-    store_dict = {
+    store_dict: StoreContext = {
         "db": db,
         "memories": MemoryStore(db),
         "sessions": SessionStore(db),
@@ -57,11 +58,12 @@ async def app_lifespan(server):
         except Exception:
             pass
 
-    asyncio.create_task(_background_vec_rebuild())
+    rebuild_task = asyncio.create_task(_background_vec_rebuild())
 
     try:
         yield store_dict
     finally:
+        rebuild_task.cancel()
         await db.close()
 
 
@@ -69,7 +71,8 @@ mcp = FastMCP("Charlieverse", lifespan=app_lifespan)
 McpTransport: TypeAlias = Literal["stdio", "http", "sse", "streamable-http"]
 
 
-# Store references for REST routes (populated during lifespan)
+# Store references for REST routes (populated during lifespan).
+# Typed as dict so the api/ register_routes helpers (which accept dict) stay compatible.
 _rest_stores: dict = {}
 _activation_seen_ids: dict[str, set[str]] = {}  # session_id -> IDs delivered at activation
 

@@ -6,6 +6,7 @@ from datetime import date, timedelta, datetime as dt
 from uuid import UUID
 
 from fastmcp import Context, FastMCP
+from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
 from charlieverse.db.stores import SessionStore, StoryStore
@@ -28,8 +29,14 @@ def register(mcp: FastMCP) -> None:
         workspace: str | None = None,
         tags: list[str] | None = None,
         ctx: Context = CurrentContext(),
-    ):
+    ) -> dict:
         """Create or update a story. For session stories, matches on session_id."""
+        if not title.strip():
+            raise ToolError("title cannot be empty")
+        if not content.strip():
+            raise ToolError("content cannot be empty")
+        if not tier.strip():
+            raise ToolError("tier cannot be empty")
         from charlieverse.models.story import Story
 
         stores = _stores(ctx)
@@ -69,7 +76,7 @@ def register(mcp: FastMCP) -> None:
         tier: str | None = None,
         limit: int = 20,
         ctx: Context = CurrentContext(),
-    ):
+    ) -> dict:
         """List stories, optionally filtered by tier (session, daily, weekly, monthly, all-time)."""
         stores = _stores(ctx)
         story_store: StoryStore = stores["stories"]
@@ -95,14 +102,16 @@ def register(mcp: FastMCP) -> None:
     async def get_story(
         id: str,
         ctx: Context = CurrentContext(),
-    ):
+    ) -> dict:
         """Get a story by ID. Returns full content."""
+        if not id.strip():
+            raise ToolError("id cannot be empty")
         stores = _stores(ctx)
         story_store: StoryStore = stores["stories"]
 
         story = await story_store.get(UUID(id))
         if not story:
-            return {"error": "Story not found"}
+            raise ToolError(f"Story {id!r} not found")
 
         return {
             "id": str(story.id),
@@ -120,14 +129,16 @@ def register(mcp: FastMCP) -> None:
     async def delete_story(
         id: str,
         ctx: Context = CurrentContext(),
-    ):
+    ) -> dict:
         """Soft-delete a story."""
+        if not id.strip():
+            raise ToolError("id cannot be empty")
         stores = _stores(ctx)
         story_store: StoryStore = stores["stories"]
 
         story = await story_store.get(UUID(id))
         if not story:
-            return {"error": "Story not found"}
+            raise ToolError(f"Story {id!r} not found")
 
         await story_store.delete(UUID(id))
         return {"deleted": True, "id": id}
@@ -136,7 +147,7 @@ def register(mcp: FastMCP) -> None:
     async def get_story_data(
         target: str,
         ctx: Context = CurrentContext(),
-    ):
+    ) -> dict:
         """Get data for the Storyteller to generate a story.
 
         Args:
@@ -144,6 +155,8 @@ def register(mcp: FastMCP) -> None:
                     or a tier name (daily, weekly, monthly) for rollups.
                     Rollups return lower-tier stories for synthesis.
         """
+        if not target.strip():
+            raise ToolError("target cannot be empty")
         stores = _stores(ctx)
         story_store: StoryStore = stores["stories"]
         db = stores["db"]
@@ -233,7 +246,9 @@ def register(mcp: FastMCP) -> None:
                 else:
                     range_end = today.replace(month=today.month + 1, day=1).isoformat()
 
-            stories = await story_store.find_by_period(range_start, range_end, limit=50)
+            stories = await story_store.find_by_period(
+                range_start or "", range_end or "", limit=50
+            )
             if source_tier:
                 stories = [s for s in stories if s.tier == source_tier]
 

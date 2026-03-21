@@ -5,6 +5,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 from fastmcp import Context, FastMCP
+from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
 from charlieverse.db.fts import sanitize_fts_query
@@ -21,8 +22,10 @@ def register(mcp: FastMCP) -> None:
         limit: int = 20,
         session_id: str | None = None,
         ctx: Context = CurrentContext(),
-    ):
+    ) -> dict:
         """Search past messages in conversations. Returns matching messages with role and date."""
+        if not query.strip():
+            raise ToolError("query cannot be empty")
         db = _stores(ctx)["db"]
         safe_query = sanitize_fts_query(query)
         if not safe_query:
@@ -61,8 +64,13 @@ def register(mcp: FastMCP) -> None:
         tags: list[str] | None = None,
         workspace: str | None = None,
         ctx: Context = CurrentContext(),
-    ):
+    ) -> dict:
         """Save a detailed snapshot of the current session — what happened and what's next."""
+        if not what_happened.strip():
+            raise ToolError("what_happened cannot be empty")
+        if not for_next_session.strip():
+            raise ToolError("for_next_session cannot be empty")
+
         from charlieverse.tools.sessions import session_update as _session_update
 
         stores = _stores(ctx)
