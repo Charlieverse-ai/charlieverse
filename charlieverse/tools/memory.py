@@ -6,7 +6,7 @@ import asyncio
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore
-from charlieverse.embeddings import prepare_entity_text
+from charlieverse.embeddings import encode_one, prepare_entity_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.models import Entity, EntityType
 from charlieverse.tools.responses import (

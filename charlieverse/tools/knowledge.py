@@ -6,7 +6,7 @@ import asyncio
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore
-from charlieverse.embeddings import prepare_knowledge_text
+from charlieverse.embeddings import encode_one, prepare_knowledge_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.models import Knowledge
 from charlieverse.tools.responses import ExpertResponse, IdResponse, KnowledgeSummary
