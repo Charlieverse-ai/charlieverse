@@ -222,7 +222,7 @@ def start(
     if foreground:
         typer.echo(f"Starting Charlieverse on {config.server.mcp_url})")
 
-    mcp.run(transport=cast(McpTransport, transport), host=host, port=port)
+    mcp.run(transport=cast(McpTransport, transport), host=host, port=port, show_banner=False)
 
 
 @app.command("stop")
