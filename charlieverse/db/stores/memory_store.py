@@ -143,12 +143,12 @@ class MemoryStore:
         """List active entities, optionally filtered by type."""
         if entity_type:
             cursor = await self.db.execute(
-                "SELECT * FROM entities WHERE type = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ?",
+                "SELECT * FROM entities WHERE type = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?",
                 (entity_type.value, limit),
             )
         else:
             cursor = await self.db.execute(
-                "SELECT * FROM entities WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ?",
+                "SELECT * FROM entities WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?",
                 (limit,),
             )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
