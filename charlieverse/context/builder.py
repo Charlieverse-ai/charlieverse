@@ -83,7 +83,7 @@ class ActivationBuilder:
         )
 
         # Fetch moments — personality entities, always global
-        moments = await self.memories.list(entity_type=EntityType.moment, limit=20)
+        moments = await self.memories.list(entity_type=EntityType.moment, limit=1000)
 
         # Fetch pinned entities
         pinned_entities = await self.memories.pinned()
