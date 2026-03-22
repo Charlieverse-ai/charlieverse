@@ -9,7 +9,7 @@ Runs the full ship pipeline where each step is a Charlie project trick (.charlie
 Execute the workflow, using background subagents for the non-synchronous tasks
 
 ```workflow
-test-coverage → qc → [docs + adr + changelog] → commit → push
+test-coverage → qc → [docs + adr] → commit → changelog → push
 ```
 
 Show what was shipped:
