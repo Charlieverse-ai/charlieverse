@@ -33,4 +33,4 @@ def _permalink(kind: str, id: str) -> str:
 
 async def _remember_with_url(result, kind: str = "memories") -> dict:
     """Wrap a remember_* result to include a permalink URL."""
-    return {"id": str(result.id), "url": _permalink(kind, str(result.id))}
+    return {"url": _permalink(kind, str(result.id))}

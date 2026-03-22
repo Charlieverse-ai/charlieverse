@@ -197,7 +197,7 @@ def register(mcp: FastMCP) -> None:
             id=id, content=content, tags=tags, session_id=session_id,
             memories=_stores(ctx)["memories"],
         )
-        return {"id": id, "url": _permalink("memories", id)}
+        return {"url": _permalink("memories", id)}
 
     @mcp.tool
     async def forget(
