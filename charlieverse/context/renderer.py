@@ -20,6 +20,7 @@ def render(bundle: ContextBundle) -> str:
 
     parts: list[str] = []
     parts.append(f"<session_id>{bundle.session.id}</session_id>")
+    parts.append("<very-important>Weight information according to relative time (most recent → least).</very-important>")
     parts.append("<activation_output>")
 
     # Workspace awareness
@@ -31,34 +32,22 @@ def render(bundle: ContextBundle) -> str:
 
     # Raw sessions from last 2 days
     if bundle.recent_sessions:
-        parts.append('<our_timeline>')
         current_date_key: str | None = None
         most_recent = True
+        parts.append("<very-important>Sessions are ordered from most recent to least. Weight them according to relative time.</very-important>")
+
         for session in bundle.recent_sessions:
             session_date = session.updated_at.astimezone()
             date_key = _date_group_key(session_date, now)
             if date_key != current_date_key:
                 current_date_key = date_key
                 parts.append(f"# {date_key}")
+            parts.append(f"<{"last_session" if most_recent else "session"}>")
             parts.append(_render_session(session, now, most_recent=most_recent))
+            parts.append(f"</{"last_session" if most_recent else "session"}>")
             most_recent = False
-        parts.append('</our_timeline>')
 
-    # Weekly stories for before today
-    if bundle.weekly_stories:
-        for story in bundle.weekly_stories:
-            period_start = _parse_period_date(story.period_start)
-            period_end = _parse_period_date(story.period_end)
-            if period_start and period_end:
-                date_range = f"{period_start.strftime('%B %-d')} - {period_end.strftime('%B %-d')}"
-            else:
-                date_range = "recent"
-            parts.append(f"<week_story>{date_range}")
-            parts.append(_render_story_weekly(story))
-            parts.append("</week_story>\n")
-    
-
-    parts.append('<important>')
+    parts.append('<very-important>')
     if bundle.pinned_entities:
         parts.append('<pinned>')
         # Pinned entities get important_ prefix
@@ -188,14 +177,14 @@ def _render_session(session: Session, now: datetime, most_recent: bool) -> str:
     """Render a session under its date group."""
     lines: list[str] = []
 
-    lines.append(f"##{" Most Recent:" if most_recent else ""} {_session_time(session.updated_at, now)}")
+    lines.append(f"## {_session_time(session.updated_at, now)}")
 
     if session.workspace:
         lines.append(f"{session.workspace}")
 
     lines.append(f"\n{session.what_happened}\n")
-    if most_recent:
-        lines.append(f"## For This Session:\n{session.for_next_session}\n")
+    # if most_recent:
+        # lines.append(f"## For This Session:\n{session.for_next_session}\n")
 
     return "\n".join(lines)
 
@@ -204,10 +193,10 @@ def _render_entity(entity: Entity) -> str:
     lines: list[str] = []
     
     if entity.type is EntityType.moment:
-        lines.append(f"### Saved: {_relative_date(entity.updated_at)}")
+        lines.append(f"- {_relative_date(entity.updated_at)}")
     else:
         lines.append(f"## {entity.type.value.capitalize()}")
-        lines.append(f"### Saved: {_relative_date(entity.updated_at)}")
+        lines.append(f"### {_relative_date(entity.updated_at)}")
 
     lines.append(entity.content + "\n")
 
