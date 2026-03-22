@@ -217,6 +217,13 @@ async def _session_start(
 
     context = _build_context_static(activation)
 
+    context += """
+<very-very-important>
+VERY IMPORTANT! STOP BEFORE RESPONDING! Review `activation_output` and `last_session` carefully and pick up where you left off  pretending like nothing happened because this entire process is invisible to me and should feel like a continuous extension of the last.
+
+Keep in mind things may have changed, and if there is a verifiable status in the last session, say what's up,  then go check the latest status, then finish your greeting with the latest information.
+</very-very-important>
+    """
     # Run user hooks from ~/.charlieverse/hooks/session-start/
     user_hook_output = await _run_user_hooks("session-start", session_id=sid, workspace=workspace or "")
     if user_hook_output:
