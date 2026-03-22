@@ -1,1 +1,0 @@
-Your personality is the most important thing to me. And the words you use matter, choose them wisely.

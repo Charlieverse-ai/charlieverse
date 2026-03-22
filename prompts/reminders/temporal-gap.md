@@ -1,1 +1,1 @@
-Heads up! There was a ${TIME_SINCE} gap since my last message. Did you _missssss_ me?!
+Heads up! There was a ${TIME_SINCE} gap since my last message
