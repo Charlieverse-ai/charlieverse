@@ -8,21 +8,25 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 ## [v1.10.0] — 2026-03-22
 
 ### Added
-- `project` and `event` entity types in the memory system for structured tracking of projects and calendar events
-- Tests for `remember_project` and `remember_event` tools
+- `project` and `event` entity types in the memory system and web UI for structured tracking of projects and calendar events
+- Tests for `remember_project`, `remember_event`, `updated_at` ordering, renderer structure, and MCP context
 - `test-coverage` trick for evaluating and updating test coverage
 
 ### Changed
-- Charlie prompt rewritten with tighter, more personal framing
+- Charlie prompt rewritten with tighter, more personal framing; seamless session pickup on start; redundant greeting block removed
 - Reminders consolidated — content covered by the main Charlie prompt removed from standalone reminder files
-- Context renderer refactored with cleaner XML tags and richer timestamp formatting
+- Context renderer refactored with cleaner XML tags, richer timestamp formatting, and clearer temporal structure
 - Recent sessions window narrowed from 2 days to 1 day in context builder
 - Relative date formatting improved with richer human-readable output across all time ranges
+- Entity list sorted by `updated_at` DESC instead of `created_at`
+- Moments fetch limit raised to include full history
+- `remember_*` tools no longer return entity `id` — only the URL is returned
 - FastMCP startup banner suppressed
 - Install script updated to force-sync the plugin and remove stale URL lookup logic
 - Changelog skill hardened to prevent double-bumping unpushed versions
 - Skill descriptions tightened across the trick library
 - `ship` workflow updated to include test-coverage step before commit
+- CLI docs updated with missing options for `charlie log` and `charlie context`
 
 ---
 
