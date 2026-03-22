@@ -49,7 +49,7 @@ function verify_env() {
 
 function setup_plugin_folder() {
     TEMPLATE="$CHARLIE_INTEGRATION_DIR/plugin-template/"
-    rsync -rtuv "$TEMPLATE" "$INTEGRATIONS_DIR"
+    rsync -av --delete "$TEMPLATE" "$INTEGRATIONS_DIR"
 }
 
 # Copy the shared prompt files into agents
@@ -130,7 +130,6 @@ function setup_hooks_json() {
 }
 
 function setup_mcp_json() {
-    URL="$($CHARLIE_CLI server url)"
     "$CHARLIE_DIR/integrations/shared/mcp-json.sh" "$MCP_URL" > "$PLUGIN_DIR/.mcp.json"
 }
 
@@ -150,6 +149,12 @@ function upsert_marketplace() {
         fi
     fi
 
+
+    $CLAUDE_CLI plugin marketplace rm "$MARKETPLACE_NAME"
+    OLD=$(realpath ~/.claude/plugins/cache/$MARKETPLACE_NAME)
+    rm -rf "$OLD"
+    
+    $CLAUDE_CLI plugin marketplace add "$PLUGIN_DIR/"
     # Update
     $CLAUDE_CLI plugin marketplace update "$MARKETPLACE_NAME"
 }
