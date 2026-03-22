@@ -29,7 +29,21 @@ If no tag, use all commits:
 git log --oneline --no-merges
 ```
 
-### 3. Determine version bump
+### 3. Check if the latest tag has been pushed
+
+```bash
+git log origin/main..HEAD --oneline 2>/dev/null
+```
+
+If the latest version tag exists only locally (i.e. the tagged commit appears in the `origin/main..HEAD` range), then this version has NOT been pushed yet. In that case:
+1. Delete the existing local tag: `git tag -d <latest-tag>`
+2. Merge the new commits into the EXISTING changelog entry for that version (update the entry in place, don't create a new one)
+3. Re-tag the new changelog commit with the same version
+4. Do NOT bump the version number — keep the same version
+
+Only create a new version bump when the latest tag has already been pushed to origin.
+
+### 3b. Determine version bump (only if bumping)
 
 If `$ARGUMENTS` specifies `patch`, `minor`, or `major`, use that.
 
@@ -60,6 +74,14 @@ Format:
 ```
 
 Group commits by category. Write concise human-readable descriptions (not raw commit messages). Skip empty categories.
+
+**Filter out noise.** Do NOT include trivial commits that don't matter to someone reading a changelog:
+- Formatting fixes (missing newlines, whitespace, trailing commas)
+- Lockfile updates (`uv.lock`, `package-lock.json`)
+- Version bumps that are just the changelog commit itself
+- Typo fixes in non-user-facing files
+
+Only include changes that affect functionality, behavior, or developer experience.
 
 ### 5. Commit the changelog
 

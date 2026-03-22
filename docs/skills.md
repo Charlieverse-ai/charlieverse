@@ -63,6 +63,14 @@ Commit, docs, changelog, and push in one go.
 
 Runs: qc → commit → docs → adr → changelog → push. The full pipeline for shipping a change.
 
+### `test-coverage`
+
+Evaluate test coverage for recent changes.
+
+**Usage:** `/test-coverage`
+
+Reviews the diff from main, identifies changes that need new or updated test coverage, and updates the tests accordingly.
+
 ---
 
 ## Bundled skills

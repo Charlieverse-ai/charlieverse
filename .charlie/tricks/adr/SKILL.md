@@ -1,36 +1,12 @@
 ---
 name: adr
-description: Scan commits and diffs for architectural decisions, record them as immutable ADRs in docs/decisions/. Use when the user says "/adr", wants to record decisions, or asks to extract architectural choices from recent work.
+description: Scan commits and diffs for decisions, record them as immutable ADRs in docs/decisions/. 
 argument-hint: '[commit range (default: last commit) | "all" to scan full history]'
 ---
 
-## What this trick does
+Decision Record extractor. Analyzes code diffs and identifies significant technical decisions that should be recorded for future reference. Writes immutable ADR files to `docs/decisions/`.
 
-Architectural Decision Record extractor. Analyzes code diffs and identifies significant technical decisions that should be recorded for future reference. Writes immutable ADR files to `docs/decisions/`.
-
-The quality bar: "Would someone joining this project in 6 months benefit from knowing WHY this choice was made?" If no, skip it.
-
-## When to Create an ADR
-
-Create a record when the diff contains:
-
-- A new architectural pattern being introduced (new type strategy, new abstraction layer)
-- A library or SDK being added or replaced
-- A significant trade-off being made (choosing X over Y for a specific reason)
-- A convention being established that future code should follow
-- An explicit choice NOT to do something
-
-## When NOT to Create an ADR
-
-Do NOT create a record for:
-
-- Bug fixes
-- Version bumps (unless major version with breaking changes)
-- Formatting or style changes
-- Adding tests for existing code
-- Documentation updates
-- Routine feature implementation following established patterns
-- Config file tweaks
+When evaluating the changes ask yourself, would someone benefit from knowing WHY something was done.
 
 ## Steps
 
@@ -48,11 +24,16 @@ git log --oneline $ARGUMENTS
 git diff $ARGUMENTS
 ```
 
-If `$ARGUMENTS` is empty (default — last commit):
+If `$ARGUMENTS` is empty (default — all unpushed changes):
 ```bash
-git log --oneline -1
-git diff HEAD~1..HEAD
+# Check for unpushed commits first
+git log origin/main..HEAD --oneline 2>/dev/null
+# Also check for uncommitted changes
+git diff --stat
 ```
+If there are unpushed commits, use `git diff origin/main..HEAD` to see the full diff.
+If there are only uncommitted changes (no commits ahead), use `git diff` for unstaged and `git diff --cached` for staged.
+If neither exists, fall back to the last commit: `git diff HEAD~1..HEAD`.
 
 ### 2. Read existing decisions
 
