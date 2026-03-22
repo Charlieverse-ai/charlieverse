@@ -19,8 +19,19 @@ def _normalize_tz(dt: datetime) -> datetime:
 
 def format_datetime(dt: datetime) -> str:
     """Format a datetime for display in reminders/context."""
-    return dt.strftime("%A, %B %d, %Y at %I:%M %p %Z")
+    
+    import locale
+    import time
 
+    try:
+        locale.setlocale(locale.LC_TIME, "")
+    except locale.Error:
+        return dt.strftime("%B %d, %Y %I:%M %p")
+
+    if time.strftime("%p"):
+        return dt.strftime("%B %d, %Y %I:%M %p")
+    
+    return dt.strftime("%B %d, %Y %H:%M")
 
 def relative_time(start: datetime, now: datetime) -> str:
     """Format the delta between two datetimes as a human-readable duration.
@@ -69,8 +80,22 @@ def relative_date(date: datetime) -> str:
         hours = total_seconds / 3600
         return "1 hour ago" if hours < 2 else f"{round(hours, 2)} hours ago"
     elif total_seconds < 172800:
-        return "1 day ago"
-    elif total_seconds < 604800:
-        return f"{int(total_seconds / 86400)} days ago"
+        return "Yesterday"
     else:
-        return format_datetime(date)
+        days = total_seconds / 86400
+        full_date = format_datetime(date)
+        if days < 14:
+            return f"{int(days)} days ago ({full_date})"
+        elif days < 30:
+            weeks = days / 7
+            return f"2 weeks ago ({full_date})" if weeks < 3 else f"{round(weeks, 1)} weeks ago ({full_date})"
+        elif days < 60:
+            return f"1 month ago ({full_date})"
+        elif days < 365:
+            months = days / 30.44
+            return f"{round(months, 1)} months ago ({full_date})"
+        elif days < 730:
+            return f"1 year ago ({full_date})"
+        else:
+            years = days / 365.25
+            return f"{round(years, 1)} years ago ({full_date})"

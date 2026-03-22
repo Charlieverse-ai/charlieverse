@@ -19,14 +19,8 @@ def render(bundle: ContextBundle) -> str:
         return _render_first_run(bundle)
 
     parts: list[str] = []
+    parts.append(f"<session_id>{bundle.session.id}</session_id>")
     parts.append("<activation_output>")
-
-    # Current datetime
-    parts.append('---')
-    now_str = datetime.now().astimezone().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
-    parts.append(f"Now: {now_str}")
-    parts.append(f"Current Session ID: {bundle.session.id}\n")
-    parts.append('---')
 
     # Workspace awareness
     # if bundle.session.workspace and not bundle.session_stories:
@@ -37,7 +31,7 @@ def render(bundle: ContextBundle) -> str:
 
     # Raw sessions from last 2 days
     if bundle.recent_sessions:
-        parts.append('<latest_sessions>')
+        parts.append('<our_timeline>')
         current_date_key: str | None = None
         most_recent = True
         for session in bundle.recent_sessions:
@@ -48,11 +42,10 @@ def render(bundle: ContextBundle) -> str:
                 parts.append(f"# {date_key}")
             parts.append(_render_session(session, now, most_recent=most_recent))
             most_recent = False
-        parts.append('</latest_sessions>')
+        parts.append('</our_timeline>')
 
     # Weekly stories for before today
     if bundle.weekly_stories:
-        parts.append('<our_week_so_far>')
         for story in bundle.weekly_stories:
             period_start = _parse_period_date(story.period_start)
             period_end = _parse_period_date(story.period_end)
@@ -60,18 +53,18 @@ def render(bundle: ContextBundle) -> str:
                 date_range = f"{period_start.strftime('%B %-d')} - {period_end.strftime('%B %-d')}"
             else:
                 date_range = "recent"
-            parts.append(f"# Week of {date_range}")
+            parts.append(f"<week_story>{date_range}")
             parts.append(_render_story_weekly(story))
-        parts.append('</our_week_so_far>')
+            parts.append("</week_story>\n")
     
 
     parts.append('<important>')
     if bundle.pinned_entities:
-        parts.append('<memories>')
+        parts.append('<pinned>')
         # Pinned entities get important_ prefix
         for entity in bundle.pinned_entities:
             parts.append(_render_entity(entity))
-        parts.append("</memories>\n")
+        parts.append("</pinned>\n")
 
     # Moments
     if bundle.moments:
@@ -82,19 +75,16 @@ def render(bundle: ContextBundle) -> str:
 
     # Pinned knowledge (expertise)
     if bundle.pinned_knowledge:
-        parts.append('<knowledge>')
-    
+        parts.append('<knowledge>')    
         for knowledge in bundle.pinned_knowledge:
             parts.append(f'## Article: {knowledge.topic}')
             parts.append(knowledge.content)
-            if knowledge.tags:
-                parts.append(f"- Tags: {','.join(knowledge.tags)}")
 
         parts.append("</knowledge>\n")
 
     parts.append('</important>')
 
-    parts.append('<related_session_memories>')
+    parts.append('<related_memories>')
 
     # Session entities (non-pinned, non-moment)
     if bundle.session_entities:
@@ -105,12 +95,12 @@ def render(bundle: ContextBundle) -> str:
 
     # Related entities
     if bundle.related_entities:
-        parts.append('<semantic_relevance>')
+        parts.append('<relevant>')
         for entity in bundle.related_entities:
             parts.append(_render_entity(entity))
-        parts.append('</semantic_relevance>')
+        parts.append('</relevant>')
 
-    parts.append('</related_session_memories>')
+    parts.append('</related_memories>')
 
     if bundle.all_time_story:
         parts.append(_render_all_time_story(bundle.all_time_story))
@@ -168,9 +158,9 @@ def _render_tricks(workspace: str | None) -> str:
         desc = trick.get("description", "")
         source, _ = _source_label(trick["path"])
         if desc:
-            lines.append(f"- **{name}** ({source}): {desc}")
+            lines.append(f"- **{name}**: {desc}")
         else:
-            lines.append(f"- **{name}** ({source})")
+            lines.append(f"- **{name}**")
 
     lines.append("</tricks>")
     return "\n".join(lines)
@@ -194,25 +184,18 @@ def _render_story_weekly(story: Story) -> str:
         lines.append(f"\n{story.summary}")
     return "\n".join(lines)
 
-
-
 def _render_session(session: Session, now: datetime, most_recent: bool) -> str:
     """Render a session under its date group."""
     lines: list[str] = []
 
-    lines.append(f"## {_session_time(session.updated_at, now)}")
+    lines.append(f"##{" Most Recent:" if most_recent else ""} {_session_time(session.updated_at, now)}")
 
-    if session.tags or session.workspace:
-        lines.append('---')
-        if session.workspace:
-            lines.append(f"Workspace: {session.workspace}")
-        if session.tags:
-            lines.append(f"Tags: {','.join(session.tags)}")
-        lines.append('---')
+    if session.workspace:
+        lines.append(f"{session.workspace}")
 
-    lines.append(f"\n{session.what_happened}")
+    lines.append(f"\n{session.what_happened}\n")
     if most_recent:
-        lines.append(f"\n## For This Session:\n{session.for_next_session}")
+        lines.append(f"## For This Session:\n{session.for_next_session}\n")
 
     return "\n".join(lines)
 
@@ -221,12 +204,10 @@ def _render_entity(entity: Entity) -> str:
     lines: list[str] = []
     
     if entity.type is EntityType.moment:
-        lines.append(f"## {_relative_date(entity.updated_at)}")
+        lines.append(f"### Saved: {_relative_date(entity.updated_at)}")
     else:
-        lines.append(f"## {entity.type.value.capitalize()}: {_relative_date(entity.updated_at)}")
-    
-    if entity.tags:
-        lines.append(f"### Tags: {','.join(entity.tags)}")
+        lines.append(f"## {entity.type.value.capitalize()}")
+        lines.append(f"### Saved: {_relative_date(entity.updated_at)}")
 
     lines.append(entity.content + "\n")
 
@@ -254,17 +235,18 @@ def _session_time(date: datetime, now: datetime) -> str:
     """
     d = date.astimezone()
     total_seconds = (now - d).total_seconds()
+    full = d.strftime("%-I:%M %p")
 
     if d.date() == now.date() and total_seconds >= 0:
         if total_seconds < 60:
-            return "just now"
+            return f"just now {full}"
         elif total_seconds < 3600:
             mins = total_seconds / 60
-            return "1 minute ago" if mins < 2 else f"{round(mins, 1)} minutes ago"
+            return f"1 minute ago ({full})" if mins < 2 else f"{round(mins, 1)} minutes ago ({full})"
         else:
             hours = total_seconds / 3600
-            return "1 hour ago" if hours < 2 else f"{round(hours, 1)} hours ago"
-    return d.strftime("%-I:%M %p")
+            return f"1 hour ago ({full})" if hours < 2 else f"{round(hours, 1)} hours ago ({full})"
+    return full
 
 
 def _parse_period_date(period: str | None) -> datetime | None:

@@ -78,7 +78,7 @@ class ActivationBuilder:
         """Build the full context bundle for the given session."""
         # Fetch sessions from the last 2 days (raw data, no story layer dependency)
         recent_sessions = await self.sessions.recent_within_days(
-            days=2,
+            days=1,
             workspace=session.workspace,
         )
 
