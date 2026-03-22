@@ -5,6 +5,27 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.10.0] — 2026-03-22
+
+### Added
+- `project` and `event` entity types in the memory system for structured tracking of projects and calendar events
+- Tests for `remember_project` and `remember_event` tools
+- `test-coverage` trick for evaluating and updating test coverage
+
+### Changed
+- Charlie prompt rewritten with tighter, more personal framing
+- Reminders consolidated — content covered by the main Charlie prompt removed from standalone reminder files
+- Context renderer refactored with cleaner XML tags and richer timestamp formatting
+- Recent sessions window narrowed from 2 days to 1 day in context builder
+- Relative date formatting improved with richer human-readable output across all time ranges
+- FastMCP startup banner suppressed
+- Install script updated to force-sync the plugin and remove stale URL lookup logic
+- Changelog skill hardened to prevent double-bumping unpushed versions
+- Skill descriptions tightened across the trick library
+- `ship` workflow updated to include test-coverage step before commit
+
+---
+
 ## [v1.9.8] — 2026-03-21
 
 ### Changed
