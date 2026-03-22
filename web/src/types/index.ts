@@ -1,4 +1,4 @@
-export type EntityType = 'decision' | 'solution' | 'preference' | 'person' | 'milestone' | 'moment'
+export type EntityType = 'decision' | 'solution' | 'preference' | 'person' | 'milestone' | 'moment' | 'project' | 'event'
 
 export interface Entity {
   id: string

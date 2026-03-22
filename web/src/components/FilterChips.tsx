@@ -2,7 +2,7 @@ import { entityColors, entityLabels } from '../lib/colors'
 import { cn } from '../lib/utils'
 import type { EntityType } from '../types'
 
-const types: EntityType[] = ['decision', 'solution', 'preference', 'person', 'milestone', 'moment']
+const types: EntityType[] = ['decision', 'solution', 'preference', 'person', 'milestone', 'moment', 'project', 'event']
 
 interface FilterChipsProps {
   active: EntityType | null

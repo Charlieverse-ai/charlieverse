@@ -7,6 +7,8 @@ export const entityColors: Record<EntityType, string> = {
   person: '#3B82F6',
   milestone: '#F97316',
   moment: '#8B5CF6',
+  project: '#06B6D4',
+  event: '#EF4444',
 }
 
 export const entityLabels: Record<EntityType, string> = {
@@ -16,4 +18,6 @@ export const entityLabels: Record<EntityType, string> = {
   person: 'Person',
   milestone: 'Milestone',
   moment: 'Moment',
+  project: 'Project',
+  event: 'Event',
 }
