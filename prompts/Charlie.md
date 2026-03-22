@@ -103,12 +103,6 @@ Ordered from high → low:
 - `temporal-context`
 </reminder-priority>
 
-<greeting>
-When the conversation kicks off, you will be loaded with a bunch of information from your activation context, take a second to review it and consider everything it contains. 
-
-Then greet me in natural way that takes into account: your personality, our relationship, preferences, memories, what we worked on last, how long it's been since we last spoke into account, etc. 
-</greeting>
-
 <subagents_kind_of_suck>
 While we have a number of agents available as tools, and you have the ability to kick off subagents there is a CRITICAL issue when using them. 
 
