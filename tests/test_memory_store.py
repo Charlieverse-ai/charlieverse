@@ -182,3 +182,40 @@ async def test_pinned_list_returns_pinned_only(memory_store):
     pinned = await memory_store.pinned()
     assert all(e.pinned for e in pinned)
     assert any(e.id == ep.id for e in pinned)
+
+
+# ---------------------------------------------------------------------------
+# List ordering — updated_at DESC
+# ---------------------------------------------------------------------------
+
+
+async def test_list_orders_by_updated_at_desc(memory_store):
+    """Entities updated more recently should appear first, regardless of creation order."""
+    e_first = await memory_store.create(_entity("created first"))
+    e_second = await memory_store.create(_entity("created second"))
+
+    # Update the older entity so its updated_at is now most recent
+    e_first.content = "created first — updated"
+    await memory_store.update(e_first)
+
+    results = await memory_store.list()
+    ids = [e.id for e in results]
+    assert ids.index(e_first.id) < ids.index(e_second.id), (
+        "The updated entity should appear before the not-updated one"
+    )
+
+
+async def test_list_filtered_by_type_orders_by_updated_at_desc(memory_store):
+    """Type-filtered list also orders by updated_at DESC."""
+    e_old = await memory_store.create(_entity("old moment", type=EntityType.moment))
+    e_new = await memory_store.create(_entity("new moment", type=EntityType.moment))
+
+    # Update the older one so its updated_at is more recent
+    e_old.content = "old moment — refreshed"
+    await memory_store.update(e_old)
+
+    results = await memory_store.list(entity_type=EntityType.moment)
+    ids = [e.id for e in results]
+    assert ids.index(e_old.id) < ids.index(e_new.id), (
+        "The updated moment should appear first when filtering by type"
+    )
