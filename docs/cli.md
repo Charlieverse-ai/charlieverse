@@ -128,6 +128,24 @@ charlie story-data TARGET [DATE]  # Fetch story data (session ID or tier name + 
 charlie doctor             # Run environment health checks
 ```
 
+### `log`
+
+Record a logbook entry.
+
+| Flag | Description |
+|------|-------------|
+| `--session` / `-s` | Session ID to associate the entry with |
+| `--tags` / `-t` | Comma-separated tags |
+
+### `context`
+
+Print the activation context — what Charlie sees when a session starts.
+
+| Flag | Description |
+|------|-------------|
+| `--session` / `-s` | Session ID to preview |
+| `--workspace` / `-w` | Workspace path |
+
 ### `story-data`
 
 Fetch data used by the Storyteller to generate or update a story. Outputs JSON to stdout.
