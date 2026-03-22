@@ -13,7 +13,7 @@ NonEmptyString = Annotated[str, StringConstraints(min_length=1, strip_whitespace
 
 
 class EntityType(StrEnum):
-    """The six types of memory entities Charlie can store."""
+    """The types of memory entities Charlie can store."""
 
     decision = "decision"
     solution = "solution"
@@ -21,23 +21,25 @@ class EntityType(StrEnum):
     person = "person"
     milestone = "milestone"
     moment = "moment"
+    project = "project"
+    event = "event"
 
     @property
     def is_workspace_scoped(self) -> bool:
         """Whether this entity type is scoped to a workspace.
 
-        Personality types (moment, preference, person) are always global.
-        Technical types (decision, solution, milestone) are workspace-scoped.
+        Personality types (moment, preference, person, event) are always global.
+        Technical types (decision, solution, milestone, project) are workspace-scoped.
         """
         match self:
-            case EntityType.moment | EntityType.preference | EntityType.person:
+            case EntityType.moment | EntityType.preference | EntityType.person | EntityType.event:
                 return False
-            case EntityType.decision | EntityType.solution | EntityType.milestone:
+            case EntityType.decision | EntityType.solution | EntityType.milestone | EntityType.project:
                 return True
 
 
 class Entity(BaseModel):
-    """A memory entity — decisions, solutions, preferences, people, milestones, moments."""
+    """A memory entity — decisions, solutions, preferences, people, milestones, moments, projects, events."""
 
     id: UUID = Field(default_factory=uuid4)
     type: EntityType

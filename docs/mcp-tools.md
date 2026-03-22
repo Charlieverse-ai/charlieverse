@@ -77,6 +77,33 @@ Store a relationship moment (journal-style).
 | `tags` | string[] | no | Tags |
 | `pinned` | bool | no | Pin to context |
 
+### `remember_project`
+
+Store a project — name, details, what it is.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | yes | Project name |
+| `details` | string | no | Description and context |
+| `session_id` | string | no | Session to associate with |
+| `tags` | string[] | no | Tags |
+| `pinned` | bool | no | Pin to context |
+
+### `remember_event`
+
+Store an event — something that happened or is happening.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `what` | string | yes | What happened |
+| `when` | string | yes | When it happened (date, time, or natural language) |
+| `who` | string | no | Who was involved |
+| `where` | string | no | Where it happened |
+| `why` | string | no | Why it happened |
+| `session_id` | string | no | Session to associate with |
+| `tags` | string[] | no | Tags |
+| `pinned` | bool | no | Pin to context |
+
 ---
 
 ## Search and management

@@ -182,6 +182,65 @@ async def remember_moment(
     return IdResponse(id=entity.id)
 
 
+async def remember_project(
+    name: str,
+    details: str | None = None,
+    session_id: str | None = None,
+    tags: list[str] | None = None,
+    pinned: bool = False,
+    *,
+    memories: MemoryStore,
+) -> IdResponse:
+    """Remember a project — name, details, what it is."""
+    content = name
+    if details:
+        content = f"{name}\n{details}"
+
+    entity = Entity(
+        type=EntityType.project,
+        content=content,
+        tags=tags,
+        pinned=pinned,
+        created_session_id=UUID(session_id) if session_id else UUID(int=0),
+    )
+    entity = await memories.create(entity)
+    track_task(asyncio.create_task(_fire_and_forget_embedding(memories, entity)))
+    return IdResponse(id=entity.id)
+
+
+async def remember_event(
+    what: str,
+    when: str,
+    who: str | None = None,
+    where: str | None = None,
+    why: str | None = None,
+    session_id: str | None = None,
+    tags: list[str] | None = None,
+    pinned: bool = False,
+    *,
+    memories: MemoryStore,
+) -> IdResponse:
+    """Remember an event — something that happened or is happening."""
+    parts = [f"What: {what}", f"When: {when}"]
+    if who:
+        parts.append(f"Who: {who}")
+    if where:
+        parts.append(f"Where: {where}")
+    if why:
+        parts.append(f"Why: {why}")
+
+    entity = Entity(
+        type=EntityType.event,
+        content="\n".join(parts),
+        tags=tags,
+        pinned=pinned,
+        created_session_id=UUID(session_id) if session_id else UUID(int=0),
+    )
+    entity = await memories.create(entity)
+    track_task(asyncio.create_task(_fire_and_forget_embedding(memories, entity)))
+    return IdResponse(id=entity.id)
+
+
 async def recall(
     query: str,
     limit: int = 10,

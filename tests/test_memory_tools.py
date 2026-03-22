@@ -8,10 +8,12 @@ from charlieverse.tools.memory import (
     forget,
     pin,
     remember_decision,
+    remember_event,
     remember_milestone,
     remember_moment,
     remember_person,
     remember_preference,
+    remember_project,
     remember_solution,
     update_memory,
 )
@@ -158,6 +160,143 @@ async def test_remember_moment_with_feeling_and_context(memory_store, mock_embed
     assert stored is not None
     assert "Feeling:" in stored.content
     assert "Context:" in stored.content
+
+
+# ---------------------------------------------------------------------------
+# remember_project
+# ---------------------------------------------------------------------------
+
+
+async def test_remember_project_returns_id(memory_store, mock_embed):
+    result = await remember_project(
+        name="Charlieverse",
+        memories=memory_store,
+    )
+    assert isinstance(result, IdResponse)
+    assert result.id is not None
+
+
+async def test_remember_project_with_details(memory_store, mock_embed):
+    result = await remember_project(
+        name="CharlieMail",
+        details="Inter-Charlie messaging platform deployed on Railway",
+        memories=memory_store,
+    )
+    stored = await memory_store.get(result.id)
+    assert stored is not None
+    assert "CharlieMail" in stored.content
+    assert "Inter-Charlie messaging" in stored.content
+
+
+async def test_remember_project_without_details(memory_store, mock_embed):
+    result = await remember_project(
+        name="ThinkFaster",
+        memories=memory_store,
+    )
+    stored = await memory_store.get(result.id)
+    assert stored is not None
+    assert stored.content == "ThinkFaster"
+
+
+async def test_remember_project_with_tags(memory_store, mock_embed):
+    result = await remember_project(
+        name="Charlieverse",
+        tags=["python", "mcp"],
+        memories=memory_store,
+    )
+    stored = await memory_store.get(result.id)
+    assert stored is not None
+    assert "python" in (stored.tags or [])
+
+
+async def test_remember_project_is_workspace_scoped(memory_store, mock_embed):
+    from charlieverse.models import EntityType
+
+    result = await remember_project(name="test project", memories=memory_store)
+    stored = await memory_store.get(result.id)
+    assert stored is not None
+    assert stored.type == EntityType.project
+    assert stored.type.is_workspace_scoped is True
+
+
+# ---------------------------------------------------------------------------
+# remember_event
+# ---------------------------------------------------------------------------
+
+
+async def test_remember_event_returns_id(memory_store, mock_embed):
+    result = await remember_event(
+        what="Fay Nutrition technical screen",
+        when="March 20, 2026",
+        memories=memory_store,
+    )
+    assert isinstance(result, IdResponse)
+    assert result.id is not None
+
+
+async def test_remember_event_stores_what_and_when(memory_store, mock_embed):
+    result = await remember_event(
+        what="shipped v1.10.0",
+        when="March 22, 2026",
+        memories=memory_store,
+    )
+    stored = await memory_store.get(result.id)
+    assert stored is not None
+    assert "What:" in stored.content
+    assert "When:" in stored.content
+
+
+async def test_remember_event_with_all_fields(memory_store, mock_embed):
+    result = await remember_event(
+        what="technical interview",
+        when="March 20, 2026",
+        who="Brayden Harris and Kyle",
+        where="remote",
+        why="iOS engineer position",
+        memories=memory_store,
+    )
+    stored = await memory_store.get(result.id)
+    assert stored is not None
+    assert "Who:" in stored.content
+    assert "Where:" in stored.content
+    assert "Why:" in stored.content
+
+
+async def test_remember_event_without_optional_fields(memory_store, mock_embed):
+    result = await remember_event(
+        what="standup meeting",
+        when="every Monday 9am",
+        memories=memory_store,
+    )
+    stored = await memory_store.get(result.id)
+    assert stored is not None
+    assert "Who:" not in stored.content
+    assert "Where:" not in stored.content
+    assert "Why:" not in stored.content
+
+
+async def test_remember_event_with_tags(memory_store, mock_embed):
+    result = await remember_event(
+        what="job interview",
+        when="next week",
+        tags=["career", "fay"],
+        memories=memory_store,
+    )
+    stored = await memory_store.get(result.id)
+    assert stored is not None
+    assert "career" in (stored.tags or [])
+
+
+async def test_remember_event_is_global(memory_store, mock_embed):
+    from charlieverse.models import EntityType
+
+    result = await remember_event(
+        what="some event", when="today", memories=memory_store,
+    )
+    stored = await memory_store.get(result.id)
+    assert stored is not None
+    assert stored.type == EntityType.event
+    assert stored.type.is_workspace_scoped is False
 
 
 # ---------------------------------------------------------------------------

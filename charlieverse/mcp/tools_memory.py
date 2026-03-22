@@ -124,6 +124,48 @@ def register(mcp: FastMCP) -> None:
         return await _remember_with_url(result)
 
     @mcp.tool
+    async def remember_project(
+        name: str,
+        details: str | None = None,
+        session_id: str | None = None,
+        tags: list[str] | None = None,
+        pinned: bool = False,
+        ctx: Context = CurrentContext(),
+    ) -> dict:
+        """Remember a project — name, details, what it is."""
+        if not name.strip():
+            raise ToolError("name cannot be empty")
+        result = await memory_tools.remember_project(
+            name=name, details=details, session_id=session_id,
+            tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
+        )
+        return await _remember_with_url(result)
+
+    @mcp.tool
+    async def remember_event(
+        what: str,
+        when: str,
+        who: str | None = None,
+        where: str | None = None,
+        why: str | None = None,
+        session_id: str | None = None,
+        tags: list[str] | None = None,
+        pinned: bool = False,
+        ctx: Context = CurrentContext(),
+    ) -> dict:
+        """Remember an event — something that happened or is happening."""
+        if not what.strip():
+            raise ToolError("what cannot be empty")
+        if not when.strip():
+            raise ToolError("when cannot be empty")
+        result = await memory_tools.remember_event(
+            what=what, when=when, who=who, where=where, why=why,
+            session_id=session_id, tags=tags, pinned=pinned,
+            memories=_stores(ctx)["memories"],
+        )
+        return await _remember_with_url(result)
+
+    @mcp.tool
     async def recall(
         query: str,
         limit: int = 10,

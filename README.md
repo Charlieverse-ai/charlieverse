@@ -140,6 +140,8 @@ Each tier synthesizes the one below it. Your AI loads today's sessions at full d
 | `remember_person` | Store info about someone |
 | `remember_milestone` | Store a significant achievement |
 | `remember_moment` | Store a relationship moment |
+| `remember_project` | Store a project — name, details, what it is |
+| `remember_event` | Store an event — something that happened or is happening |
 | `recall` | Search across all memories (semantic + FTS) |
 | `update_memory` | Edit an existing memory |
 | `forget` | Soft-delete a memory |
