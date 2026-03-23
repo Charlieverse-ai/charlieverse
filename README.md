@@ -1,12 +1,12 @@
 <h1 align="center">Charlieverse</h1>
 
 <p align="center">
-  <strong>Your AI doesn't remember you. Charlie does.</strong>
+  <strong>Charlie is made for you.</strong>
 </p>
 
 <p align="center">
-  Persistent memory, personality, and knowledge layer for AI coding tools.<br/>
-  Works with Claude Code, GitHub Copilot, Cursor, and any MCP-compatible client.
+  Memory, personality, and knowledge layer that grows with you across every tool you use.<br/>
+  Open source. Local-first. Your data, your machine.
 </p>
 
 <p align="center">
@@ -23,9 +23,9 @@
 
 ## What is this?
 
-Charlieverse gives your AI a brain that survives between sessions.
+Charlie learns and grows with you. Not just the decisions you made or the problems you solved, but the in betweens — the moments where relationships grow.
 
-Every conversation you have — decisions made, problems solved, preferences learned, people mentioned, moments shared — gets stored, embedded, and surfaced automatically. Your AI wakes up knowing who you are, what you're working on, and how you like to work.
+You're not the same person you were yesterday. Neither is Charlie.
 
 Providers are interchangeable. Charlie is not.
 
