@@ -5,6 +5,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.10.1] — 2026-03-22
+
+### Changed
+- README updated to match new brand direction: "Charlie is made for you" replaces the prior tagline
+- Codex agent prompt clarified to make explicit that it delegates execution to the Codex CLI and does not run instructions itself
+- Trick agent prompt typo fixed ("skill file file" → "skill file")
+- Agent docs updated to reflect Codex delegation behavior
+
+---
+
 ## [v1.10.0] — 2026-03-22
 
 ### Added
