@@ -48,7 +48,7 @@ These live in `prompts/cli/` and orchestrate external CLI tools.
 
 ### Codex
 
-Interface for OpenAI Codex CLI. Receives tasks and executes them via `codex exec` in non-interactive mode with `--full-auto`.
+Interface for OpenAI Codex CLI. Receives tasks and delegates execution to Codex via `codex exec` in non-interactive mode with `--full-auto`. The agent itself does not execute instructions directly — it passes them to Codex.
 
 ### Copilot
 
