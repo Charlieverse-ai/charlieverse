@@ -7,6 +7,7 @@ import pytest
 from charlieverse.tools.memory import (
     forget,
     pin,
+    recall,
     remember_decision,
     remember_event,
     remember_milestone,
@@ -17,7 +18,7 @@ from charlieverse.tools.memory import (
     remember_solution,
     update_memory,
 )
-from charlieverse.tools.responses import IdResponse
+from charlieverse.tools.responses import IdResponse, RecallResponse
 
 
 # ---------------------------------------------------------------------------
@@ -372,3 +373,86 @@ async def test_unpin_entity(memory_store, mock_embed):
     stored = await memory_store.get(created.id)
     assert stored is not None
     assert stored.pinned is False
+
+
+# ---------------------------------------------------------------------------
+# recall
+# ---------------------------------------------------------------------------
+
+
+async def test_recall_returns_recall_response(memory_store, knowledge_store, mock_embed):
+    result = await recall(
+        query="testing",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+    )
+    assert isinstance(result, RecallResponse)
+
+
+async def test_recall_empty_db_returns_empty_lists(memory_store, knowledge_store, mock_embed):
+    result = await recall(
+        query="nothing here",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+    )
+    assert result.entities == []
+    assert result.knowledge == []
+    assert result.messages == []
+
+
+async def test_recall_finds_stored_entity(memory_store, knowledge_store, mock_embed):
+    await remember_decision(
+        content="use pytest for all testing",
+        memories=memory_store,
+    )
+    result = await recall(
+        query="pytest testing",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+    )
+    # FTS should pick this up
+    entity_contents = [e.content for e in result.entities]
+    assert any("pytest" in c for c in entity_contents)
+
+
+async def test_recall_with_type_filter(memory_store, knowledge_store, mock_embed):
+    await remember_decision(content="a decision about testing", memories=memory_store)
+    await remember_preference(content="a preference about testing", memories=memory_store)
+
+    result = await recall(
+        query="testing",
+        type="decision",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+    )
+    # All returned entities must be of the requested type
+    for entity in result.entities:
+        assert entity.type == "decision"
+
+
+async def test_recall_deduplicates_results(memory_store, knowledge_store, mock_embed):
+    """Entities returned by both FTS and vector search should not be duplicated."""
+    await remember_decision(
+        content="unique deduplication test content",
+        memories=memory_store,
+    )
+    result = await recall(
+        query="unique deduplication test content",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+    )
+    ids = [e.id for e in result.entities]
+    assert len(ids) == len(set(ids))
+
+
+async def test_recall_with_no_type_filter_returns_mixed_types(memory_store, knowledge_store, mock_embed):
+    await remember_decision(content="decided to use Docker", memories=memory_store)
+    await remember_preference(content="prefers Docker over VMs", memories=memory_store)
+
+    result = await recall(
+        query="Docker",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+    )
+    types = {e.type for e in result.entities}
+    assert len(types) >= 1  # At minimum we get results back

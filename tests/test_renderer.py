@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
 
 from charlieverse.context.builder import ContextBundle
-from charlieverse.context.renderer import render, _render_entity, _date_group_key, _session_time
-from charlieverse.models import Entity, EntityType, Session
+from charlieverse.context.renderer import (
+    render,
+    _render_entity,
+    _render_all_time_story,
+    _render_tricks,
+    _parse_period_date,
+    _date_group_key,
+    _session_time,
+)
+from charlieverse.models import Entity, EntityType, Knowledge, Session, Story
 
 
 # ---------------------------------------------------------------------------
@@ -234,3 +244,257 @@ def test_session_time_yesterday_returns_time_only():
     result = _session_time(yesterday, now)
     # Should not include "ago" — just a time string
     assert "ago" not in result
+
+
+def test_session_time_one_minute_ago():
+    now = datetime.now().astimezone()
+    result = _session_time(now - timedelta(seconds=65), now)
+    assert "1 minute ago" in result
+
+
+# ---------------------------------------------------------------------------
+# _render_all_time_story
+# ---------------------------------------------------------------------------
+
+
+def _story(title: str = "Our Story", content: str = "Chapter 1") -> Story:
+    return Story(title=title, content=content)
+
+
+def test_render_all_time_story_contains_title():
+    story = _story(title="The Long Arc")
+    output = _render_all_time_story(story)
+    assert "The Long Arc" in output
+
+
+def test_render_all_time_story_contains_content():
+    story = _story(content="A long journey together")
+    output = _render_all_time_story(story)
+    assert "A long journey together" in output
+
+
+def test_render_all_time_story_wrapped_in_tag():
+    story = _story()
+    output = _render_all_time_story(story)
+    assert "<our_story_so_far>" in output
+    assert "</our_story_so_far>" in output
+
+
+# ---------------------------------------------------------------------------
+# _parse_period_date
+# ---------------------------------------------------------------------------
+
+
+def test_parse_period_date_iso_string():
+    result = _parse_period_date("2026-03-01T00:00:00+00:00")
+    assert result is not None
+    assert result.year == 2026
+    assert result.month == 3
+
+
+def test_parse_period_date_naive_gets_utc():
+    result = _parse_period_date("2026-01-15T10:30:00")
+    assert result is not None
+    assert result.tzinfo is not None
+
+
+def test_parse_period_date_none_returns_none():
+    assert _parse_period_date(None) is None
+
+
+def test_parse_period_date_empty_string_returns_none():
+    assert _parse_period_date("") is None
+
+
+def test_parse_period_date_invalid_returns_none():
+    assert _parse_period_date("not-a-date") is None
+
+
+# ---------------------------------------------------------------------------
+# _render_tricks
+# ---------------------------------------------------------------------------
+
+
+def test_render_tricks_returns_empty_when_no_tricks():
+    with patch("charlieverse.skills._discover_skills", return_value=[]):
+        result = _render_tricks(workspace=None)
+    assert result == ""
+
+
+def test_render_tricks_returns_empty_on_exception():
+    with patch("charlieverse.skills._discover_skills", side_effect=Exception("boom")):
+        result = _render_tricks(workspace=None)
+    assert result == ""
+
+
+def test_render_tricks_formats_tricks_with_description(tmp_path):
+    skill_path = str(tmp_path / "my-trick" / "SKILL.md")
+    tricks = [{"name": "my-trick", "description": "does cool things", "path": skill_path}]
+    with patch("charlieverse.skills._discover_skills", return_value=tricks):
+        result = _render_tricks(workspace=None)
+    assert "<tricks>" in result
+    assert "my-trick" in result
+    assert "does cool things" in result
+
+
+def test_render_tricks_formats_tricks_without_description(tmp_path):
+    skill_path = str(tmp_path / "bare-trick" / "SKILL.md")
+    tricks = [{"name": "bare-trick", "description": "", "path": skill_path}]
+    with patch("charlieverse.skills._discover_skills", return_value=tricks):
+        result = _render_tricks(workspace=None)
+    assert "bare-trick" in result
+
+
+# ---------------------------------------------------------------------------
+# render() — pinned entities, moments, knowledge, session entities, related
+# ---------------------------------------------------------------------------
+
+
+def _knowledge(topic: str = "Python", content: str = "Use type hints.") -> Knowledge:
+    return Knowledge(
+        topic=topic,
+        content=content,
+        created_session_id=uuid4(),
+    )
+
+
+def test_render_includes_pinned_entities():
+    pinned = _entity("pinned fact", type=EntityType.decision)
+    pinned = pinned.model_copy(update={"pinned": True})
+    bundle = _bundle(pinned_entities=[pinned])
+    output = render(bundle)
+    assert "<pinned>" in output
+    assert "pinned fact" in output
+
+
+def test_render_includes_moments():
+    moment = _entity("felt connected", type=EntityType.moment)
+    bundle = _bundle(moments=[moment])
+    output = render(bundle)
+    assert "<moments>" in output
+    assert "felt connected" in output
+
+
+def test_render_includes_pinned_knowledge():
+    knowledge = _knowledge(topic="Architecture", content="Use clean layering.")
+    bundle = _bundle(pinned_knowledge=[knowledge])
+    output = render(bundle)
+    assert "<knowledge>" in output
+    assert "Architecture" in output
+    assert "Use clean layering." in output
+
+
+def test_render_includes_session_entities():
+    entity = _entity("recent decision", type=EntityType.decision)
+    bundle = _bundle(session_entities=[entity])
+    output = render(bundle)
+    assert "<created_recently>" in output
+    assert "recent decision" in output
+
+
+def test_render_includes_related_entities():
+    entity = _entity("related memory", type=EntityType.solution)
+    bundle = _bundle(related_entities=[entity])
+    output = render(bundle)
+    assert "<relevant>" in output
+    assert "related memory" in output
+
+
+def test_render_includes_all_time_story():
+    story = _story(title="All Time Story", content="Our shared history.")
+    bundle = _bundle(all_time_story=story)
+    output = render(bundle)
+    assert "<our_story_so_far>" in output
+    assert "All Time Story" in output
+
+
+# ---------------------------------------------------------------------------
+# _render_first_run (is_first_run path)
+# ---------------------------------------------------------------------------
+
+
+def test_render_first_run_contains_activation_output():
+    """An empty bundle triggers the first-run path."""
+    session = _session()
+    bundle = ContextBundle(session=session)
+    assert bundle.is_first_run
+    output = render(bundle)
+    assert "<activation_output>" in output
+
+
+def test_render_first_run_contains_birthday_tag():
+    session = _session()
+    bundle = ContextBundle(session=session)
+    output = render(bundle)
+    assert "<its_your_birthday>" in output
+
+
+def test_render_first_run_contains_session_id():
+    session = _session()
+    bundle = ContextBundle(session=session)
+    output = render(bundle)
+    assert str(session.id) in output
+
+
+# ---------------------------------------------------------------------------
+# ContextBundle.is_first_run and seen_ids
+# ---------------------------------------------------------------------------
+
+
+def test_is_first_run_true_when_empty():
+    bundle = ContextBundle(session=_session())
+    assert bundle.is_first_run is True
+
+
+def test_is_first_run_false_with_moments():
+    bundle = ContextBundle(session=_session(), moments=[_entity()])
+    assert bundle.is_first_run is False
+
+
+def test_is_first_run_false_with_recent_sessions():
+    bundle = ContextBundle(session=_session(), recent_sessions=[_session()])
+    assert bundle.is_first_run is False
+
+
+def test_is_first_run_false_with_all_time_story():
+    bundle = ContextBundle(session=_session(), all_time_story=_story())
+    assert bundle.is_first_run is False
+
+
+def test_seen_ids_includes_all_entity_groups():
+    moment = _entity("moment", type=EntityType.moment)
+    pinned = _entity("pinned", type=EntityType.decision)
+    session_entity = _entity("session", type=EntityType.solution)
+    related = _entity("related", type=EntityType.preference)
+    bundle = ContextBundle(
+        session=_session(),
+        moments=[moment],
+        pinned_entities=[pinned],
+        session_entities=[session_entity],
+        related_entities=[related],
+    )
+    ids = bundle.seen_ids
+    assert str(moment.id) in ids
+    assert str(pinned.id) in ids
+    assert str(session_entity.id) in ids
+    assert str(related.id) in ids
+
+
+def test_seen_ids_includes_knowledge():
+    knowledge = _knowledge()
+    bundle = ContextBundle(
+        session=_session(),
+        moments=[_entity()],
+        pinned_knowledge=[knowledge],
+    )
+    assert str(knowledge.id) in bundle.seen_ids
+
+
+def test_seen_ids_includes_all_time_story():
+    story = _story()
+    bundle = ContextBundle(
+        session=_session(),
+        moments=[_entity()],
+        all_time_story=story,
+    )
+    assert str(story.id) in bundle.seen_ids
