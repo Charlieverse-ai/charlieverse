@@ -5,6 +5,17 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.10.2] — 2026-03-24
+
+### Added
+- Tests for `recall`, renderer helpers, and `ContextBundle`
+
+### Changed
+- Charlie prompt clarified with improved documentation of all memory types and how moments are recorded
+- Architectural decision records updated to capture recent system changes
+
+---
+
 ## [v1.10.1] — 2026-03-22
 
 ### Changed
