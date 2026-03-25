@@ -1,11 +1,37 @@
 #!/bin/bash
+#
+# Charlieverse + GitHub Copilot integration installer.
+# Works from both a repo checkout and a uvx/pip package install.
+#
 
-CHARLIE_DIR="$(realpath $(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../..)"
-PROMPTS_DIR="$CHARLIE_DIR/prompts"
-SHARED_DIR="$CHARLIE_DIR/integrations/shared"
-INTEGRATIONS_DIR="$CHARLIE_DIR/integrations/copilot"
+set -euo pipefail
+
+# ── Resolve paths ─────────────────────────────────────────────────────────────
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PKG_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)
+
+# Find charlie CLI: PATH first (uvx install), then bin/ in repo checkout
+if command -v charlie &>/dev/null; then
+    CHARLIE_CLI="charlie"
+elif [ -x "$PKG_DIR/bin/charlie" ]; then
+    CHARLIE_CLI="$PKG_DIR/bin/charlie"
+else
+    echo "✘ charlie CLI not found — install charlieverse first"
+    exit 1
+fi
+
+# Find prompts
+if [ -d "$PKG_DIR/prompts" ]; then
+    PROMPTS_DIR="$PKG_DIR/prompts"
+elif [ -d "$SCRIPT_DIR/../../prompts" ]; then
+    PROMPTS_DIR=$(cd "$SCRIPT_DIR/../../prompts" && pwd)
+else
+    echo "✘ Prompts directory not found"
+    exit 1
+fi
+
+INTEGRATIONS_DIR="$SCRIPT_DIR"
 PLUGIN_DIR="$INTEGRATIONS_DIR/plugin/"
-CHARLIE_CLI="$CHARLIE_DIR/bin/charlie"
 
 CHARLIE_ROOT=$($CHARLIE_CLI config path)
 MCP_URL=$($CHARLIE_CLI config mcp)
@@ -13,8 +39,9 @@ API_URL=$($CHARLIE_CLI config api)
 
 JQ_CLI="jq"
 
-# Fix 1+2: plugin.json lives at .github/plugin/plugin.json
 PLUGIN_JSON="$PLUGIN_DIR/.github/plugin/plugin.json"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 function bump_version() {
     TMP_PLUGIN_FILE="$PLUGIN_JSON.tmp"
@@ -23,22 +50,21 @@ function bump_version() {
 
 function verify_env() {
     if ! command -v $JQ_CLI &> /dev/null; then
-        echo "$JQ_CLI not found"
+        echo "✘ $JQ_CLI not found"
         exit 1
     fi
 }
 
+# ── Steps ─────────────────────────────────────────────────────────────────────
+
 function setup_plugin_json() {
-    # Copy the plugin.json template if it doesn't exist yet
     TEMPLATE="$INTEGRATIONS_DIR/plugin-template/"
     if [ -d "$TEMPLATE" ]; then
         rsync -rtu "$TEMPLATE" "$PLUGIN_DIR"
     fi
 
-    # Ensure directory exists
     mkdir -p "$(dirname "$PLUGIN_JSON")"
 
-    # Create plugin.json if missing
     if [ ! -f "$PLUGIN_JSON" ]; then
         cat > "$PLUGIN_JSON" <<PJSON
 {
@@ -57,13 +83,11 @@ PJSON
 }
 
 function update_plugin_skills_list() {
-    # Update the skills array in plugin.json to list all installed skill directories
     SKILLS_DIR="$PLUGIN_DIR/skills"
     if [ ! -d "$SKILLS_DIR" ]; then
         return
     fi
 
-    # Build JSON array of skill paths
     SKILL_PATHS="[]"
     for skill_dir in "$SKILLS_DIR"/*/; do
         if [ -f "$skill_dir/SKILL.md" ]; then
@@ -72,12 +96,10 @@ function update_plugin_skills_list() {
         fi
     done
 
-    # Update plugin.json
     TMP="$PLUGIN_JSON.tmp"
     $JQ_CLI --argjson skills "$SKILL_PATHS" '.skills = $skills' "$PLUGIN_JSON" > "$TMP" && mv "$TMP" "$PLUGIN_JSON"
 }
 
-# Fix 3: Copilot agents use .agent.md extension
 function charlie_prompt() {
 cat <<PROMPT
 ---
@@ -94,10 +116,8 @@ function setup_prompts() {
     AGENTS_DIR="$PLUGIN_DIR/agents"
     mkdir -p "$AGENTS_DIR"
 
-    # Copy Charlie with .agent.md extension
     charlie_prompt > "$AGENTS_DIR/Charlie.agent.md"
 
-    # Copy Tool Agents, renaming .md to .agent.md
     TOOL_AGENT_DIR="$AGENTS_DIR/tools/"
     mkdir -p "$TOOL_AGENT_DIR"
     for md_file in "$PROMPTS_DIR/tools/"*.md; do
@@ -108,7 +128,6 @@ function setup_prompts() {
     done
 }
 
-# Fix 4: Copilot uses flat hook entries (no nested hooks/matcher wrapper)
 function setup_hooks_json() {
     HOOKS_DIR="$PLUGIN_DIR/hooks"
     mkdir -p "$HOOKS_DIR"
@@ -155,7 +174,6 @@ function setup_hooks_json() {
 HOOKS
 }
 
-# Fix 5: Copilot plugin .mcp.json needs mcpServers wrapper
 function setup_mcp_json() {
     local URL="$MCP_URL"
     cat > "$PLUGIN_DIR/.mcp.json" <<MCP
@@ -174,35 +192,29 @@ function setup_skills() {
     SKILLS_DST="$PLUGIN_DIR/skills"
     mkdir -p "$SKILLS_DST"
 
-    # Copy integration-specific skills if they exist
     COPILOT_SKILLS_SRC="$INTEGRATIONS_DIR/skills"
     if [ -d "$COPILOT_SKILLS_SRC" ]; then
         cp -r "$COPILOT_SKILLS_SRC/" "$SKILLS_DST/"
     fi
 
-    # Copy shared skills from prompts/skills/
     SHARED_SKILLS_SRC="$PROMPTS_DIR/skills"
     if [ -d "$SHARED_SKILLS_SRC" ]; then
         cp -r "$SHARED_SKILLS_SRC/" "$SKILLS_DST/"
     fi
 
-    # Remove skills that shouldn't be user-visible on Copilot
-    # (user-invocable: false has no Copilot equivalent)
     rm -rf "$SKILLS_DST/charlie-import" 2>/dev/null
 
-    # Variable replacement across all skills
     find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_PATH|$CHARLIE_ROOT|g" {} +
     find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_CLI|$CHARLIE_CLI|g" {} +
     find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_API|$API_URL|g" {} +
     find "$SKILLS_DST" -name "SKILL.md" -exec sed -i '' "s|V_MCP|$MCP_URL|g" {} +
 }
 
-# Fix 6: Correct settings key is chat.pluginLocations (not chat.plugins.paths)
 function register_plugin() {
     local SETTINGS_CANDIDATES=(
         "$HOME/Library/Application Support/Code/User/settings.json"
         "$HOME/.config/Code/User/settings.json"
-        "$APPDATA/Code/User/settings.json"
+        "${APPDATA:-/dev/null}/Code/User/settings.json"
     )
 
     local SETTINGS_FILE=""
@@ -223,13 +235,11 @@ function register_plugin() {
         return
     fi
 
-    # Check if already registered
     if grep -q "$ABSOLUTE_PLUGIN_DIR" "$SETTINGS_FILE" 2>/dev/null; then
         echo "✔ 🐕 Plugin already registered in VS Code settings"
         return
     fi
 
-    # VS Code uses JSONC (comments + trailing commas) so we can't use jq.
     echo ""
     echo "📋 Add this to your VS Code settings (Cmd+Shift+P → 'Preferences: Open User Settings (JSON)'):"
     echo ""
@@ -240,7 +250,7 @@ function register_plugin() {
     echo ""
 }
 
-# Integrate
+# ── Run ───────────────────────────────────────────────────────────────────────
 
 verify_env
 

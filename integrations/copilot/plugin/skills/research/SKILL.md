@@ -2,7 +2,6 @@
 name: research
 description: Research a topic and save findings to Charlieverse knowledge. Use whenever the user wants to research something, look up documentation, investigate a library or tool, explore a concept, or asks "what do you know about X". Also trigger when the user says "/research", wants to build up knowledge about a subject, or asks you to "look into" something — even if they don't use the word "research" explicitly.
 argument-hint: '[topic]'
-allowed-tools: mcp(search_knowledge, update_knowledge), Agent(Charlieverse:tools:Researcher)
 ---
 
 # Research

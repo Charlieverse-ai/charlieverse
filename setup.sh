@@ -71,21 +71,6 @@ preflight() {
 
     local missing=()
 
-    # Python 3.12+
-    if check_command python3; then
-        local pyver
-        pyver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-        if python3 -c 'import sys; exit(0 if sys.version_info >= (3, 12) else 1)' 2>/dev/null; then
-            ok "Python $pyver"
-        else
-            fail "Python $pyver (need 3.12+)"
-            missing+=("python3.12+")
-        fi
-    else
-        fail "Python not found"
-        missing+=("python3.12+")
-    fi
-
     # uv
     if check_command uv; then
         ok "uv $(uv --version 2>/dev/null | head -1)"
@@ -124,7 +109,6 @@ preflight() {
         echo "Install them first:"
         for tool in "${missing[@]}"; do
             case "$tool" in
-                python3.12+) echo "  brew install python@3.12" ;;
                 uv)          echo "  curl -LsSf https://astral.sh/uv/install.sh | sh" ;;
                 jq)          echo "  brew install jq" ;;
                 git)         echo "  brew install git" ;;

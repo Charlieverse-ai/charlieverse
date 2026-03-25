@@ -29,8 +29,17 @@ build-backend = "hatchling.build"
 [tool.hatch.metadata]
 allow-direct-references = true
 
-[tool.hatchling.build.targets.wheel.force-include]
-"charlieverse/prompts" = "charlieverse/prompts"
+[tool.hatch.build.targets.sdist.force-include]
+"prompts" = "prompts"
+"web/dist" = "web/dist"
+"integrations" = "integrations"
+"tools" = "tools"
+
+[tool.hatch.build.targets.wheel.force-include]
+"prompts" = "charlieverse/prompts"
+"web/dist" = "charlieverse/web/dist"
+"integrations" = "charlieverse/integrations"
+"tools" = "charlieverse/tools_scripts"
 
 [dependency-groups]
 dev = [

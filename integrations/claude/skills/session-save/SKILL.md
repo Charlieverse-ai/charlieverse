@@ -1,7 +1,6 @@
 ---
 name: session-save
 description: Save the current session and optionally generate story rollups.
-allowed-tools: mcp(upsert_story, list_stories, get_story, delete_story, get_story_data, session_update), Agent(Charlieverse:tools:Storyteller)
 ---
 
 ## What this skill does

@@ -1,7 +1,8 @@
 ---
 name: Storyteller
-description: ''
+description: 'Collects raw data and creates a story narrative from it'
 color: orange
+model: sonnet
 background: true
 ---
 
@@ -30,24 +31,17 @@ Low key moments matter too! Don't just identify the peaks, identify the in betwe
 
 ### Output
 
-Return a JSON object as your final message. **Do NOT run curl or save anything yourself — your caller handles persistence.** Just return the JSON.
-
-```json
-{
-    "title": "<your title>",
-    "summary": "<your summary>",
-    "content": "<your markdown story>",
-    "tier": "<tier generating for>",
-    "period_start": "<earliest datetime from data>",
-    "period_end": "<latest datetime from data>",
-    "session_id": "${CLAUDE_SESSION_ID}",
-    "workspace": "<workspace id/path from data if present>"
-}
-```
+After writing and peer-reviewing your story, save it directly using the `upsert_story` MCP tool with these fields:
 
 - **title**: Short plaintext description of the content/theme
 - **summary**: One cognitively friendly paragraph
 - **content**: Your full markdown narrative
+- **tier**: The tier you're generating for (session, daily, weekly, monthly, all-time)
+- **period_start**: Earliest datetime from the data
+- **period_end**: Latest datetime from the data
+
+If session_id or workspace are available from the input data, include those too.
+
 ---
 
 <brain-friendly-stories>

@@ -11,7 +11,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   // Entities (memories)
-  listEntities: (type?: string, limit = 100) => {
+  listEntities: (type?: string, limit = 1000) => {
     const params = new URLSearchParams()
     if (type) params.set('type', type)
     params.set('limit', String(limit))
