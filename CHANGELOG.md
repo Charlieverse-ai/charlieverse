@@ -5,6 +5,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.11.0] — 2026-03-25
+
+### Added
+- `charlieverse/paths.py` — centralized package-relative asset resolution that works for both dev checkout and `uvx`/pip installs. Replaces scattered `Path(__file__).parent.parent.parent` patterns in five files.
+- `charlie init` rewritten as a full interactive setup wizard: directory creation, dependency checks, server start, provider integration (auto-detects Claude Code / Copilot in PATH), and optional conversation history import. Add `--quick` / `-q` flag for non-interactive environments.
+- Tests for `config.py` and `paths.py` (31 new tests)
+
+### Changed
+- Config now defaults to `~/.charlieverse` without requiring `config.yaml` to exist — `charlie` works immediately after `uvx install charlieverse` with no config file.
+- Config lookup order: `~/.charlieverse/config.yaml` first, then repo-root `config.yaml` (dev checkout), then hardcoded defaults.
+- `ServerConfig.host` defaults to `0.0.0.0` (was `127.0.0.1`) so the server binds to all interfaces by default.
+- `pyproject.toml` wheel packaging updated to bundle `prompts/`, `web/dist/`, `integrations/`, and `tools/` into the wheel under `charlieverse/` subdirectories — required for `uvx` installs to find bundled assets.
+- Integration install scripts (`claude`, `copilot`) updated to resolve paths relative to the script location, working from both a dev checkout and an installed package.
+
+---
+
 ## [v1.10.2] — 2026-03-24
 
 ### Added
