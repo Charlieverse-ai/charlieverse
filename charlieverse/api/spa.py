@@ -8,7 +8,9 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, PlainTextResponse
 
-_WEB_DIST = Path(__file__).parent.parent.parent / "web" / "dist"
+from charlieverse.paths import web_dist
+
+_WEB_DIST: Path | None = web_dist()
 
 
 def register_routes(mcp: FastMCP) -> None:
@@ -17,6 +19,9 @@ def register_routes(mcp: FastMCP) -> None:
     @mcp.custom_route("/{path:path}", methods=["GET"])
     async def serve_spa(request: Request):
         """Serve the React SPA — static files + index.html fallback."""
+        if _WEB_DIST is None:
+            return PlainTextResponse("Web dashboard not available in this install.", status_code=404)
+
         path = request.path_params.get("path", "")
 
         if path.startswith("api/"):

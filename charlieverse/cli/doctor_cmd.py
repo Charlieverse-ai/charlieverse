@@ -22,6 +22,7 @@ from rich.table import Table
 from rich import box
 
 from charlieverse.config import config
+from charlieverse import paths
 
 console = Console()
 
@@ -341,10 +342,12 @@ def _claude_integration_path() -> Path | None:
     return config.path / "integrations" / "claude"
 
 
-def _copilot_plugin_path() -> Path:
-    """The copilot plugin lives in the repo itself, not in ~/.charlieverse."""
-    repo_dir = Path(__file__).resolve().parent.parent.parent
-    return repo_dir / "integrations" / "copilot" / "plugin"
+def _copilot_plugin_path() -> Path | None:
+    """Find the copilot plugin integration directory."""
+    copilot = paths.integration("copilot")
+    if copilot:
+        return copilot / "plugin"
+    return None
 
 
 def check_providers() -> list[CheckResult]:
@@ -460,30 +463,42 @@ def check_providers() -> list[CheckResult]:
             )
         else:
             raw = vscode_settings.read_text(errors="replace")
-            plugin_dir_str = str(copilot_plugin.resolve())
-            if plugin_dir_str in raw or "charlieverse" in raw.lower():
-                results.append(_pass("VS Code config", "Charlieverse plugin registered in VS Code settings"))
+            if copilot_plugin:
+                plugin_dir_str = str(copilot_plugin.resolve())
+                if plugin_dir_str in raw or "charlieverse" in raw.lower():
+                    results.append(_pass("VS Code config", "Charlieverse plugin registered in VS Code settings"))
+                else:
+                    results.append(
+                        _warn(
+                            "VS Code config",
+                            "Charlieverse plugin not found in VS Code settings.json",
+                            fix="Run: charlie init to set up Copilot integration",
+                        )
+                    )
+            elif "charlieverse" in raw.lower():
+                results.append(_pass("VS Code config", "Charlieverse found in VS Code settings"))
             else:
                 results.append(
                     _warn(
                         "VS Code config",
                         "Charlieverse plugin not found in VS Code settings.json",
-                        fix="Run: ./integrations/copilot/install.sh",
+                        fix="Run: charlie init to set up Copilot integration",
                     )
                 )
 
         # Check copilot plugin hooks.json
-        copilot_hooks = copilot_plugin / "hooks" / "hooks.json"
-        if copilot_hooks.exists():
-            results.append(_pass("VS Code / Copilot hooks", "hooks.json present"))
-        else:
-            results.append(
-                _warn(
-                    "VS Code / Copilot hooks",
-                    "hooks/hooks.json missing from copilot plugin directory",
-                    fix="Run: ./integrations/copilot/install.sh",
+        if copilot_plugin:
+            copilot_hooks = copilot_plugin / "hooks" / "hooks.json"
+            if copilot_hooks.exists():
+                results.append(_pass("VS Code / Copilot hooks", "hooks.json present"))
+            else:
+                results.append(
+                    _warn(
+                        "VS Code / Copilot hooks",
+                        "hooks/hooks.json missing from copilot plugin directory",
+                        fix="Run: charlie init to set up Copilot integration",
+                    )
                 )
-            )
 
     # ── Cursor ───────────────────────────────────────────────────────────────
     cursor_bin = shutil.which("cursor")
@@ -546,8 +561,9 @@ def check_hooks() -> list[CheckResult]:
                 )
 
     # Copilot hooks
-    copilot_hooks_path = _copilot_plugin_path() / "hooks" / "hooks.json"
-    if copilot_hooks_path.exists():
+    copilot_plugin_dir = _copilot_plugin_path()
+    copilot_hooks_path = copilot_plugin_dir / "hooks" / "hooks.json" if copilot_plugin_dir else None
+    if copilot_hooks_path and copilot_hooks_path.exists():
         try:
             data = json.loads(copilot_hooks_path.read_text())
             registered = set(data.get("hooks", {}).keys())
@@ -583,22 +599,22 @@ def check_hooks() -> list[CheckResult]:
 
 
 def check_web_dashboard() -> CheckResult:
-    """Verify web/dist exists (npm build has been run)."""
-    repo_dir = Path(__file__).resolve().parent.parent.parent
-    dist_dir = repo_dir / "web" / "dist"
-    index_html = dist_dir / "index.html"
+    """Verify web dashboard assets exist."""
+    dist_dir = paths.web_dist()
 
-    if not (repo_dir / "web").exists():
+    if not dist_dir:
         return _warn(
             "Web dashboard",
-            "web/ directory not found in repo — dashboard not included in this install",
+            "Web dashboard assets not found — dashboard won't be available",
+            fix="Reinstall charlieverse or build from source: cd web && npm run build",
         )
 
-    if not dist_dir.exists() or not index_html.exists():
+    index_html = dist_dir / "index.html"
+    if not index_html.exists():
         return _fail(
             "Web dashboard",
-            f"web/dist not built — {dist_dir} missing",
-            fix="charlie init  (or: cd web && npm install && npm run build)",
+            f"web/dist incomplete — index.html missing in {dist_dir}",
+            fix="Reinstall charlieverse or rebuild: cd web && npm run build",
         )
 
     # Count assets as a basic sanity check

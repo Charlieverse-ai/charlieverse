@@ -1,4 +1,8 @@
-"""Charlieverse configuration — loads from config.yaml at project root."""
+"""Charlieverse configuration.
+
+Defaults to ~/.charlieverse with sensible server settings.
+Override via ~/.charlieverse/config.yaml or config.local.yaml (gitignored).
+"""
 
 from __future__ import annotations
 
@@ -8,10 +12,14 @@ from pathlib import Path
 import yaml
 import socket
 
+
+_DEFAULT_PATH = Path.home() / ".charlieverse"
+
+
 @dataclass
 class ServerConfig:
     protocol: str = "http"
-    host: str = "127.0.0.1"
+    host: str = "0.0.0.0"
     port: int = 8765
 
     def ip_address(self) -> str:
@@ -25,30 +33,36 @@ class ServerConfig:
 
     def base_url(self, path: str | None = None) -> str:
         return f"{self.protocol}://{self.ip_address()}:{self.port}/" + (path or "")
-    
+
     def dashboard_url(self) -> str:
         return self.base_url()
-    
+
     def mcp_url(self) -> str:
         return self.base_url("mcp")
-    
+
     def api_url(self, path: str | None = None) -> str:
         return self.base_url("api/" + (path or ""))
+
+
+def _default_config(root: Path | None = None) -> Config:
+    """Build a Config with sane defaults rooted at the given path."""
+    p = root or _DEFAULT_PATH
+    return Config(
+        server=ServerConfig(),
+        path=p,
+        database=p / "charlie.db",
+        logs=p / "logs",
+        hooks=p / "hooks",
+    )
+
 
 @dataclass
 class Config:
     server: ServerConfig = field(default_factory=ServerConfig)
-    path: Path = field(default_factory=Path)
-    database: Path = field(default_factory=Path)
-    hooks: Path = field(default_factory=Path)
-    logs: Path = field(default_factory=Path)
-
-def _find_config_dir() -> Path | None:
-    """Find the project root containing config.yaml."""
-    current = Path(__file__).parent.parent
-    if (current / "config.yaml").exists():
-        return current
-    return None
+    path: Path = field(default_factory=lambda: _DEFAULT_PATH)
+    database: Path = field(default_factory=lambda: _DEFAULT_PATH / "charlie.db")
+    hooks: Path = field(default_factory=lambda: _DEFAULT_PATH / "hooks")
+    logs: Path = field(default_factory=lambda: _DEFAULT_PATH / "logs")
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -62,13 +76,31 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return merged
 
 
-def load() -> Config:
-    """Load config.yaml, then merge config.local.yaml on top (if it exists)."""
-    config_dir = _find_config_dir()
-    if not config_dir:
-        return Config()
+def _find_config_yaml() -> Path | None:
+    """Look for config.yaml in known locations."""
+    # 1. ~/.charlieverse/config.yaml (user config)
+    user_config = _DEFAULT_PATH / "config.yaml"
+    if user_config.exists():
+        return user_config
 
-    with open(config_dir / "config.yaml") as f:
+    # 2. Repo root (dev checkout) — config.yaml next to the package
+    repo_config = Path(__file__).parent.parent / "config.yaml"
+    if repo_config.exists():
+        return repo_config
+
+    return None
+
+
+def load() -> Config:
+    """Load config, starting from defaults and layering any yaml overrides."""
+    config_yaml = _find_config_yaml()
+
+    if not config_yaml:
+        return _default_config()
+
+    config_dir = config_yaml.parent
+
+    with open(config_yaml) as f:
         raw = yaml.safe_load(f) or {}
 
     # Merge local overrides (gitignored, per-machine customization)
@@ -78,20 +110,17 @@ def load() -> Config:
             local = yaml.safe_load(f) or {}
         raw = _deep_merge(raw, local)
 
-    path: str | None = raw.get("path")
+    path_str: str | None = raw.get("path")
     server = ServerConfig(**raw.get("server", {}))
 
-    if not path:
-        return Config()
-
-    full_path = Path(path).expanduser()
+    root = Path(path_str).expanduser() if path_str else _DEFAULT_PATH
 
     return Config(
         server=server,
-        path=full_path,
-        database=full_path / "charlie.db",
-        logs=full_path / "logs",
-        hooks=full_path / "hooks"
+        path=root,
+        database=root / "charlie.db",
+        logs=root / "logs",
+        hooks=root / "hooks",
     )
 
 

@@ -46,7 +46,16 @@ def import_conversations(
     recent_days: int | None = typer.Option(None, "--recent-days", help="Import only the last N days in foreground, queue rest in background"),
 ) -> None:
     """Extract conversation history from AI providers into JSONL."""
-    asyncio.run(_import(output, from_file, provider, extra_dirs, host, port, skip_existing, messages, stories, split_dir, recent_days))
+    args = (output, from_file, provider, extra_dirs, host, port, skip_existing, messages, stories, split_dir, recent_days)
+    try:
+        asyncio.get_running_loop()
+        # Already in an event loop — run in a thread to avoid nested asyncio.run()
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            pool.submit(asyncio.run, _import(*args)).result()
+    except RuntimeError:
+        # No running loop — normal case
+        asyncio.run(_import(*args))
 
 
 async def _import(
@@ -83,8 +92,11 @@ async def _import(
         typer.echo(f"Using existing JSONL: {from_file} ({total_entries} entries)")
 
     else:
-        # Auto-discover and extract
-        tools_dir = Path(__file__).resolve().parent.parent.parent / "tools"
+        # Auto-discover and extract — find scripts in package or repo
+        pkg_dir = Path(__file__).resolve().parent.parent
+        tools_dir = pkg_dir / "tools_scripts"  # bundled in wheel
+        if not tools_dir.is_dir():
+            tools_dir = pkg_dir.parent / "tools"  # dev checkout
         sys.path.insert(0, str(tools_dir))
 
         try:
@@ -225,7 +237,12 @@ async def _import(
         # Check if all-time needs regeneration
         alltime_stale = await _is_alltime_stale()
         if alltime_stale:
-            typer.echo(f"\nAll-time story is stale (covers {alltime_stale['covers']}, data extends to {alltime_stale['data_extends_to']})")
+            extends = alltime_stale.get('data_extends_to', '')
+            covers = alltime_stale.get('covers', 'none')
+            msg = f"\nAll-time story needs generation (covers: {covers})"
+            if extends:
+                msg += f" — data goes back to {extends}"
+            typer.echo(msg)
         else:
             typer.echo("\nAll-time story is current.")
 
@@ -547,7 +564,7 @@ async def _is_alltime_stale() -> dict | None:
         earliest_weekly = row[0] if row else None
 
         if not earliest_weekly:
-            return None
+            return {"covers": "none"}
 
         # Get all-time story
         cursor = await db.execute(

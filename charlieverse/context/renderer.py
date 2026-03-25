@@ -9,8 +9,9 @@ from pathlib import Path
 from charlieverse.context.builder import ContextBundle
 from charlieverse.models import Entity, EntityType, Session
 from charlieverse.models.story import Story
+from charlieverse import paths
 
-PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
+PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "prompts"
 
 
 def render(bundle: ContextBundle) -> str:

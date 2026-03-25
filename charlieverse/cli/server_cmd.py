@@ -248,6 +248,7 @@ def status() -> None:
         typer.echo(f"Charlieverse is running (PID {_read_pid()})")
     else:
         typer.echo("Charlieverse is not running")
+        raise typer.Exit(1)
 
 
 @app.command("restart")
