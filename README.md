@@ -60,7 +60,7 @@ uv sync
 charlie init
 ```
 
-Creates `~/.charlieverse/`, runs migrations, builds the web dashboard, sets up hook directories.
+Interactive setup: creates `~/.charlieverse/`, runs migrations, starts the server, sets up provider integrations, and optionally imports conversation history. Use `--quick` to skip interactive prompts.
 
 **3. Start the server**
 

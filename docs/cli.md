@@ -121,12 +121,23 @@ charlie import --messages --recent-days 30
 ## Other commands
 
 ```bash
-charlie init               # First-run setup (database, directories, web build)
+charlie init               # Full interactive setup: directories, providers, server, import
 charlie context            # Preview the activation context
 charlie log CONTENT        # Record a logbook entry
 charlie story-data TARGET [DATE]  # Fetch story data (session ID or tier name + optional date)
 charlie doctor             # Run environment health checks
 ```
+
+### `init`
+
+Full setup walkthrough: creates `~/.charlieverse/` directory structure, verifies dependencies (spaCy, jq), starts the server, sets up provider integrations (Claude Code, GitHub Copilot), and optionally imports conversation history.
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--path PATH` | Root directory for Charlieverse data | `~/.charlieverse` |
+| `--quick` / `-q` | Skip interactive prompts (directories + deps only) | off |
+
+Runs interactively by default, prompting for each provider and import step. Use `--quick` for non-interactive environments.
 
 ### `log`
 
@@ -169,7 +180,7 @@ Checks: Python version, dependencies, spaCy model, data directory, database inte
 
 ## Configuration files
 
-Config loads from `config.yaml` at the project root, with `config.local.yaml` merged on top (gitignored). Per-machine overrides go in the local file.
+Config loads from `~/.charlieverse/config.yaml` (user config), falling back to `config.yaml` at the repo root (dev checkout). `config.local.yaml` in the same directory is merged on top (gitignored) for per-machine overrides.
 
 ```yaml
 # config.yaml
