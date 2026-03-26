@@ -5,6 +5,26 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.14.0] — 2026-03-26
+
+### Added
+- Recent conversation messages are now injected into the activation context inside `<last_session>` as a `<recent_messages>` block. The last 3 user turns (up to 6 messages) are fetched from the message store, filtered for noise, and rendered with relative timestamps — giving Charlie actual message content to pick up from rather than relying on session summary inference alone.
+- New `ContextMessage` model: a lightweight frozen dataclass (`role`, `content`, `created_at`) for passing message data through the context pipeline without tool-call or metadata overhead.
+- `SessionStore.recent_messages(turns)` method: fetches the last N real conversation turns globally, in chronological order. Filters out session-save commands (`/trick session-save`, `/session-save`), task-notifications, and system-reminders.
+- `<workspace_directory>` tag emitted at the top of activation context output, surfacing the current working directory before any session history is read.
+
+### Changed
+- `ActivationBuilder.build()` now accepts `workspace` as an explicit parameter and propagates it to `ContextBundle`. Both REST hook endpoints (`/api/sessions/context`, `/api/sessions/start`) forward the workspace through the builder.
+- Session workspace display in session history blocks now shows `Session Dir:` prefix for readability.
+- `Charlie.md` gains a `<session_start>` block with explicit time-gap curiosity rules: seamless continuation for gaps under 1 hour, curiosity about gaps over 2 hours, and active inquiry about longer gaps (overnight, weekends).
+- Session-start hook instruction updated to reference `recent_messages` and `current_working_directory` directly, replacing the "pretend nothing happened" framing.
+
+### Decisions Recorded
+- ADR: Recent messages injected into activation context (amends session-continuity ADR)
+- ADR: Workspace surfaced as `<workspace_directory>` tag in activation context
+
+---
+
 ## [v1.13.1] — 2026-03-26
 
 ### Added
