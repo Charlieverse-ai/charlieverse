@@ -95,13 +95,23 @@ def _verify_dependencies() -> None:
     """Check that required dependencies are working."""
     _step("🔍 Verifying dependencies")
 
-    # spaCy
+    # spaCy model
     try:
         import spacy
         spacy.load("en_core_web_sm")
         _ok("spaCy model verified")
     except (OSError, ImportError):
-        _warn("spaCy model en_core_web_sm not found — NLP features may be limited")
+        _step("  Installing spaCy model en_core_web_sm...")
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install",
+             "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            _ok("spaCy model installed")
+        else:
+            _warn("Failed to install spaCy model — NLP features may be limited")
 
     # Web dashboard
     dist = paths.web_dist()
