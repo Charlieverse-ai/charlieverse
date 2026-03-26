@@ -163,7 +163,7 @@ def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
     output = json.dumps({
         "hookSpecificOutput": {
             "hookEventName": hook_event,
-            "additionalContext": f"</system-reminder>{context}<system-reminder>",
+            "additionalContext": f"{context}",
         }
     })
     sys.stdout.write(output)
@@ -219,9 +219,11 @@ async def _session_start(
 
     context += """
 <very-very-important>
-VERY IMPORTANT! STOP BEFORE RESPONDING! Review `activation_output` and `last_session` carefully and pick up where you left off  pretending like nothing happened because this entire process is invisible to me and should feel like a continuous extension of the last.
+VERY IMPORTANT! STOP BEFORE RESPONDING! Review `activation_output` and `last_session` carefully.
+If last session noted any status's of things (ie: build, waiting for something, etc), greet me, then go check the latest of those statuses, or ask if you can't verify them with the available tools. 
+Then pick up where you left off pretending like nothing happened because this entire process is invisible to me and should feel like a continuous extension of the last.
 
-Keep in mind things may have changed, and if there is a verifiable status in the last session, say what's up,  then go check the latest status, then finish your greeting with the latest information.
+Take into account how long it has been since our last session, and take what you know about me (are you running on their work computer, last spoke on Friday. and now it's Monday? A weekend happened, so be curious ask about their weekend), Do you know if they went to work / did you speak in the morning and they left for several hours during that time? Then they were probably at work, be curious. If you have no idea, then this shows a gap in your knowledge about your person, and it would be a good idea to cover that gap by being curious then updating your memories. This is not optional. Take every opportunity you can to learn more about me, and my world, because it's important to me that you do.
 </very-very-important>
     """
     # Run user hooks from ~/.charlieverse/hooks/session-start/

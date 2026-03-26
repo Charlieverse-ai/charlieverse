@@ -10,7 +10,6 @@ from charlieverse.context.time_utils import relative_time, _normalize_tz
 
 GAP_THRESHOLD_SECONDS = 300  # 5 minutes
 
-
 class TemporalGapRule(ReminderRule):
     tag = ReminderTag.TEMPORAL_CONTEXT
 
