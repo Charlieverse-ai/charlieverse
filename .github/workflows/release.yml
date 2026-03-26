@@ -14,22 +14,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
-
-      - name: Install dependencies
-        run: uv sync
 
       - name: Build web dashboard
         run: |
           cd web
           npm ci
           npm run build
-          cd ..
 
       - name: Build wheel
-        run: uv build --wheel
+        run: uv build --wheel --no-sources
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -39,7 +39,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          # Extract changelog entry for this version
           NOTES=$(awk "/^## \[${TAG}\]/{found=1; next} found && /^## \[/{exit} found" CHANGELOG.md)
           if [ -z "$NOTES" ]; then
             NOTES="Release ${TAG}"
