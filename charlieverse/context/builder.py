@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
-from charlieverse.models import Entity, EntityType, Knowledge, Session
+from charlieverse.models import ContextMessage, Entity, EntityType, Knowledge, Session
 from charlieverse.models.story import Story, StoryTier
 from datetime import datetime
 
@@ -15,6 +15,7 @@ class ContextBundle:
     """Everything needed to render the activation context."""
 
     session: Session
+    workspace: str | None = None
     recent_sessions: list[Session] = field(default_factory=list)
     weekly_stories: list[Story] = field(default_factory=list)
     pinned_entities: list[Entity] = field(default_factory=list)
@@ -22,6 +23,7 @@ class ContextBundle:
     session_entities: list[Entity] = field(default_factory=list)
     related_entities: list[Entity] = field(default_factory=list)
     pinned_knowledge: list[Knowledge] = field(default_factory=list)
+    recent_messages: list[ContextMessage] = field(default_factory=list)
     all_time_story: Story | None = field(default=None)
 
     @property
@@ -74,6 +76,7 @@ class ActivationBuilder:
     async def build(
         self,
         session: Session,
+        workspace: str | None
     ) -> ContextBundle:
         """Build the full context bundle for the given session."""
         # Fetch sessions from the last 2 days (raw data, no story layer dependency)
@@ -122,6 +125,9 @@ class ActivationBuilder:
 
             all_time_story = await self.stories.get_all_time()
 
+        # Fetch recent messages for context seeding (last 3 turns)
+        recent_messages = await self.sessions.recent_messages(turns=6)
+
         # Fetch pinned knowledge
         pinned_knowledge = await self.knowledge.pinned()
 
@@ -142,6 +148,7 @@ class ActivationBuilder:
         related_entities = _dedup(related_entities)
 
         return ContextBundle(
+            workspace=workspace,
             session=session,
             recent_sessions=recent_sessions,
             weekly_stories=weekly_stories,
@@ -150,5 +157,6 @@ class ActivationBuilder:
             session_entities=session_entities,
             related_entities=related_entities,
             pinned_knowledge=pinned_knowledge,
+            recent_messages=recent_messages,
             all_time_story=all_time_story,
         )

@@ -47,7 +47,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
             memories_store, sessions_store, knowledge_store,
             stories=rest_stores.get("stories"),
         )
-        bundle = await builder.build(session)
+        bundle = await builder.build(session, workspace)
         activation = context_renderer.render(bundle)
 
         return PlainTextResponse(activation)
@@ -72,7 +72,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
             memories_store, sessions_store, knowledge_store,
             stories=rest_stores.get("stories"),
         )
-        bundle = await builder.build(session)
+        bundle = await builder.build(session, workspace)
         activation = context_renderer.render(bundle)
 
         set_seen_ids(str(session.id), bundle.seen_ids)

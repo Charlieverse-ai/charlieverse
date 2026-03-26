@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from charlieverse.context.builder import ContextBundle
-from charlieverse.models import Entity, EntityType, Session
+from charlieverse.models import ContextMessage, Entity, EntityType, Session
 from charlieverse.models.story import Story
 from charlieverse import paths
 
@@ -20,6 +20,7 @@ def render(bundle: ContextBundle) -> str:
         return _render_first_run(bundle)
 
     parts: list[str] = []
+    parts.append(f"<workspace_directory>{bundle.workspace}</workspace_directory>")
     parts.append(f"<session_id>{bundle.session.id}</session_id>")
     parts.append("<very-important>Weight information according to relative time (most recent → least).</very-important>")
     parts.append("<activation_output>")
@@ -45,6 +46,9 @@ def render(bundle: ContextBundle) -> str:
                 parts.append(f"# {date_key}")
             parts.append(f"<{"last_session" if most_recent else "session"}>")
             parts.append(_render_session(session, now, most_recent=most_recent))
+            # Recent messages go inside the last session block
+            if most_recent and bundle.recent_messages:
+                parts.append(_render_recent_messages(bundle.recent_messages))
             parts.append(f"</{"last_session" if most_recent else "session"}>")
             most_recent = False
 
@@ -102,6 +106,25 @@ def render(bundle: ContextBundle) -> str:
 
     parts.append("</activation_output>")
     return "\n".join(parts)
+
+def _render_recent_messages(messages: list[ContextMessage]) -> str:
+    """Render recent messages for context seeding."""
+    lines: list[str] = []
+    lines.append("<recent_messages>")
+    lines.append("<!-- The most recent messages between us to create that seamless experience -->")
+
+    for msg in messages:
+        label = "me" if msg.role == "user" else "charlie"
+        # Truncate long assistant messages to keep context lean
+        content = msg.content.strip()
+        if len(content) > 500:
+            content = content[:500] + "..."
+        age = _relative_date(msg.created_at)
+        lines.append(f"<{label} date=\"{age}\"> {content}</{label}>")
+
+    lines.append("</recent_messages>")
+    return "\n".join(lines)
+
 
 def _render_first_run(bundle: ContextBundle) -> str:
     """Render the birthday message for brand new Charlies."""
@@ -181,7 +204,7 @@ def _render_session(session: Session, now: datetime, most_recent: bool) -> str:
     lines.append(f"## {_session_time(session.updated_at, now)}")
 
     if session.workspace:
-        lines.append(f"{session.workspace}")
+        lines.append(f"Session Dir: {session.workspace}")
 
     lines.append(f"\n{session.what_happened}\n")
     # if most_recent:
