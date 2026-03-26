@@ -1,16 +1,36 @@
 """Root CLI app — `charlie` command."""
 
+from importlib.metadata import version
+
 import typer
 
 from charlieverse.cli import hooks_cmd, init_cmd, server_cmd
 from charlieverse.cli import log_cmd, story_data_cmd, context_cmd, import_cmd
 from charlieverse.cli import config_cmd, trick_cmd, doctor_cmd, update_cmd
 
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"charlieverse {version('charlieverse')}")
+        raise typer.Exit()
+
+
 app = typer.Typer(
     name="charlie",
     help="Charlieverse — persistent AI companion layer.",
     no_args_is_help=True,
 )
+
+
+@app.callback(invoke_without_command=True)
+def main(
+    version: bool = typer.Option(
+        False, "--version", "-v", help="Show version and exit.",
+        callback=_version_callback, is_eager=True,
+    ),
+) -> None:
+    """Charlieverse — persistent AI companion layer."""
+
 
 app.add_typer(server_cmd.app)
 app.add_typer(hooks_cmd.app)
