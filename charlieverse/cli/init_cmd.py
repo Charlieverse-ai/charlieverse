@@ -5,7 +5,6 @@ Full setup walkthrough: directories, providers, server, import.
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import sys
@@ -105,7 +104,7 @@ def _verify_dependencies() -> None:
         import subprocess
 
         result = subprocess.run(
-            ["uv", "run", "--with", "pip", "spacy", "download", "en_core_web_sm"],
+            ["uv", "run", "--with", "spacy", "--", "spacy", "download", "en_core_web_sm"],
             capture_output=True, text=True,
         )
         if result.returncode == 0:
