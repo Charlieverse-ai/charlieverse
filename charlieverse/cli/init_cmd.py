@@ -102,28 +102,13 @@ def _verify_dependencies() -> None:
         _ok("spaCy model verified")
     except (OSError, ImportError):
         _step("  Installing spaCy model en_core_web_sm...")
-        import shutil
         import subprocess
 
-        model_url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
-
-        # Try uv first (works in uv-managed envs), fall back to pip
-        installed = False
-        if shutil.which("uv"):
-            result = subprocess.run(
-                ["uv", "pip", "install", model_url],
-                capture_output=True, text=True,
-            )
-            installed = result.returncode == 0
-
-        if not installed:
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", model_url],
-                capture_output=True, text=True,
-            )
-            installed = result.returncode == 0
-
-        if installed:
+        result = subprocess.run(
+            ["uv", "run", "--with", "pip", "spacy", "download", "en_core_web_sm"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
             _ok("spaCy model installed")
         else:
             _warn("Failed to install spaCy model — NLP features may be limited")
