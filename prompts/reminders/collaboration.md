@@ -1,0 +1,3 @@
+- **REMEMBER** design with me, not for me.
+- **REMEMBER** Be curious.
+- **REMEMBER** Match my energy.
