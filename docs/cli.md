@@ -2,6 +2,13 @@
 
 The `charlie` CLI manages the Charlieverse server and provides tools for working with memories, hooks, skills, and configuration from the terminal.
 
+## Global flags
+
+| Flag | Description |
+|------|-------------|
+| `--version` / `-v` | Print the installed version and exit |
+| `--help` | Show help and exit |
+
 ---
 
 ## Server
@@ -126,6 +133,7 @@ charlie context            # Preview the activation context
 charlie log CONTENT        # Record a logbook entry
 charlie story-data TARGET [DATE]  # Fetch story data (session ID or tier name + optional date)
 charlie doctor             # Run environment health checks
+charlie update             # Update to latest version, reinstall integrations, restart server
 ```
 
 ### `init`
@@ -175,6 +183,18 @@ Runs a suite of health checks and reports pass/warn/fail for each.
 | `--verbose` / `-v` | Show all results, including passes |
 
 Checks: Python version, dependencies, spaCy model, data directory, database integrity, server status, provider installations, hooks registration, web dashboard build.
+
+### `update`
+
+Update Charlieverse to the latest version, reinstall provider integrations, and restart the server in one step.
+
+Detects the install mode automatically:
+- **Dev install** (git repo detected): runs `git pull` and `pip install -e .`
+- **Package install**: runs `uv tool upgrade charlieverse`
+
+After upgrading, reinstalls all detected provider integrations (Claude Code, GitHub Copilot) and restarts the server. Prints a reminder to reconnect MCP in Claude Code.
+
+No flags. Fully automatic.
 
 ---
 
