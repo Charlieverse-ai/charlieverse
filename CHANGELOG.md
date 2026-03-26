@@ -5,6 +5,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.13.0] — 2026-03-26
+
+### Changed
+- Workspace is now metadata-only in session and story queries — all sessions and stories are returned regardless of workspace, weighted by recency. Previously, `recent()`, `recent_within_days()`, `recent_within_range()` (session store) and `find_by_period()` (story store) filtered results to match the current workspace. This suppressed relevant cross-workspace context.
+- All meaningful fields on `remember_*` MCP tools are now required. `session_id`, `tags`, and context-rich fields (`rationale`, `significance`, `feeling`, `context`, `details`, `who`, `where`, `why`) are no longer optional. This enforces memory quality at the protocol level — callers can no longer silently produce orphaned or context-free memories.
+- `session_update` and `update_knowledge` `tags` parameter promoted to required.
+- Reminder prompts (`collaboration.md`, `memory-tools.md`) populated with behavioral guidance for Charlie: design-with-me discipline, recall-before-engage rule, and the requirement that implied memory language must be backed by actual tool calls.
+
+### Removed
+- `EntityType.is_workspace_scoped` property removed. It was dead code — never called in production, only referenced in tests. Workspace scoping is no longer enforced at the entity type level.
+
+### Decisions Recorded
+- ADR: Workspace stored as metadata, not used as a query filter
+- ADR: Drop `EntityType.is_workspace_scoped` property
+- ADR: Make all meaningful fields required on MCP `remember_*` tools
+
+---
+
 ## [v1.12.0] — 2026-03-25
 
 ### Added
