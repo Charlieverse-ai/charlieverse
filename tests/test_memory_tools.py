@@ -375,6 +375,55 @@ async def test_unpin_entity(memory_store, mock_embed):
     assert stored.pinned is False
 
 
+async def test_pin_knowledge_article(knowledge_store, memory_store, mock_embed):
+    from charlieverse.models import Knowledge
+    from uuid import UUID
+
+    article = Knowledge(
+        topic="pinnable topic",
+        content="pin this knowledge",
+        created_session_id=UUID(int=0),
+    )
+    await knowledge_store.upsert(article)
+    await pin(
+        id=str(article.id), pinned=True,
+        memories=memory_store, knowledge_store=knowledge_store,
+    )
+    stored = await knowledge_store.get(article.id)
+    assert stored is not None
+    assert stored.pinned is True
+
+
+async def test_unpin_knowledge_article(knowledge_store, memory_store, mock_embed):
+    from charlieverse.models import Knowledge
+    from uuid import UUID
+
+    article = Knowledge(
+        topic="unpinnable topic",
+        content="unpin this knowledge",
+        pinned=True,
+        created_session_id=UUID(int=0),
+    )
+    await knowledge_store.upsert(article)
+    await pin(
+        id=str(article.id), pinned=False,
+        memories=memory_store, knowledge_store=knowledge_store,
+    )
+    stored = await knowledge_store.get(article.id)
+    assert stored is not None
+    assert stored.pinned is False
+
+
+async def test_pin_nonexistent_id_raises(memory_store, knowledge_store):
+    from uuid import uuid4
+
+    with pytest.raises(ValueError, match="No entity or knowledge article found"):
+        await pin(
+            id=str(uuid4()), pinned=True,
+            memories=memory_store, knowledge_store=knowledge_store,
+        )
+
+
 # ---------------------------------------------------------------------------
 # recall
 # ---------------------------------------------------------------------------
@@ -456,3 +505,132 @@ async def test_recall_with_no_type_filter_returns_mixed_types(memory_store, know
     )
     types = {e.type for e in result.entities}
     assert len(types) >= 1  # At minimum we get results back
+
+
+# ---------------------------------------------------------------------------
+# recall — recency ranking
+# ---------------------------------------------------------------------------
+
+
+async def test_recall_ranks_recent_entities_higher(memory_store, knowledge_store, mock_embed):
+    """A newer entity should rank above an older one when both match the query."""
+    from datetime import datetime, timedelta, timezone
+
+    # Create an old entity
+    old = await remember_decision(content="deploy strategy for servers", memories=memory_store)
+    # Manually age it by updating created_at and updated_at
+    old_date = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    await memory_store.db.execute(
+        "UPDATE entities SET created_at = ?, updated_at = ? WHERE id = ?",
+        (old_date, old_date, str(old.id)),
+    )
+    await memory_store.db.commit()
+
+    # Create a recent entity with overlapping content
+    recent = await remember_decision(content="deploy strategy for containers", memories=memory_store)
+
+    result = await recall(
+        query="deploy strategy",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+    )
+    assert len(result.entities) >= 2
+    # Recent entity should appear first
+    ids = [e.id for e in result.entities]
+    assert ids.index(recent.id) < ids.index(old.id)
+
+
+# ---------------------------------------------------------------------------
+# recall — story search
+# ---------------------------------------------------------------------------
+
+
+async def test_recall_searches_stories(memory_store, knowledge_store, story_store, mock_embed):
+    from charlieverse.models import Story, StoryTier
+
+    story = Story(
+        title="The Great Refactor",
+        content="Rewrote the entire memory pipeline from scratch using Python",
+        tier=StoryTier.daily,
+        period_start="2026-03-20",
+        period_end="2026-03-20",
+    )
+    await story_store.upsert(story)
+
+    result = await recall(
+        query="memory pipeline Python",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+        story_store=story_store,
+    )
+    assert len(result.stories) > 0
+    assert any("Refactor" in s.title for s in result.stories)
+
+
+async def test_recall_without_story_store_returns_empty_stories(memory_store, knowledge_store, mock_embed):
+    result = await recall(
+        query="anything",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+    )
+    assert result.stories == []
+
+
+async def test_recall_stories_capped_at_five(memory_store, knowledge_store, story_store, mock_embed):
+    from charlieverse.models import Story, StoryTier
+
+    for i in range(10):
+        story = Story(
+            title=f"Story about widgets number {i}",
+            content=f"A story about building widgets iteration {i}",
+            tier=StoryTier.session,
+            period_start="2026-03-20",
+            period_end="2026-03-20",
+        )
+        await story_store.upsert(story)
+
+    result = await recall(
+        query="widgets",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+        story_store=story_store,
+    )
+    assert len(result.stories) <= 5
+
+
+# ---------------------------------------------------------------------------
+# recall — content truncation
+# ---------------------------------------------------------------------------
+
+
+async def test_recall_truncates_long_entity_content(memory_store, knowledge_store, mock_embed):
+    long_content = "x" * 2000
+    await remember_decision(content=long_content, memories=memory_store)
+
+    result = await recall(
+        query="x" * 50,
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+    )
+    for e in result.entities:
+        assert len(e.content) <= 501  # 500 + ellipsis char
+
+
+async def test_recall_truncates_long_knowledge_content(memory_store, knowledge_store, mock_embed):
+    from charlieverse.models import Knowledge
+    from uuid import UUID
+
+    article = Knowledge(
+        topic="long topic",
+        content="y" * 5000,
+        created_session_id=UUID(int=0),
+    )
+    await knowledge_store.upsert(article)
+
+    result = await recall(
+        query="long topic",
+        memories=memory_store,
+        knowledge_store=knowledge_store,
+    )
+    for k in result.knowledge:
+        assert len(k.content) <= 1001  # 1000 + ellipsis char
