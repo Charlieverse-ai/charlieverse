@@ -5,6 +5,29 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.12.0] — 2026-03-25
+
+### Added
+- `strip_markdown()` utility in `charlieverse.nlp` — converts markdown-formatted text to plain text for denser, noise-free recall output.
+- Recall now searches stories (via `StoryStore`) and returns up to 5 matching story summaries alongside entities, knowledge, and messages.
+- `StorySummary` response type for story results in recall.
+- Recency+relevance re-ranking for recall entity results — entities found by both FTS and vector search score higher, and recently-updated entities are boosted with a 14-day half-life decay.
+- `pin` tool now supports knowledge articles — tries entity first, falls back to knowledge store, and raises a clear error if neither is found.
+
+### Changed
+- Entity and knowledge content is now truncated in recall results (500 chars for entities, 1000 for knowledge, 500 for messages) using `strip_markdown` to strip formatting before truncating.
+- `EntitySummary` schema simplified: replaced `tags`, `pinned`, `created_at` with `age` (human-relative date string) and `truncated` flag.
+- `KnowledgeSummary` schema simplified: removed `topic`, `tags`, `pinned`; added `truncated` flag.
+- `MessageSummary` in recall responses now uses `age` (relative date) instead of raw `created_at` timestamp.
+- Message search in recall fetches 3x candidates and filters out system/junk messages (task notifications, command wrappers, system reminders) before returning results.
+- Session start prompt refined: now explicitly distinguishes between checking pending statuses and picking up conversation continuity, and instructs Charlie to be curious about time gaps — asking about weekends, work days, or gaps in knowledge about the user's routine.
+- Charlie personality prompt updated: "mirrors energy" replaced with "matches energy", emphasizes genuine interest in the user's life and world, frames absent-mindedness more naturally.
+- Temporal gap reminder reworded to be more natural and explicitly prompts curiosity when the gap exceeds a few hours.
+- Hook output no longer wraps context in accidental `<system-reminder>` tags.
+- `search_knowledge` lean summary — dropped `topic`/`tags`/`pinned` from search results to match recall schema.
+
+---
+
 ## [v1.11.0] — 2026-03-25
 
 ### Added
