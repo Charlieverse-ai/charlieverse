@@ -154,6 +154,16 @@ async def test_find_by_period_excludes_non_overlapping(story_store):
     assert len(results) == 0
 
 
+async def test_find_by_period_returns_all_workspaces(story_store):
+    """Workspace is metadata, not a filter — find_by_period returns stories from all workspaces."""
+    await story_store.create(_story("project-a story", workspace="/project/a"))
+    await story_store.create(_story("project-b story", workspace="/project/b"))
+    results = await story_store.find_by_period("2026-03-16", "2026-03-22", workspace="/project/a")
+    workspaces = {s.workspace for s in results}
+    assert "/project/a" in workspaces
+    assert "/project/b" in workspaces
+
+
 # ---------------------------------------------------------------------------
 # Upsert
 # ---------------------------------------------------------------------------

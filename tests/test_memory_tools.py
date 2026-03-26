@@ -210,14 +210,13 @@ async def test_remember_project_with_tags(memory_store, mock_embed):
     assert "python" in (stored.tags or [])
 
 
-async def test_remember_project_is_workspace_scoped(memory_store, mock_embed):
+async def test_remember_project_type(memory_store, mock_embed):
     from charlieverse.models import EntityType
 
     result = await remember_project(name="test project", memories=memory_store)
     stored = await memory_store.get(result.id)
     assert stored is not None
     assert stored.type == EntityType.project
-    assert stored.type.is_workspace_scoped is True
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +296,6 @@ async def test_remember_event_is_global(memory_store, mock_embed):
     stored = await memory_store.get(result.id)
     assert stored is not None
     assert stored.type == EntityType.event
-    assert stored.type.is_workspace_scoped is False
 
 
 # ---------------------------------------------------------------------------

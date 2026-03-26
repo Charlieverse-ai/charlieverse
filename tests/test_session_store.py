@@ -126,12 +126,14 @@ async def test_recent_excludes_empty_sessions(session_store):
     assert all(s.what_happened is not None for s in results)
 
 
-async def test_recent_filters_by_workspace(session_store):
+async def test_recent_returns_all_workspaces(session_store):
+    """Workspace is metadata, not a filter — all sessions returned regardless."""
     await session_store.create(_session(workspace="/project/a"))
     await session_store.create(_session(workspace="/project/b"))
     results = await session_store.recent(limit=10, workspace="/project/a")
-    for s in results:
-        assert s.workspace in ("/project/a", None)
+    workspaces = {s.workspace for s in results}
+    assert "/project/a" in workspaces
+    assert "/project/b" in workspaces
 
 
 # ---------------------------------------------------------------------------

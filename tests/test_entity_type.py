@@ -1,64 +1,8 @@
-"""Tests for EntityType — workspace scoping rules for all entity types."""
+"""Tests for EntityType — string values and enum completeness."""
 
 from __future__ import annotations
 
-import pytest
-
 from charlieverse.models.entity import EntityType
-
-
-# ---------------------------------------------------------------------------
-# Workspace-scoped types (technical)
-# ---------------------------------------------------------------------------
-
-
-def test_decision_is_workspace_scoped():
-    assert EntityType.decision.is_workspace_scoped is True
-
-
-def test_solution_is_workspace_scoped():
-    assert EntityType.solution.is_workspace_scoped is True
-
-
-def test_milestone_is_workspace_scoped():
-    assert EntityType.milestone.is_workspace_scoped is True
-
-
-def test_project_is_workspace_scoped():
-    assert EntityType.project.is_workspace_scoped is True
-
-
-# ---------------------------------------------------------------------------
-# Global types (personality / personal)
-# ---------------------------------------------------------------------------
-
-
-def test_moment_is_global():
-    assert EntityType.moment.is_workspace_scoped is False
-
-
-def test_preference_is_global():
-    assert EntityType.preference.is_workspace_scoped is False
-
-
-def test_person_is_global():
-    assert EntityType.person.is_workspace_scoped is False
-
-
-def test_event_is_global():
-    assert EntityType.event.is_workspace_scoped is False
-
-
-# ---------------------------------------------------------------------------
-# Exhaustive: every type has a defined scoping
-# ---------------------------------------------------------------------------
-
-
-def test_all_types_have_defined_scoping():
-    """Every EntityType must return True or False — no unhandled match arm."""
-    for entity_type in EntityType:
-        result = entity_type.is_workspace_scoped
-        assert isinstance(result, bool), f"{entity_type} returned non-bool: {result!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -72,3 +16,9 @@ def test_project_str_value():
 
 def test_event_str_value():
     assert EntityType.event == "event"
+
+
+def test_all_types_are_strings():
+    """Every EntityType must have a string value."""
+    for entity_type in EntityType:
+        assert isinstance(entity_type.value, str), f"{entity_type} has non-string value"
