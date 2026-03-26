@@ -32,4 +32,4 @@ jobs:
         run: uv build --wheel --no-sources
 
       - name: Publish to PyPI
-        run: uv publish --trusted-publishing -v dist/*
+        run: uv publish --trusted-publishing always -v dist/*
