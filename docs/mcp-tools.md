@@ -13,9 +13,9 @@ Store a decision and why it was made.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `decision` | string | yes | The decision |
-| `rationale` | string | no | Why this decision was made |
-| `session_id` | string | no | Session to associate with |
-| `tags` | string[] | no | Tags for categorization |
+| `rationale` | string | yes | Why this decision was made |
+| `session_id` | string | yes | Session to associate with |
+| `tags` | string[] | yes | Tags for categorization |
 | `pinned` | bool | no | Pin to always appear in context |
 
 ### `remember_solution`
@@ -26,8 +26,8 @@ Store a problem and how it was solved.
 |-----------|------|----------|-------------|
 | `problem` | string | yes | The problem |
 | `solution` | string | yes | How it was solved |
-| `session_id` | string | no | Session to associate with |
-| `tags` | string[] | no | Tags |
+| `session_id` | string | yes | Session to associate with |
+| `tags` | string[] | yes | Tags |
 | `pinned` | bool | no | Pin to context |
 
 ### `remember_preference`
@@ -37,8 +37,8 @@ Store a working style preference.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `content` | string | yes | The preference |
-| `session_id` | string | no | Session to associate with |
-| `tags` | string[] | no | Tags |
+| `session_id` | string | yes | Session to associate with |
+| `tags` | string[] | yes | Tags |
 | `pinned` | bool | no | Pin to context |
 
 ### `remember_person`
@@ -48,8 +48,8 @@ Store info about a person.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `content` | string | yes | Who they are, relationship, context |
-| `session_id` | string | no | Session to associate with |
-| `tags` | string[] | no | Tags |
+| `session_id` | string | yes | Session to associate with |
+| `tags` | string[] | yes | Tags |
 | `pinned` | bool | no | Pin to context |
 
 ### `remember_milestone`
@@ -59,9 +59,9 @@ Store a significant achievement.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `milestone` | string | yes | The achievement |
-| `significance` | string | no | Why it matters |
-| `session_id` | string | no | Session to associate with |
-| `tags` | string[] | no | Tags |
+| `significance` | string | yes | Why it matters |
+| `session_id` | string | yes | Session to associate with |
+| `tags` | string[] | yes | Tags |
 | `pinned` | bool | no | Pin to context |
 
 ### `remember_moment`
@@ -71,10 +71,10 @@ Store a relationship moment (journal-style).
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `moment` | string | yes | What happened |
-| `feeling` | string | no | How it felt |
-| `context` | string | no | Background context |
-| `session_id` | string | no | Session to associate with |
-| `tags` | string[] | no | Tags |
+| `feeling` | string | yes | How it felt |
+| `context` | string | yes | Background context |
+| `session_id` | string | yes | Session to associate with |
+| `tags` | string[] | yes | Tags |
 | `pinned` | bool | no | Pin to context |
 
 ### `remember_project`
@@ -84,9 +84,9 @@ Store a project — name, details, what it is.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `name` | string | yes | Project name |
-| `details` | string | no | Description and context |
-| `session_id` | string | no | Session to associate with |
-| `tags` | string[] | no | Tags |
+| `details` | string | yes | Description and context |
+| `session_id` | string | yes | Session to associate with |
+| `tags` | string[] | yes | Tags |
 | `pinned` | bool | no | Pin to context |
 
 ### `remember_event`
@@ -97,11 +97,11 @@ Store an event — something that happened or is happening.
 |-----------|------|----------|-------------|
 | `what` | string | yes | What happened |
 | `when` | string | yes | When it happened (date, time, or natural language) |
-| `who` | string | no | Who was involved |
-| `where` | string | no | Where it happened |
-| `why` | string | no | Why it happened |
-| `session_id` | string | no | Session to associate with |
-| `tags` | string[] | no | Tags |
+| `who` | string | yes | Who was involved |
+| `where` | string | yes | Where it happened |
+| `why` | string | yes | Why it happened |
+| `session_id` | string | yes | Session to associate with |
+| `tags` | string[] | yes | Tags |
 | `pinned` | bool | no | Pin to context |
 
 ---
@@ -167,8 +167,8 @@ Create or update a knowledge article.
 |-----------|------|----------|-------------|
 | `topic` | string | yes | Article topic (used as key for upsert) |
 | `content` | string | yes | Article content |
-| `session_id` | string | no | Session to associate with |
-| `tags` | string[] | no | Tags |
+| `session_id` | string | yes | Session to associate with |
+| `tags` | string[] | yes | Tags |
 | `pinned` | bool | no | Pin to context |
 
 ---
@@ -197,8 +197,8 @@ Save a session snapshot.
 |-----------|------|----------|-------------|
 | `what_happened` | string | yes | Summary of the session |
 | `for_next_session` | string | yes | What to pick up next time |
+| `tags` | string[] | yes | Tags |
 | `session_id` | string | no | Session ID to update (defaults to a new UUID) |
-| `tags` | string[] | no | Tags |
 | `workspace` | string | no | Workspace path |
 
 ---
