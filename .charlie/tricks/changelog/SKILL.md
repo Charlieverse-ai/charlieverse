@@ -110,10 +110,12 @@ rm -rf dist/
 uv build --wheel
 ```
 
-Create a GitHub release with the wheel attached:
+Create a GitHub release with the wheel attached. Use the changelog entry for this version as the release notes — extract the `## [vX.Y.Z]` section from CHANGELOG.md and pass it as `--notes`:
 
 ```bash
-gh release create vX.Y.Z dist/*.whl --title "vX.Y.Z" --notes "See CHANGELOG.md for details."
+gh release create vX.Y.Z dist/*.whl --title "vX.Y.Z" --notes "$(changelog_entry)"
 ```
+
+Where `changelog_entry` is the markdown content between the `## [vX.Y.Z]` header and the next `## [` header (or end of file). Do NOT use a lazy "See CHANGELOG.md for details" — the release notes should contain the full changelog entry.
 
 Report the new version, summary of changes, and the release URL.
