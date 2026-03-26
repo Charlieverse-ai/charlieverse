@@ -93,30 +93,15 @@ class SessionStore:
         limit: int = 10,
         workspace: str | None = None,
     ) -> list[Session]:
-        """Fetch recent sessions, optionally filtered by workspace.
-
-        Global sessions (workspace IS NULL) are always included.
-        """
-        if workspace:
-            cursor = await self.db.execute(
-                """SELECT * FROM sessions
-                   WHERE (workspace = ? OR workspace IS NULL)
-                   AND what_happened IS NOT NULL
-                   AND for_next_session IS NOT NULL
-                   AND deleted_at IS NULL
-                   ORDER BY created_at DESC LIMIT ?""",
-                (workspace, limit),
-            )
-        else:
-            cursor = await self.db.execute(
-                """SELECT * FROM sessions
-                   WHERE
-                   what_happened IS NOT NULL
-                   AND for_next_session IS NOT NULL
-                   AND deleted_at IS NULL
-                   ORDER BY created_at DESC LIMIT ?""",
-                (limit,),
-            )
+        """Fetch recent sessions. Workspace is stored as metadata but does not filter results."""
+        cursor = await self.db.execute(
+            """SELECT * FROM sessions
+               WHERE what_happened IS NOT NULL
+               AND for_next_session IS NOT NULL
+               AND deleted_at IS NULL
+               ORDER BY created_at DESC LIMIT ?""",
+            (limit,),
+        )
         return [_row_to_session(row) for row in await cursor.fetchall()]
 
     async def recent_within_days(
@@ -124,28 +109,16 @@ class SessionStore:
         days: int = 2,
         workspace: str | None = None,
     ) -> list[Session]:
-        """Fetch sessions from the last N days with content, optionally filtered by workspace."""
-        if workspace:
-            cursor = await self.db.execute(
-                """SELECT * FROM sessions
-                   WHERE (workspace = ? OR workspace IS NULL)
-                   AND what_happened IS NOT NULL
-                   AND for_next_session IS NOT NULL
-                   AND deleted_at IS NULL
-                   AND DATE(created_at, 'localtime') >= DATE('now', 'localtime', ?)
-                   ORDER BY created_at DESC""",
-                (workspace, f"-{days} days"),
-            )
-        else:
-            cursor = await self.db.execute(
-                """SELECT * FROM sessions
-                   WHERE what_happened IS NOT NULL
-                   AND for_next_session IS NOT NULL
-                   AND deleted_at IS NULL
-                   AND DATE(created_at, 'localtime') >= DATE('now', 'localtime', ?)
-                   ORDER BY created_at DESC""",
-                (f"-{days} days",),
-            )
+        """Fetch sessions from the last N days with content. Workspace is metadata, not a filter."""
+        cursor = await self.db.execute(
+            """SELECT * FROM sessions
+               WHERE what_happened IS NOT NULL
+               AND for_next_session IS NOT NULL
+               AND deleted_at IS NULL
+               AND DATE(created_at, 'localtime') >= DATE('now', 'localtime', ?)
+               ORDER BY created_at DESC""",
+            (f"-{days} days",),
+        )
         return [_row_to_session(row) for row in await cursor.fetchall()]
 
     async def recent_within_range(
@@ -154,30 +127,17 @@ class SessionStore:
         range_end: str,
         workspace: str | None = None,
     ) -> list[Session]:
-        """Fetch sessions with content within a specific date range (ISO date strings)."""
-        if workspace:
-            cursor = await self.db.execute(
-                """SELECT * FROM sessions
-                   WHERE (workspace = ? OR workspace IS NULL)
-                   AND what_happened IS NOT NULL
-                   AND for_next_session IS NOT NULL
-                   AND deleted_at IS NULL
-                   AND DATE(created_at, 'localtime') >= ?
-                   AND DATE(created_at, 'localtime') <= ?
-                   ORDER BY created_at DESC""",
-                (workspace, range_start, range_end),
-            )
-        else:
-            cursor = await self.db.execute(
-                """SELECT * FROM sessions
-                   WHERE what_happened IS NOT NULL
-                   AND for_next_session IS NOT NULL
-                   AND deleted_at IS NULL
-                   AND DATE(created_at, 'localtime') >= ?
-                   AND DATE(created_at, 'localtime') <= ?
-                   ORDER BY created_at DESC""",
-                (range_start, range_end),
-            )
+        """Fetch sessions within a date range. Workspace is metadata, not a filter."""
+        cursor = await self.db.execute(
+            """SELECT * FROM sessions
+               WHERE what_happened IS NOT NULL
+               AND for_next_session IS NOT NULL
+               AND deleted_at IS NULL
+               AND DATE(created_at, 'localtime') >= ?
+               AND DATE(created_at, 'localtime') <= ?
+               ORDER BY created_at DESC""",
+            (range_start, range_end),
+        )
         return [_row_to_session(row) for row in await cursor.fetchall()]
 
     async def delete(self, session_id: UUID) -> None:

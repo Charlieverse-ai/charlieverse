@@ -24,18 +24,6 @@ class EntityType(StrEnum):
     project = "project"
     event = "event"
 
-    @property
-    def is_workspace_scoped(self) -> bool:
-        """Whether this entity type is scoped to a workspace.
-
-        Personality types (moment, preference, person, event) are always global.
-        Technical types (decision, solution, milestone, project) are workspace-scoped.
-        """
-        match self:
-            case EntityType.moment | EntityType.preference | EntityType.person | EntityType.event:
-                return False
-            case EntityType.decision | EntityType.solution | EntityType.milestone | EntityType.project:
-                return True
 
 
 class Entity(BaseModel):
