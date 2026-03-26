@@ -32,7 +32,7 @@ jobs:
         run: uv build --wheel --no-sources
 
       - name: Publish to PyPI
-        uses: uv publish -v dist/*
+        run: uv publish -v dist/*
 
       - name: Create GitHub release
         env:
