@@ -32,8 +32,8 @@ def register(mcp: FastMCP) -> None:
     async def update_knowledge(
         topic: str,
         content: str,
-        session_id: str | None = None,
-        tags: list[str] | None = None,
+        session_id: str,
+        tags: list[str],
         pinned: bool = False,
         ctx: Context = CurrentContext(),
     ) -> dict:

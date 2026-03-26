@@ -17,9 +17,9 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool
     async def remember_decision(
         decision: str,
-        rationale: str | None = None,
-        session_id: str | None = None,
-        tags: list[str] | None = None,
+        rationale: str,
+        session_id: str,
+        tags: list[str],
         pinned: bool = False,
         ctx: Context = CurrentContext(),
     ) -> dict:
@@ -36,8 +36,8 @@ def register(mcp: FastMCP) -> None:
     async def remember_solution(
         problem: str,
         solution: str,
-        session_id: str | None = None,
-        tags: list[str] | None = None,
+        session_id: str,
+        tags: list[str],
         pinned: bool = False,
         ctx: Context = CurrentContext(),
     ) -> dict:
@@ -55,8 +55,8 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool
     async def remember_preference(
         content: str,
-        session_id: str | None = None,
-        tags: list[str] | None = None,
+        session_id: str,
+        tags: list[str],
         pinned: bool = False,
         ctx: Context = CurrentContext(),
     ) -> dict:
@@ -72,8 +72,8 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool
     async def remember_person(
         content: str,
-        session_id: str | None = None,
-        tags: list[str] | None = None,
+        session_id: str,
+        tags: list[str],
         pinned: bool = False,
         ctx: Context = CurrentContext(),
     ) -> dict:
@@ -89,9 +89,9 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool
     async def remember_milestone(
         milestone: str,
-        significance: str | None = None,
-        session_id: str | None = None,
-        tags: list[str] | None = None,
+        significance: str,
+        session_id: str,
+        tags: list[str],
         pinned: bool = False,
         ctx: Context = CurrentContext(),
     ) -> dict:
@@ -107,10 +107,10 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool
     async def remember_moment(
         moment: str,
-        feeling: str | None = None,
-        context: str | None = None,
-        session_id: str | None = None,
-        tags: list[str] | None = None,
+        feeling: str,
+        context: str,
+        session_id: str,
+        tags: list[str],
         pinned: bool = False,
         ctx: Context = CurrentContext(),
     ) -> dict:
@@ -126,9 +126,9 @@ def register(mcp: FastMCP) -> None:
     @mcp.tool
     async def remember_project(
         name: str,
-        details: str | None = None,
-        session_id: str | None = None,
-        tags: list[str] | None = None,
+        details: str,
+        session_id: str,
+        tags: list[str],
         pinned: bool = False,
         ctx: Context = CurrentContext(),
     ) -> dict:
@@ -145,11 +145,11 @@ def register(mcp: FastMCP) -> None:
     async def remember_event(
         what: str,
         when: str,
-        who: str | None = None,
-        where: str | None = None,
-        why: str | None = None,
-        session_id: str | None = None,
-        tags: list[str] | None = None,
+        who: str,
+        where: str,
+        why: str,
+        session_id: str,
+        tags: list[str],
         pinned: bool = False,
         ctx: Context = CurrentContext(),
     ) -> dict:

@@ -60,8 +60,8 @@ def register(mcp: FastMCP) -> None:
     async def session_update(
         what_happened: str,
         for_next_session: str,
+        tags: list[str],
         session_id: str | None = None,
-        tags: list[str] | None = None,
         workspace: str | None = None,
         ctx: Context = CurrentContext(),
     ) -> dict:
