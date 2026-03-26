@@ -1,6 +1,6 @@
 [project]
 name = "charlieverse"
-version = "1.13.0"
+version = "1.13.1"
 description = "Persistent AI companion layer — memory, personality, knowledge via MCP"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"

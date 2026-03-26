@@ -5,6 +5,21 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.13.1] — 2026-03-26
+
+### Added
+- `charlie --version` / `charlie -v` flag — prints the installed package version and exits, following standard CLI conventions.
+
+### Fixed
+- `charlie init` now tries `uv pip install` before `pip install` when auto-installing the spaCy `en_core_web_sm` model. Bare `pip` cannot modify `uv`-managed virtual environments, causing silent install failures.
+
+### Decisions Recorded
+- ADR: spaCy model moved from pyproject.toml to `charlie init` runtime install (PyPI rejects direct URL dependencies)
+- ADR: GitHub Actions release workflow uses OIDC trusted publishing for PyPI — no stored credentials
+- ADR: `charlie update` as self-contained updater command
+
+---
+
 ## [v1.13.0] — 2026-03-26
 
 ### Changed
