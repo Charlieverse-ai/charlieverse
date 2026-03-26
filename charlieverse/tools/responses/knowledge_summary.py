@@ -9,7 +9,5 @@ class KnowledgeSummary(BaseModel):
     """Compact knowledge representation for become_expert and recall results."""
 
     id: UUID
-    topic: str
     content: str
-    tags: list[str] | None = None
-    pinned: bool = False
+    truncated: bool = False
