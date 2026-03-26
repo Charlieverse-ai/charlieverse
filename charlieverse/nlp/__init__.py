@@ -1,5 +1,6 @@
-"""NLP utilities — spaCy-powered entity extraction."""
+"""NLP utilities — extraction, snippets, and text processing."""
 
 from charlieverse.nlp.extractor import extract_entities, extract_temporal_refs, TemporalRef
+from charlieverse.nlp.markdown import strip_markdown
 
-__all__ = ["extract_entities", "extract_temporal_refs", "TemporalRef"]
+__all__ = ["extract_entities", "extract_temporal_refs", "strip_markdown", "TemporalRef"]
