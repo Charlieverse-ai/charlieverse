@@ -5,21 +5,44 @@ on:
     tags: ['v*']
 
 jobs:
-  pypi-publish:
-    name: upload release to PyPI
+  build-and-publish:
     runs-on: ubuntu-latest
-    environment: pypi
     permissions:
       id-token: write
+      contents: write
+
     steps:
-      - name: "Install uv"
-        uses: astral-sh/setup-uv@v7.6.0
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
-          version: "0.10.12"
-      - uses: actions/download-artifact@v8.0.1
+          node-version: '22'
+
+      - uses: astral-sh/setup-uv@v4
         with:
-          pattern: charlieverse-*
-          path: dist
-          merge-multiple: true
-      - name: Publish to PyPi
-        run: uv publish -v dist/*
+          version: "latest"
+
+      - name: Build web dashboard
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      - name: Build wheel
+        run: uv build --wheel --no-sources
+
+      - name: Publish to PyPI
+        uses: uv publish -v dist/*
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          NOTES=$(awk "/^## \[${TAG}\]/{found=1; next} found && /^## \[/{exit} found" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="Release ${TAG}"
+          fi
+          gh release create "$TAG" dist/*.whl \
+            --title "$TAG" \
+            --notes "$NOTES"
