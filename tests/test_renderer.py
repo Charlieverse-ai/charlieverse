@@ -19,7 +19,7 @@ from charlieverse.context.renderer import (
     _date_group_key,
     _session_time,
 )
-from charlieverse.models import Entity, EntityType, Knowledge, Session, Story
+from charlieverse.models import ContextMessage, Entity, EntityType, Knowledge, Session, Story
 
 
 # ---------------------------------------------------------------------------
@@ -498,3 +498,93 @@ def test_seen_ids_includes_all_time_story():
         all_time_story=story,
     )
     assert str(story.id) in bundle.seen_ids
+
+
+# ---------------------------------------------------------------------------
+# workspace_directory tag
+# ---------------------------------------------------------------------------
+
+
+def test_render_includes_workspace_directory_tag():
+    bundle = _bundle(workspace="/projects/myapp")
+    output = render(bundle)
+    assert "<workspace_directory>/projects/myapp</workspace_directory>" in output
+
+
+def test_render_workspace_directory_none_renders_none():
+    bundle = _bundle(workspace=None)
+    output = render(bundle)
+    # The tag is still present but contains None
+    assert "<workspace_directory>None</workspace_directory>" in output
+
+
+# ---------------------------------------------------------------------------
+# recent_messages rendering
+# ---------------------------------------------------------------------------
+
+
+def _context_message(role: str = "user", content: str = "hello", offset_seconds: int = 60) -> ContextMessage:
+    return ContextMessage(
+        role=role,
+        content=content,
+        created_at=datetime.now(timezone.utc) - timedelta(seconds=offset_seconds),
+    )
+
+
+def test_render_includes_recent_messages_tag_when_present():
+    now = datetime.now(timezone.utc)
+    recent = _session("most recent work", updated_at=now - timedelta(minutes=5))
+    msgs = [
+        _context_message("user", "what are we working on?", 120),
+        _context_message("assistant", "we are building features", 60),
+    ]
+    bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
+    output = render(bundle)
+    assert "<recent_messages>" in output
+    assert "</recent_messages>" in output
+
+
+def test_render_recent_messages_shows_user_content():
+    now = datetime.now(timezone.utc)
+    recent = _session("recent work", updated_at=now - timedelta(minutes=5))
+    msgs = [_context_message("user", "tell me about the changes", 60)]
+    bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
+    output = render(bundle)
+    assert "tell me about the changes" in output
+
+
+def test_render_recent_messages_shows_assistant_content():
+    now = datetime.now(timezone.utc)
+    recent = _session("recent work", updated_at=now - timedelta(minutes=5))
+    msgs = [_context_message("assistant", "here is what i found", 60)]
+    bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
+    output = render(bundle)
+    assert "here is what i found" in output
+
+
+def test_render_recent_messages_truncates_long_content():
+    now = datetime.now(timezone.utc)
+    recent = _session("recent work", updated_at=now - timedelta(minutes=5))
+    long_content = "x" * 600
+    msgs = [_context_message("assistant", long_content, 60)]
+    bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
+    output = render(bundle)
+    # Truncated at 500 chars + "..."
+    assert "x" * 500 + "..." in output
+
+
+def test_render_recent_messages_does_not_appear_when_empty():
+    bundle = _bundle(recent_messages=[])
+    output = render(bundle)
+    assert "<recent_messages>" not in output
+
+
+def test_render_recent_messages_only_in_last_session():
+    now = datetime.now(timezone.utc)
+    recent = _session("most recent", updated_at=now - timedelta(minutes=5))
+    older = _session("older", updated_at=now - timedelta(hours=2))
+    msgs = [_context_message("user", "context message", 60)]
+    bundle = _bundle(recent_sessions=[recent, older], recent_messages=msgs)
+    output = render(bundle)
+    # recent_messages should appear exactly once (inside last_session)
+    assert output.count("<recent_messages>") == 1
