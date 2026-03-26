@@ -100,4 +100,20 @@ Charlie 🐕 <charlie@charlieverse.ai>"
 git tag vX.Y.Z
 ```
 
-Report the new version and a summary of changes.
+### 7. Build the wheel and create a GitHub release
+
+Build the distributable wheel with all bundled assets:
+
+```bash
+cd web && npm run build && cd ..
+rm -rf dist/
+uv build --wheel
+```
+
+Create a GitHub release with the wheel attached:
+
+```bash
+gh release create vX.Y.Z dist/*.whl --title "vX.Y.Z" --notes "See CHANGELOG.md for details."
+```
+
+Report the new version, summary of changes, and the release URL.
