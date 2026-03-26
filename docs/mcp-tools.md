@@ -110,7 +110,7 @@ Store an event — something that happened or is happening.
 
 ### `recall`
 
-Search across all memories and knowledge. Results are relevance-ordered (semantic + FTS).
+Search across all memories, knowledge, and stories. Results are relevance-ordered using a combination of semantic similarity, full-text search, and recency.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -139,7 +139,7 @@ Soft-delete a memory.
 
 ### `pin`
 
-Pin or unpin a memory. Pinned memories always appear in activation context.
+Pin or unpin an entity (memory or knowledge article). Pinned entities always appear in activation context.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
