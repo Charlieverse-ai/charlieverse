@@ -14,6 +14,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 - Recency+relevance re-ranking for recall entity results — entities found by both FTS and vector search score higher, and recently-updated entities are boosted with a 14-day half-life decay.
 - `pin` tool now supports knowledge articles — tries entity first, falls back to knowledge store, and raises a clear error if neither is found.
 
+### Decisions Recorded
+- ADR: Recall re-ranking by combined relevance and recency (14-day half-life, 0.4 recency weight)
+- ADR: Recall includes story search and strips markdown before truncation
+
 ### Changed
 - Entity and knowledge content is now truncated in recall results (500 chars for entities, 1000 for knowledge, 500 for messages) using `strip_markdown` to strip formatting before truncating.
 - `EntitySummary` schema simplified: replaced `tags`, `pinned`, `created_at` with `age` (human-relative date string) and `truncated` flag.
