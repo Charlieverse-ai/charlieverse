@@ -179,6 +179,7 @@ def register(mcp: FastMCP) -> None:
             query=query, limit=limit, type=type,
             memories=_stores(ctx)["memories"],
             knowledge_store=_stores(ctx)["knowledge"],
+            story_store=_stores(ctx)["stories"],
             db=_stores(ctx)["db"],
         )
 
@@ -218,4 +219,8 @@ def register(mcp: FastMCP) -> None:
         """Pin or unpin an entity. Pinned entities appear in every session's context."""
         if not id.strip():
             raise ToolError("id cannot be empty")
-        return await memory_tools.pin(id=id, pinned=pinned, memories=_stores(ctx)["memories"])
+        return await memory_tools.pin(
+            id=id, pinned=pinned,
+            memories=_stores(ctx)["memories"],
+            knowledge_store=_stores(ctx)["knowledge"],
+        )

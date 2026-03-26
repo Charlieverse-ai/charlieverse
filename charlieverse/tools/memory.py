@@ -6,6 +6,7 @@ import asyncio
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore
+from charlieverse.db.stores.story_store import StoryStore
 from charlieverse.embeddings import encode_one, prepare_entity_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.models import Entity, EntityType
@@ -16,17 +17,20 @@ from charlieverse.tools.responses import (
     IdResponse,
     KnowledgeSummary,
     RecallResponse,
+    StorySummary,
 )
 
 
 def _to_summary(e: Entity) -> EntitySummary:
+    from charlieverse.context.time_utils import relative_date
+
+    content, truncated = _truncate(e.content, _MAX_ENTITY_CONTENT)
     return EntitySummary(
         id=e.id,
         type=e.type.value,
-        content=e.content,
-        tags=e.tags,
-        pinned=e.pinned,
-        created_at=e.created_at,
+        content=content,
+        age=relative_date(e.created_at),
+        truncated=truncated,
     )
 
 
@@ -241,6 +245,63 @@ async def remember_event(
     return IdResponse(id=entity.id)
 
 
+# Max characters per item in recall results to prevent overwhelming responses.
+_MAX_ENTITY_CONTENT = 500
+_MAX_KNOWLEDGE_CONTENT = 1000
+_MAX_STORY_CONTENT = 500
+_MAX_MESSAGE_CONTENT = 500
+
+
+def _truncate(text: str, max_len: int, *, plaintext: bool = True) -> tuple[str, bool]:
+    """Truncate text to max_len, appending '…' if trimmed. Returns (text, was_truncated).
+
+    If plaintext=True (default), strips markdown formatting first for denser content.
+    """
+    from charlieverse.nlp.markdown import strip_markdown
+
+    s = strip_markdown(text) if plaintext else text
+    if len(s) <= max_len:
+        return s, False
+    return s[:max_len] + "…", True
+
+
+def _rank_by_relevance_and_recency(
+    entities: list[Entity],
+    fts_ids: set[UUID],
+    vec_ids: set[UUID],
+    recency_weight: float = 0.4,
+) -> list[Entity]:
+    """Re-rank entities by combined relevance and recency.
+
+    Relevance: 1.0 if found by both FTS+vector, 0.5 if found by one.
+    Recency: exponential decay based on days since updated_at.
+    Final score = (1 - recency_weight) * relevance + recency_weight * recency.
+    """
+    from datetime import datetime, timezone
+    import math
+
+    now = datetime.now(timezone.utc)
+
+    def score(e: Entity) -> float:
+        # Relevance: both sources = 1.0, one source = 0.5
+        in_fts = e.id in fts_ids
+        in_vec = e.id in vec_ids
+        if in_fts and in_vec:
+            relevance = 1.0
+        else:
+            relevance = 0.5
+
+        # Recency: half-life of 14 days (2 weeks old = 0.5, 4 weeks = 0.25)
+        days_old = max((now - e.updated_at.replace(tzinfo=timezone.utc
+                        if e.updated_at.tzinfo is None else e.updated_at.tzinfo)
+                        ).total_seconds() / 86400, 0)
+        recency = math.exp(-0.693 * days_old / 14)  # ln(2) ≈ 0.693
+
+        return (1 - recency_weight) * relevance + recency_weight * recency
+
+    return sorted(entities, key=score, reverse=True)
+
+
 async def recall(
     query: str,
     limit: int = 10,
@@ -248,9 +309,10 @@ async def recall(
     *,
     memories: MemoryStore,
     knowledge_store: KnowledgeStore,
+    story_store: StoryStore | None = None,
     db=None,
 ) -> RecallResponse:
-    """Search across entities and knowledge. Results are relevance-ordered."""
+    """Search across entities, knowledge, stories, and messages. Results are relevance-ordered."""
     entity_type = EntityType(type) if type else None
 
     # FTS search entities
@@ -271,7 +333,9 @@ async def recall(
     except Exception:
         pass
 
-    # Merge and deduplicate
+    # Merge and deduplicate entities, tracking which sources found each
+    fts_ids = {e.id for e in entities}
+    vec_ids = {e.id for e in vector_entities}
     seen_ids: set[UUID] = set()
     merged_entities: list[Entity] = []
     for e in entities + vector_entities:
@@ -281,42 +345,92 @@ async def recall(
                 continue
             merged_entities.append(e)
 
+    # Re-sort by combined relevance + recency score
+    merged_entities = _rank_by_relevance_and_recency(
+        merged_entities, fts_ids, vec_ids,
+    )
+
+    # Search stories
+    from charlieverse.models import Story
+
+    story_results: list[Story] = []
+    if story_store:
+        try:
+            story_results = await story_store.search(query, limit=min(limit, 5))
+        except Exception:
+            pass
+
     # Search messages if db is available
     from charlieverse.tools.responses.recall_response import MessageSummary
     from charlieverse.db.fts import sanitize_fts_query
+    from charlieverse.context.time_utils import relative_date
+    from datetime import datetime, timezone
+
+    # Junk patterns to filter out of message search results
+    _JUNK_PREFIXES = (
+        "<task-notification>",
+        "<command-name>",
+        "<local-command",
+        "<system-reminder>",
+    )
 
     message_results: list[MessageSummary] = []
     if db:
         try:
             fts_query = sanitize_fts_query(query)
             if fts_query:
+                # Fetch extra to account for junk filtering
                 cursor = await db.execute(
                     """SELECT m.id, m.role, m.content, m.created_at FROM messages m
                        JOIN messages_fts fts ON m.rowid = fts.rowid
                        WHERE messages_fts MATCH ?
                        ORDER BY bm25(messages_fts) LIMIT ?""",
-                    (fts_query, min(limit, 5)),
+                    (fts_query, min(limit, 5) * 3),
                 )
                 rows = await cursor.fetchall()
-                message_results = [
-                    MessageSummary(
+                for row in rows:
+                    if len(message_results) >= min(limit, 5):
+                        break
+                    content = row["content"].strip()
+                    if any(content.startswith(p) for p in _JUNK_PREFIXES):
+                        continue
+                    try:
+                        dt = datetime.fromisoformat(row["created_at"])
+                        age = relative_date(dt)
+                    except (ValueError, TypeError):
+                        age = row["created_at"]
+                    message_results.append(MessageSummary(
                         id=row["id"], role=row["role"],
-                        content=row["content"][:500], created_at=row["created_at"],
-                    )
-                    for row in rows
-                ]
+                        content=_truncate(content, _MAX_MESSAGE_CONTENT)[0],
+                        age=age,
+                    ))
         except Exception:
             pass
 
+    # Build knowledge summaries with truncation tracking
+    knowledge_summaries = []
+    for k in knowledge_results:
+        content, truncated = _truncate(k.content, _MAX_KNOWLEDGE_CONTENT)
+        knowledge_summaries.append(KnowledgeSummary(
+            id=k.id, content=content, truncated=truncated,
+        ))
+
+    # Build story summaries — prefer summary field, fall back to truncated content
+    story_summaries = []
+    for s in story_results:
+        if s.summary:
+            summary_text, truncated = s.summary, False
+        else:
+            summary_text, truncated = _truncate(s.content, _MAX_STORY_CONTENT)
+        story_summaries.append(StorySummary(
+            id=str(s.id), title=s.title, tier=s.tier.value,
+            summary=summary_text, truncated=truncated,
+        ))
+
     return RecallResponse(
         entities=[_to_summary(e) for e in merged_entities[:limit]],
-        knowledge=[
-            KnowledgeSummary(
-                id=k.id, topic=k.topic, content=k.content,
-                tags=k.tags, pinned=k.pinned,
-            )
-            for k in knowledge_results
-        ],
+        knowledge=knowledge_summaries,
+        stories=story_summaries,
         messages=message_results,
     )
 
@@ -362,7 +476,22 @@ async def pin(
     pinned: bool,
     *,
     memories: MemoryStore,
+    knowledge_store: KnowledgeStore | None = None,
 ) -> AckResponse:
-    """Pin or unpin an entity."""
-    await memories.pin(UUID(id), pinned)
-    return AckResponse()
+    """Pin or unpin an entity or knowledge article."""
+    uid = UUID(id)
+
+    # Try entity first
+    entity = await memories.get(uid)
+    if entity:
+        await memories.pin(uid, pinned)
+        return AckResponse()
+
+    # Try knowledge
+    if knowledge_store:
+        article = await knowledge_store.get(uid)
+        if article:
+            await knowledge_store.pin(uid, pinned)
+            return AckResponse()
+
+    raise ValueError(f"No entity or knowledge article found with id {id}")
