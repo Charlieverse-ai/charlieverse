@@ -52,7 +52,6 @@ def render(bundle: ContextBundle) -> str:
             parts.append(f"</{"last_session" if most_recent else "session"}>")
             most_recent = False
 
-    parts.append('<very-important>')
     if bundle.pinned_entities:
         parts.append('<pinned>')
         # Pinned entities get important_ prefix
@@ -120,7 +119,7 @@ def _render_recent_messages(messages: list[ContextMessage]) -> str:
         if len(content) > 500:
             content = content[:500] + "..."
         age = _relative_date(msg.created_at)
-        lines.append(f"<{label} date=\"{age}\"> {content}</{label}>")
+        lines.append(f"<{label} date=\"{age}\">{content}</{label}>")
 
     lines.append("</recent_messages>")
     return "\n".join(lines)

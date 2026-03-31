@@ -39,7 +39,8 @@ class RemindersEngine:
     def format(self, results: list[ReminderResult]) -> str:
         """Group results by tag, wrap each group in a single XML block."""
         grouped: dict[ReminderTag, list[str]] = defaultdict(list)
-        for result in results:
+        filtered = [result for result in results if result.content.strip()]
+        for result in filtered:
             grouped[result.tag].append(result.content)
 
         parts: list[str] = []

@@ -33,6 +33,22 @@ def format_datetime(dt: datetime) -> str:
     
     return dt.strftime("%B %d, %Y %H:%M")
 
+def format_time(dt: datetime) -> str:
+    """Format a datetime for display in reminders/context."""
+    
+    import locale
+    import time
+
+    try:
+        locale.setlocale(locale.LC_TIME, "")
+    except locale.Error:
+        return dt.strftime("%I:%M %p")
+
+    if time.strftime("%p"):
+        return dt.strftime("%I:%M %p")
+    
+    return dt.strftime("%Y %H:%M")
+
 def relative_time(start: datetime, now: datetime) -> str:
     """Format the delta between two datetimes as a human-readable duration.
 
@@ -80,7 +96,7 @@ def relative_date(date: datetime) -> str:
         hours = total_seconds / 3600
         return "1 hour ago" if hours < 2 else f"{round(hours, 2)} hours ago"
     elif total_seconds < 172800:
-        return "Yesterday"
+        return f"Yesterday at {format_time(date)}"
     else:
         days = total_seconds / 86400
         full_date = format_datetime(date)

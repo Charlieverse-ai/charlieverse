@@ -80,10 +80,7 @@ class ActivationBuilder:
     ) -> ContextBundle:
         """Build the full context bundle for the given session."""
         # Fetch sessions from the last 2 days (raw data, no story layer dependency)
-        recent_sessions = await self.sessions.recent_within_days(
-            days=1,
-            workspace=session.workspace,
-        )
+        recent_sessions = await self.sessions.recent(limit=10)
 
         # Fetch moments — personality entities, always global
         moments = await self.memories.list(entity_type=EntityType.moment, limit=1000)
