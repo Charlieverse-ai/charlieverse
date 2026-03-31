@@ -8,7 +8,7 @@ import aiosqlite
 from fastmcp import Context
 
 from charlieverse.config import config
-from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore, WorkLogStore
+from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
 
 
 class StoreContext(TypedDict):
@@ -19,7 +19,6 @@ class StoreContext(TypedDict):
     knowledge: KnowledgeStore
     sessions: SessionStore
     stories: StoryStore
-    work_logs: WorkLogStore
 
 
 def _stores(ctx: Context) -> StoreContext:
