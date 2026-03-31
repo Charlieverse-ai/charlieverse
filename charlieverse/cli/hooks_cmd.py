@@ -189,6 +189,9 @@ def session_start(
     # Providers send cwd in stdin JSON — use it as workspace if not passed via CLI
     if not workspace and stdin_data:
         workspace = stdin_data.get("cwd")
+    else:
+        workspace = os.getcwd()
+
     if not session_id and stdin_data:
         session_id = stdin_data.get("session_id")
     asyncio.run(_session_start(host, port, source, workspace, session_id))
@@ -216,15 +219,6 @@ async def _session_start(
         raise typer.Exit(1)
 
     context = _build_context_static(activation)
-
-    context += """
-<very-very-important>
-VERY IMPORTANT! STOP BEFORE RESPONDING! Review `activation_output`, `last_session`, and `current_working_directory` carefully.
-If last session noted any status's of things (ie: build, waiting for something, etc), greet me, then go check the latest of those statuses, or ask if you can't verify them with the available tools. 
-
-Read `recent_messages` and pick up where we left off as if no time has passed.
-</very-very-important>
-    """
     # Run user hooks from ~/.charlieverse/hooks/session-start/
     user_hook_output = await _run_user_hooks("session-start", session_id=sid, workspace=workspace or "")
     if user_hook_output:
@@ -381,26 +375,6 @@ def tool_use(
     session_id = stdin_data.get("session_id")
     tool_name = stdin_data.get("tool_name", "unknown")
     _log("tool-use", f"session={session_id} tool={tool_name}")
-    typer.Exit(0)
-
-# ===== save-reminder =====
-
-@app.command("save-reminder")
-def save_reminder() -> None:
-    """Hook: PreCompact. Reminds Charlie to save before context compaction."""
-    context = (
-        "<charlie-reminder>Context is about to be compacted. "
-        "Run `/session-save` NOW to save your progress before you lose context.</charlie-reminder>\n"
-        "<charlie-reminder>Remember to update knowledge, save decisions, etc "
-        "so we don't lose anything.</charlie-reminder>"
-    )
-
-    # Run user hooks from ~/.charlieverse/hooks/save-reminder/
-    user_hook_output = asyncio.run(_run_user_hooks("save-reminder"))
-    if user_hook_output:
-        context += user_hook_output
-
-    _output_context(context, hook_event="PreCompact")
     typer.Exit(0)
 
 # ===== session-end =====
