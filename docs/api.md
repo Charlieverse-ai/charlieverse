@@ -104,7 +104,5 @@ Used by the Storyteller agent to generate narratives.
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/stats` | Dashboard statistics |
 | `POST` | `/api/search` | Unified search (FTS + vector fallback) |
-| `POST` | `/api/log` | Record a logbook entry |
-| `GET` | `/api/work-logs/latest` | Get latest work log |
 | `POST` | `/api/rebuild` | Rebuild all FTS + vector indexes |
 | `GET` | `/{path}` | Serve web dashboard (SPA catch-all) |

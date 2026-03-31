@@ -51,7 +51,6 @@ charlie hooks session-start    # Boot activation context
 charlie hooks prompt-submit    # Run reminders engine, capture message
 charlie hooks stop             # Capture assistant response
 charlie hooks tool-use         # Log tool calls
-charlie hooks save-reminder    # Remind to save before compaction
 charlie hooks session-end      # End a session
 ```
 
@@ -130,7 +129,6 @@ charlie import --messages --recent-days 30
 ```bash
 charlie init               # Full interactive setup: directories, providers, server, import
 charlie context            # Preview the activation context
-charlie log CONTENT        # Record a logbook entry
 charlie story-data TARGET [DATE]  # Fetch story data (session ID or tier name + optional date)
 charlie doctor             # Run environment health checks
 charlie update             # Update to latest version, reinstall integrations, restart server
@@ -147,15 +145,6 @@ Full setup walkthrough: creates `~/.charlieverse/` directory structure, verifies
 
 Runs interactively by default, prompting for each provider and import step. Use `--quick` for non-interactive environments.
 
-### `log`
-
-Record a logbook entry.
-
-| Flag | Description |
-|------|-------------|
-| `--session` / `-s` | Session ID to associate the entry with |
-| `--tags` / `-t` | Comma-separated tags |
-
 ### `context`
 
 Print the activation context — what Charlie sees when a session starts.
@@ -164,6 +153,7 @@ Print the activation context — what Charlie sees when a session starts.
 |------|-------------|
 | `--session` / `-s` | Session ID to preview |
 | `--workspace` / `-w` | Workspace path |
+| `--save` / `-S` | Save output to a temp file and print the path |
 
 ### `story-data`
 
