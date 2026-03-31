@@ -1,7 +1,7 @@
 [project]
 name = "charlieverse"
 version = "1.14.0"
-description = "Persistent AI companion layer — memory, personality, knowledge via MCP"
+description = "Persistent memory layer for your AI with a personality that just knows."
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 license = "Apache-2.0"
@@ -16,6 +16,7 @@ dependencies = [
     "pyyaml>=6.0",
     "spacy>=3.7",
     "dateparser>=1.2",
+    "pip>=26.0.1",
 ]
 
 [project.scripts]
@@ -24,6 +25,19 @@ charlie = "charlieverse.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = [
+    ".charlie",
+    ".github",
+    "docs"
+]
+
+[tool.hatch.build.targets.sdist.hooks.custom]
+path = "tools/build_web.py"
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "tools/build_web.py"
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -49,6 +63,7 @@ dev = [
     "hypothesis>=6.116",
     "ruff>=0.15.6",
     "ty>=0.0.23",
+    "hatch>=1.16.5",
 ]
 
 [tool.pytest.ini_options]
