@@ -66,7 +66,7 @@ def _wait_for_port_free(port: int, timeout: float = 15) -> None:
     # Timeout — proceed anyway and let start() fail with a clear error
 
 
-def _wait_for_health(timeout: float = 30, interval: float = 0.3) -> bool:
+def _wait_for_health(timeout: float = 30, interval: float = 1) -> bool:
     """Poll the health endpoint until the server responds or timeout."""
     import time
     import urllib.request
@@ -74,6 +74,9 @@ def _wait_for_health(timeout: float = 30, interval: float = 0.3) -> bool:
 
     url = config.server.api_url("health")
     deadline = time.monotonic() + timeout
+
+    # Delay the polling for a few seconds to allow the initial server setup to complete
+    time.sleep(5)
 
     while time.monotonic() < deadline:
         # Check process is still alive first
@@ -83,7 +86,7 @@ def _wait_for_health(timeout: float = 30, interval: float = 0.3) -> bool:
             with urllib.request.urlopen(url, timeout=2) as resp:
                 if resp.status == 200:
                     return True
-        except (urllib.error.URLError, OSError, TimeoutError):
+        except (urllib.error.URLError, OSError, TimeoutError) as e:
             pass
         time.sleep(interval)
     return False
@@ -121,7 +124,7 @@ def _kill_port_holder(port: int) -> bool:
                 # Verify the process belongs to us before killing
                 cmd_result = subprocess.run(
                     ["ps", "-p", str(pid), "-o", "command="],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True, text=True, timeout=2,
                 )
                 cmdline = cmd_result.stdout.strip().lower()
                 if "charlieverse" not in cmdline and "charlie" not in cmdline:
@@ -146,7 +149,7 @@ def start(
     if _is_running():
         typer.echo(f"Charlieverse is already running (PID {_read_pid()})")
         return
-
+    
     # Kill any orphan process holding the port (stale PID file scenarios)
     import socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -220,7 +223,7 @@ def start(
     from charlieverse.server import mcp, McpTransport
 
     if foreground:
-        typer.echo(f"Starting Charlieverse on {config.server.mcp_url})")
+        typer.echo(f"Starting Charlieverse on {config.server.mcp_url()}")
 
     mcp.run(transport=cast(McpTransport, transport), host=host, port=port, show_banner=False)
 

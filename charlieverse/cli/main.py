@@ -5,7 +5,7 @@ from importlib.metadata import version
 import typer
 
 from charlieverse.cli import hooks_cmd, init_cmd, server_cmd
-from charlieverse.cli import log_cmd, story_data_cmd, context_cmd, import_cmd
+from charlieverse.cli import story_data_cmd, context_cmd, import_cmd
 from charlieverse.cli import config_cmd, trick_cmd, doctor_cmd, update_cmd
 
 
@@ -39,7 +39,6 @@ app.add_typer(trick_cmd.app)
 
 app.command("init")(init_cmd.init)
 app.command("story-data")(story_data_cmd.story_data)
-app.command("log")(log_cmd.log)
 app.command("context")(context_cmd.context)
 app.command("import")(import_cmd.import_conversations)
 app.command("doctor")(doctor_cmd.doctor)

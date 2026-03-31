@@ -101,16 +101,8 @@ def _verify_dependencies() -> None:
         _ok("spaCy model verified")
     except (OSError, ImportError):
         _step("  Installing spaCy model en_core_web_sm...")
-        import subprocess
-
-        result = subprocess.run(
-            ["uv", "run", "--with", "spacy", "--", "spacy", "download", "en_core_web_sm"],
-            capture_output=True, text=True,
-        )
-        if result.returncode == 0:
-            _ok("spaCy model installed")
-        else:
-            _warn("Failed to install spaCy model — NLP features may be limited")
+        from spacy.cli.download import download
+        download("en_core_web_sm")
 
     # Web dashboard
     dist = paths.web_dist()

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -96,53 +95,6 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_health(request: Request) -> JSONResponse:
         """Health check endpoint."""
         return JSONResponse({"status": "healthy", "server": "charlieverse"})
-
-    @mcp.custom_route("/api/work-logs/latest", methods=["GET"])
-    async def api_latest_work_log(request: Request) -> JSONResponse:
-        """Get the most recent work log entry (for determining unprocessed event range)."""
-        db = rest_stores["db"]
-        cursor = await db.execute(
-            "SELECT * FROM work_logs WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 1"
-        )
-        row = await cursor.fetchone()
-        if row:
-            return JSONResponse({
-                "id": row["id"],
-                "content": row["content"],
-                "created_at": row["created_at"],
-                "end_date": row["end_date"] if "end_date" in row.keys() else None,
-            })
-        return JSONResponse({"id": None})
-
-    @mcp.custom_route("/api/log", methods=["POST"])
-    async def api_log_work(request: Request) -> JSONResponse:
-        """Record a logbook entry via REST."""
-        body = await request.json()
-
-        content = body.get("content", "")
-        session_id = body.get("session_id", str(uuid4()))
-        tags = body.get("tags")
-
-        entry_id = str(uuid4())
-        now = datetime.now(timezone.utc).isoformat()
-
-        db = rest_stores["db"]
-        await db.execute(
-            """INSERT INTO work_logs (id, content, tags, created_session_id, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (entry_id, content, json.dumps(tags) if tags else None, session_id, now, now),
-        )
-        # Per-row FTS sync instead of full rebuild
-        cursor = await db.execute("SELECT rowid FROM work_logs WHERE id = ?", (entry_id,))
-        wl_row = await cursor.fetchone()
-        if wl_row:
-            await db.execute(
-                "INSERT INTO work_logs_fts(rowid, content, tags) VALUES(?, ?, ?)",
-                (wl_row[0], content, json.dumps(tags) if tags else ""),
-            )
-        await db.commit()
-
-        return JSONResponse({"id": entry_id})
 
     @mcp.custom_route("/api/messages", methods=["POST"])
     async def api_save_message(request: Request) -> JSONResponse:
