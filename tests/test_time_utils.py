@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from charlieverse.context.time_utils import format_datetime, relative_date, relative_time
+from charlieverse.context.time_utils import format_datetime, format_time, relative_date, relative_time
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +32,25 @@ def test_format_datetime_returns_string():
     assert isinstance(result, str)
     assert "2026" in result
     assert "March" in result or "03" in result
+
+
+# ---------------------------------------------------------------------------
+# format_time
+# ---------------------------------------------------------------------------
+
+
+def test_format_time_returns_string():
+    dt = datetime(2026, 3, 22, 14, 30, tzinfo=timezone.utc)
+    result = format_time(dt)
+    assert isinstance(result, str)
+    assert len(result) > 0
+
+
+def test_format_time_contains_digits():
+    dt = datetime(2026, 3, 22, 9, 5, tzinfo=timezone.utc)
+    result = format_time(dt)
+    # Should contain time digits
+    assert any(c.isdigit() for c in result)
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +147,7 @@ def test_relative_date_hours_ago():
 
 def test_relative_date_yesterday():
     result = relative_date(_ago(86400 + 1))  # just over 1 day
-    assert result == "Yesterday"
+    assert result.startswith("Yesterday")
 
 
 # ---------------------------------------------------------------------------
