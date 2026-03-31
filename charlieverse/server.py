@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
+import os
 import logging
 import time
+
 from typing import Literal, TypeAlias
 
 from fastmcp import FastMCP
@@ -12,19 +13,21 @@ from fastmcp.server.lifespan import lifespan
 
 from charlieverse.config import config
 from charlieverse.db import database
-from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore, WorkLogStore
+from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
 
 from charlieverse.mcp import tools_memory, tools_knowledge, tools_sessions, tools_stories
 from charlieverse.mcp.context import StoreContext
 from charlieverse.api import hooks, entities, stories, spa
-from charlieverse.tasks import track_task
 
 logger = logging.getLogger(__name__)
-
 
 @lifespan
 async def app_lifespan(server):
     """Initialize database and stores on server start."""
+    os.environ["HF_HUB_VERBOSITY"] = "error"
+    os.environ["TRANSFORMERS_VERBOSITY"] = "error" # Only show errors
+    os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
     db_path = config.database
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -42,7 +45,6 @@ async def app_lifespan(server):
         "memories": MemoryStore(db),
         "sessions": SessionStore(db),
         "knowledge": KnowledgeStore(db),
-        "work_logs": WorkLogStore(db),
         "stories": StoryStore(db),
     }
 
@@ -55,20 +57,16 @@ async def app_lifespan(server):
         logger.exception("FTS rebuild failed on startup — search may be stale")
 
     # Rebuild vector indexes in the background (slow, don't block startup)
-    async def _background_vec_rebuild():
-        try:
-            await store_dict["memories"].rebuild_vec()
-            await store_dict["knowledge"].rebuild_vec()
-            await store_dict["stories"].rebuild_vec()
-        except Exception:
-            logger.exception("Vector rebuild failed — semantic search may be stale")
-
-    rebuild_task = track_task(asyncio.create_task(_background_vec_rebuild()))
+    try:
+        await store_dict["memories"].rebuild_vec()
+        await store_dict["knowledge"].rebuild_vec()
+        await store_dict["stories"].rebuild_vec()
+    except Exception:
+        logger.exception("Vector rebuild failed — semantic search may be stale")
 
     try:
         yield store_dict
     finally:
-        rebuild_task.cancel()
         await db.close()
 
 

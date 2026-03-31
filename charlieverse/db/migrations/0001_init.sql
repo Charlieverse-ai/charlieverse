@@ -1,5 +1,5 @@
 -- Charlieverse initial schema
--- Sessions, entities, knowledge, work_logs with FTS5 and vector support
+-- Sessions, entities, knowledge with FTS5 and vector support
 -- FTS5 uses external content tables — stores manage FTS sync explicitly.
 
 -- Sessions
@@ -82,31 +82,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
 -- Knowledge embeddings (sqlite-vec)
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_vec USING vec0(
     embedding float[384]
-);
-
--- Work logs
-CREATE TABLE IF NOT EXISTS work_logs (
-    id                  TEXT PRIMARY KEY,
-    content             TEXT NOT NULL,
-    tags                TEXT,  -- JSON array
-    created_session_id  TEXT NOT NULL,
-    updated_session_id  TEXT,
-    created_at          TEXT NOT NULL,
-    updated_at          TEXT NOT NULL,
-    deleted_at          TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_work_logs_created_session_id ON work_logs(created_session_id);
-CREATE INDEX IF NOT EXISTS idx_work_logs_created_at ON work_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_work_logs_deleted_at ON work_logs(deleted_at);
-
--- Work logs FTS5 (external content — stores manage sync)
-CREATE VIRTUAL TABLE IF NOT EXISTS work_logs_fts USING fts5(
-    content,
-    tags,
-    content=work_logs,
-    content_rowid=rowid,
-    tokenize='porter unicode61'
 );
 
 -- Messages (captured from hooks — user prompts + assistant responses)
