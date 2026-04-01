@@ -77,7 +77,7 @@ def test_most_recent_session_wrapped_in_last_session_tag():
     older = _session("older work", updated_at=now - timedelta(hours=2))
     bundle = _bundle(recent_sessions=[recent, older])
     output = render(bundle)
-    assert "<last_session>" in output
+    assert "<last_session " in output
     assert "</last_session>" in output
 
 
@@ -87,7 +87,7 @@ def test_non_recent_sessions_wrapped_in_session_tag():
     older = _session("older session", updated_at=now - timedelta(hours=2))
     bundle = _bundle(recent_sessions=[recent, older])
     output = render(bundle)
-    assert "<session>" in output
+    assert "<session " in output
     assert "</session>" in output
 
 
@@ -98,10 +98,10 @@ def test_only_first_session_gets_last_session_tag():
     s3 = _session("third", updated_at=now - timedelta(hours=2))
     bundle = _bundle(recent_sessions=[s1, s2, s3])
     output = render(bundle)
-    assert output.count("<last_session>") == 1
+    assert output.count("<last_session ") == 1
     assert output.count("</last_session>") == 1
     # Two non-recent sessions
-    assert output.count("<session>") == 2
+    assert output.count("<session ") == 2
 
 
 def test_no_our_timeline_wrapper():
@@ -118,8 +118,8 @@ def test_single_session_uses_last_session_tag():
     only = _session("only session", updated_at=now - timedelta(minutes=10))
     bundle = _bundle(recent_sessions=[only])
     output = render(bundle)
-    assert "<last_session>" in output
-    assert "<session>" not in output
+    assert "<last_session " in output
+    assert "<session " not in output
 
 
 # ---------------------------------------------------------------------------
@@ -261,10 +261,12 @@ def _story(title: str = "Our Story", content: str = "Chapter 1") -> Story:
     return Story(title=title, content=content)
 
 
-def test_render_all_time_story_contains_title():
-    story = _story(title="The Long Arc")
+def test_render_all_time_story_contains_content_only():
+    """Title is no longer rendered inside the tag — only content."""
+    story = _story(title="The Long Arc", content="A long journey")
     output = _render_all_time_story(story)
-    assert "The Long Arc" in output
+    assert "A long journey" in output
+    assert "The Long Arc" not in output
 
 
 def test_render_all_time_story_contains_content():
@@ -388,7 +390,7 @@ def test_render_includes_session_entities():
     entity = _entity("recent decision", type=EntityType.decision)
     bundle = _bundle(session_entities=[entity])
     output = render(bundle)
-    assert "<created_recently>" in output
+    assert "<related_memories>" in output
     assert "recent decision" in output
 
 
@@ -396,7 +398,7 @@ def test_render_includes_related_entities():
     entity = _entity("related memory", type=EntityType.solution)
     bundle = _bundle(related_entities=[entity])
     output = render(bundle)
-    assert "<relevant>" in output
+    assert "<related_memories>" in output
     assert "related memory" in output
 
 
@@ -405,7 +407,7 @@ def test_render_includes_all_time_story():
     bundle = _bundle(all_time_story=story)
     output = render(bundle)
     assert "<our_story_so_far>" in output
-    assert "All Time Story" in output
+    assert "Our shared history." in output
 
 
 # ---------------------------------------------------------------------------
@@ -569,8 +571,8 @@ def test_render_recent_messages_truncates_long_content():
     msgs = [_context_message("assistant", long_content, 60)]
     bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
     output = render(bundle)
-    # Truncated at 500 chars + "..."
-    assert "x" * 500 + "..." in output
+    # Truncated at 200 chars + "…"
+    assert "x" * 200 + "…" in output
 
 
 def test_render_recent_messages_does_not_appear_when_empty():

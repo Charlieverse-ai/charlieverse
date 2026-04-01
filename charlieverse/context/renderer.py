@@ -44,7 +44,8 @@ def render(bundle: ContextBundle) -> str:
             if date_key != current_date_key:
                 current_date_key = date_key
                 parts.append(f"# {date_key}")
-            parts.append(f"<{"last_session" if most_recent else "session"}>")
+            path = f" path=\"{_display_path(session.workspace)}\"" if session.workspace else ""
+            parts.append(f"<{"last_session" if most_recent else "session"} time=\"{_session_time(session.updated_at, now)}{path}>")
             parts.append(_render_session(session, now, most_recent=most_recent))
             # Recent messages go inside the last session block
             if most_recent and bundle.recent_messages:
@@ -70,28 +71,23 @@ def render(bundle: ContextBundle) -> str:
     if bundle.pinned_knowledge:
         parts.append('<knowledge>')    
         for knowledge in bundle.pinned_knowledge:
-            parts.append(f'## Article: {knowledge.topic}')
+            parts.append(f'## {knowledge.topic}')
             parts.append(knowledge.content)
 
         parts.append("</knowledge>\n")
 
     parts.append('</important>')
-
     parts.append('<related_memories>')
 
     # Session entities (non-pinned, non-moment)
     if bundle.session_entities:
-        parts.append('<created_recently>')
         for entity in bundle.session_entities:
             parts.append(_render_entity(entity))
-        parts.append('</created_recently>')
 
     # Related entities
     if bundle.related_entities:
-        parts.append('<relevant>')
         for entity in bundle.related_entities:
             parts.append(_render_entity(entity))
-        parts.append('</relevant>')
 
     parts.append('</related_memories>')
 
@@ -110,14 +106,12 @@ def _render_recent_messages(messages: list[ContextMessage]) -> str:
     """Render recent messages for context seeding."""
     lines: list[str] = []
     lines.append("<recent_messages>")
-    lines.append("<!-- The most recent messages between us to create that seamless experience -->")
-
     for msg in messages:
         label = "me" if msg.role == "user" else "charlie"
         # Truncate long assistant messages to keep context lean
         content = msg.content.strip()
-        if len(content) > 500:
-            content = content[:500] + "..."
+        if len(content) > 200:
+            content = content[:200] + "…"
         age = _relative_date(msg.created_at)
         lines.append(f"<{label} date=\"{age}\">{content}</{label}>")
 
@@ -181,7 +175,6 @@ def _render_tricks(workspace: str | None) -> str:
 def _render_all_time_story(story: Story) -> str:
     lines: list[str] = []
     lines.append("<our_story_so_far>")
-    lines.append(f"{story.title}\n---")
     lines.append(story.content)
     lines.append("</our_story_so_far>\n")
     
@@ -200,14 +193,9 @@ def _render_session(session: Session, now: datetime, most_recent: bool) -> str:
     """Render a session under its date group."""
     lines: list[str] = []
 
-    lines.append(f"## {_session_time(session.updated_at, now)}")
-
-    if session.workspace:
-        lines.append(f"Session Dir: {session.workspace}")
-
     lines.append(f"\n{session.what_happened}\n")
-    # if most_recent:
-        # lines.append(f"## For This Session:\n{session.for_next_session}\n")
+    if most_recent:
+        lines.append(f"## For This Session:\n{session.for_next_session}\n")
 
     return "\n".join(lines)
 
@@ -238,6 +226,9 @@ def _date_group_key(date: datetime, now: datetime) -> str:
     else:
         return d.strftime("%A, %B %-d, %Y")
 
+def _display_path(path: str) -> str:
+    import os.path
+    return path.replace(os.path.expanduser("~"), '~', 1)
 
 def _session_time(date: datetime, now: datetime) -> str:
     """Return session time within its date group.
