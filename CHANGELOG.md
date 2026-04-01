@@ -5,7 +5,17 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
-## [v1.14.1] — 2026-04-01
+## [v1.14.2] — 2026-04-01
+
+### Fixed
+- Malformed XML in activation context: `time=` attribute missing closing quote, orphan `</important>` tag removed.
+- Circular import in reminders system: `system_prompt.py` now imports `ReminderTag` from `types` directly.
+- Type error in story dedup: `groups` cursor result converted to list before `len()`.
+- Renderer tests updated to match current tag format (session attributes, wrapper tags, truncation length).
+
+---
+
+## [v1.14.1] — 2026-03-31
 
 ### Added
 - `charlie context --save` (`-S`) flag: writes the activation context to a temp file and prints the path, making it easy to pipe into other tools.
