@@ -13,13 +13,12 @@ interface EntityRowProps {
 export function EntityRow({ entity, onClick }: EntityRowProps) {
   const color = entityColors[entity.type]
   const plain = stripMarkdown(entity.content)
-  const truncated = plain.length > 120 ? plain.slice(0, 120) + '...' : plain
 
   return (
     <div className="row" onClick={onClick}>
       <div className="row-bar" style={{ background: color }} />
       <div className="row-body">
-        <div className="row-title">{truncated}</div>
+        <div className="row-title">{plain}</div>
         <div className="row-meta">
           <TypeBadge type={entity.type} />
           {entity.pinned && (

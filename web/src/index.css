@@ -1073,13 +1073,13 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  box-shadow: 0px -2px 0px color-mix(in srgb, var(--accent), transparent 50%);
+  /* box-shadow: 0px -2px 0px color-mix(in srgb, var(--accent), transparent 50%); */
 }
 
 .entity-card:hover {
   border-color: var(--border-secondary);
   transition: box-shadow var(--spring);
-  box-shadow: 0px -3px 0px var(--accent);
+  /* box-shadow: 0px -3px 0px var(--accent); */
 }
 
 .entity-card__accent {
@@ -1108,7 +1108,7 @@ html, body {
   gap: 8px;
 }
 
-.entity-card__type {
+.entity-card__type, .entity-card__pin {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1128,12 +1128,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 3px;
-  font-size: 10px;
-  font-weight: 700;
   background: var(--brand-subtle);
-  padding: 2px 7px 2px 5px;
-  border-radius: 4px;
-  letter-spacing: 0.02em;
 }
 
 .entity-card__time {

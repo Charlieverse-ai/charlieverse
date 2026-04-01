@@ -14,9 +14,6 @@ interface EntityCardProps {
 export function EntityCard({ entity, featured = false, onClick, onTagClick: _onTagClick }: EntityCardProps) {
   const color = entityColors[entity.type]
   const plain = stripMarkdown(entity.content)
-  const preview = featured
-    ? (plain.length > 280 ? plain.slice(0, 280) + '...' : plain)
-    : (plain.length > 140 ? plain.slice(0, 140) + '...' : plain)
 
   return (
     <div
@@ -38,7 +35,7 @@ export function EntityCard({ entity, featured = false, onClick, onTagClick: _onT
         <span className="entity-card__time">{relativeTime(entity.created_at)}</span>
       </div>
 
-      <div className="entity-card__content">{preview}</div>
+      <div className="entity-card__content">{plain}</div>
     </div>
   )
 }
