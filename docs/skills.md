@@ -98,22 +98,6 @@ Run Charlie tricks by name or path.
 - Name: resolves the trick, spawns Skill agent with it
 - Supports provider delegation: `/trick [name] [provider]`
 
-### `codex`
-
-Delegate a task to OpenAI Codex CLI.
-
-**Usage:** `/codex [task]`
-
-Forks context and spawns the Codex CLI agent, which runs `codex exec` in non-interactive mode.
-
-### `copilot`
-
-Delegate a task to GitHub Copilot CLI.
-
-**Usage:** `/copilot [task]`
-
-Forks context and spawns the Copilot CLI agent, which runs `copilot -p` in non-interactive mode.
-
 ---
 
 ## Creating your own

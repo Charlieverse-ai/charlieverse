@@ -42,14 +42,3 @@ Prompt engineering specialist. Bridges the gap between how humans write prompts 
 
 ---
 
-## CLI agents
-
-These live in `prompts/cli/` and orchestrate external CLI tools.
-
-### Codex
-
-Interface for OpenAI Codex CLI. Receives tasks and delegates execution to Codex via `codex exec` in non-interactive mode with `--full-auto`. The agent itself does not execute instructions directly — it passes them to Codex.
-
-### Copilot
-
-Interface for GitHub Copilot CLI. Receives tasks and executes them via `copilot -p` with `--allow-all-tools --no-ask-user --silent`.
