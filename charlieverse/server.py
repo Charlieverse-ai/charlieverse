@@ -21,6 +21,41 @@ from charlieverse.api import hooks, entities, stories, spa
 
 logger = logging.getLogger(__name__)
 
+
+async def _dedup_stories(store: StoryStore) -> None:
+    """Remove duplicate rollup stories, keeping the most recently updated."""
+    cursor = await store.db.execute("""
+        SELECT tier, period_start, period_end, COUNT(*) as cnt
+        FROM stories
+        WHERE deleted_at IS NULL AND session_id IS NULL
+        GROUP BY tier, SUBSTR(period_start, 1, 10), SUBSTR(period_end, 1, 10)
+        HAVING cnt > 1
+    """)
+    groups = list(await cursor.fetchall())
+    if not groups:
+        return
+
+    deleted = 0
+    for row in groups:
+        tier, p_start, p_end = row[0], row[1], row[2]
+        dupes = await store.db.execute(
+            """SELECT id FROM stories
+               WHERE tier = ? AND SUBSTR(period_start, 1, 10) = SUBSTR(?, 1, 10) AND SUBSTR(period_end, 1, 10) = SUBSTR(?, 1, 10)
+               AND deleted_at IS NULL AND session_id IS NULL
+               ORDER BY updated_at DESC""",
+            (tier, p_start, p_end),
+        )
+        ids = [r[0] for r in await dupes.fetchall()]
+        # Keep the first (most recently updated), soft-delete the rest
+        for stale_id in ids[1:]:
+            from uuid import UUID
+            await store.delete(UUID(stale_id))
+            deleted += 1
+
+    if deleted:
+        logger.info("Deduped %d rollup stories across %d groups", deleted, len(groups))
+
+
 @lifespan
 async def app_lifespan(server):
     """Initialize database and stores on server start."""
@@ -47,6 +82,12 @@ async def app_lifespan(server):
         "knowledge": KnowledgeStore(db),
         "stories": StoryStore(db),
     }
+
+    # Deduplicate rollup stories (same tier + period window)
+    try:
+        await _dedup_stories(store_dict["stories"])
+    except Exception:
+        logger.exception("Story dedup failed on startup")
 
     # Rebuild FTS indexes on startup (fast, ensures consistency)
     try:

@@ -69,10 +69,20 @@ class StoryStore:
         return story
 
     async def upsert(self, story: Story) -> Story:
-        """Insert or update a story. For session stories, matches on session_id."""
+        """Insert or update a story.
+
+        Match order:
+        1. Session stories → find by session_id
+        2. Rollup stories → find by (tier, period_start, period_end)
+        3. Fallback → find by id
+        """
         existing = None
         if story.session_id:
             existing = await self.find_by_session(story.session_id)
+        if not existing and story.period_start and story.period_end:
+            existing = await self.find_by_tier_and_period(
+                story.tier, story.period_start, story.period_end
+            )
         if not existing:
             existing = await self.get(story.id)
         if existing:
@@ -80,6 +90,20 @@ class StoryStore:
             story.created_at = existing.created_at
             return await self.update(story)
         return await self.create(story)
+
+    async def find_by_tier_and_period(
+        self, tier: StoryTier, period_start: str, period_end: str
+    ) -> Story | None:
+        """Find a rollup story matching the tier and period window (tz-agnostic)."""
+        cursor = await self.db.execute(
+            """SELECT * FROM stories
+               WHERE tier = ? AND SUBSTR(period_start, 1, 10) = SUBSTR(?, 1, 10) AND SUBSTR(period_end, 1, 10) = SUBSTR(?, 1, 10)
+               AND deleted_at IS NULL
+               LIMIT 1""",
+            (tier.value, period_start, period_end),
+        )
+        row = await cursor.fetchone()
+        return _row_to_story(row) if row else None
 
     async def find_by_session(self, session_id: UUID) -> Story | None:
         """Find the session-tier story for a given session."""
