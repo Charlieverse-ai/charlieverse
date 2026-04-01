@@ -45,7 +45,8 @@ def render(bundle: ContextBundle) -> str:
                 current_date_key = date_key
                 parts.append(f"# {date_key}")
             path = f" path=\"{_display_path(session.workspace)}\"" if session.workspace else ""
-            parts.append(f"<{"last_session" if most_recent else "session"} time=\"{_session_time(session.updated_at, now)}{path}>")
+            tag = "last_session" if most_recent else "session"
+            parts.append(f"<{tag} time=\"{_session_time(session.updated_at, now)}\"{path}>")
             parts.append(_render_session(session, now, most_recent=most_recent))
             # Recent messages go inside the last session block
             if most_recent and bundle.recent_messages:
@@ -76,7 +77,6 @@ def render(bundle: ContextBundle) -> str:
 
         parts.append("</knowledge>\n")
 
-    parts.append('</important>')
     parts.append('<related_memories>')
 
     # Session entities (non-pinned, non-moment)
@@ -180,14 +180,6 @@ def _render_all_time_story(story: Story) -> str:
     
     return "\n".join(lines)
 
-
-def _render_story_weekly(story: Story) -> str:
-    """Render a weekly story arc — summary only."""
-    lines: list[str] = []
-    lines.append(f"## {story.title}")
-    if story.summary:
-        lines.append(f"\n{story.summary}")
-    return "\n".join(lines)
 
 def _render_session(session: Session, now: datetime, most_recent: bool) -> str:
     """Render a session under its date group."""
