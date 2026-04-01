@@ -196,6 +196,12 @@ def _incoming_context() -> IncomingHookContext | None:
         _log(f"{hook_name}.skipped", "Skipping hook for subagent", data=stdin_data)
         return None
 
+    # Claude provides the name of the agent in the input, so we'll restrict the hooks to just Charlieverse:Charlie
+    agent_type = str(stdin_data.get("agent_type", "")).strip()
+    if agent_type and agent_type != "Charlieverse:Charlie":
+        _log(f"{hook_name}.skipped", "Skipping hook because the agent is not Charlie", data=stdin_data)
+        return None
+
     # Providers send cwd in stdin JSON, fallback to cwd
     workspace = str(stdin_data.get("cwd")) or os.getcwd()
     session_id = _parse_uuid(stdin_data.get("session_id"))
