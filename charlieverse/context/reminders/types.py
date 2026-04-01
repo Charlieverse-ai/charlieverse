@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 
-
 class ReminderTag(Enum):
     """XML tag used to wrap reminder content in additionalContext."""
 

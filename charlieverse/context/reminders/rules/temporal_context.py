@@ -15,7 +15,7 @@ class TemporalContextRule(ReminderRule):
     async def evaluate(self, ctx: HookContext) -> ReminderResult | None:
         vars: dict[str, str] = {
             "CURRENT_DATETIME": format_datetime(ctx.timestamp),
-            "RELATIVE_TIME_SINCE_SESSION_START": "NO IDEA metadata was missing."
+            "RELATIVE_TIME_SINCE_SESSION_START": "Just started."
         }
 
         session_start = ctx.metadata.get("session_start")
