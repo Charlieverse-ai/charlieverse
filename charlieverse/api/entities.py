@@ -18,8 +18,10 @@ from charlieverse.models import Entity, EntityType, Knowledge
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _parse_uuid(value: str) -> UUID | None:
+def _parse_uuid(value: str | None) -> UUID | None:
     """Parse a UUID string, returning None on malformed input."""
+    if not value:
+        return None
     try:
         return UUID(value)
     except (ValueError, AttributeError):

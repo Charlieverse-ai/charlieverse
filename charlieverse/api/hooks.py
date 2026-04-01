@@ -104,8 +104,15 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
 
         msg_id = body.get("id", str(uuid4()))
         session_id = body.get("session_id")
-        role = body.get("role", "user")
-        content = body.get("content", "")
+        role = body.get("role")
+        content = str(body.get("content", "")).strip()
+        
+        if not session_id or not role or not content:
+            return JSONResponse({"error": "Missing Required params"}, status_code=400)
+        
+        # TODO: Move this into a validation helper
+        if "<task-notification>" in content and "</task-notification>" in content:
+            return JSONResponse({"saved": False, "reason": "Not saved because the user message is not valid"})
 
         cursor = await db.execute(
             """INSERT OR IGNORE INTO messages (id, session_id, role, content, created_at)
