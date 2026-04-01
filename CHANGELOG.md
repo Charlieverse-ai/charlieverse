@@ -7,31 +7,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ## [v1.14.2] — 2026-04-01
 
-### Fixed
-- Malformed XML in activation context: `time=` attribute missing closing quote, orphan `</important>` tag removed.
-- Circular import in reminders system: `system_prompt.py` now imports `ReminderTag` from `types` directly.
-- Type error in story dedup: `groups` cursor result converted to list before `len()`.
-- Renderer tests updated to match current tag format (session attributes, wrapper tags, truncation length).
-
----
-
-## [v1.14.1] — 2026-03-31
-
 ### Added
-- `charlie context --save` (`-S`) flag: writes the activation context to a temp file and prints the path, making it easy to pipe into other tools.
-- `format_time` helper in `time_utils`: formats a datetime as a locale-aware time string (e.g. "02:30 PM").
-- Hatchling build hooks (`tools/build_web.py`, `tools/extract_tags.py`) so `uv build --wheel` bundles the compiled web dashboard automatically.
 - `StoryStore.find_by_tier_and_period` method: finds a rollup story by (tier, period_start, period_end) with timezone-normalized date matching.
 - Story dedup pass on server startup: soft-deletes all but the most recently updated story for each duplicate rollup period, resolving double-write races.
 
 ### Changed
-- `relative_date` now returns `"Yesterday at HH:MM AM/PM"` instead of bare `"Yesterday"`, preserving time-of-day context.
-- FTS query sanitizer now uses `spacy.lang.en.stop_words.STOP_WORDS` (~300+ words) instead of a hardcoded ~70-word set, improving search relevance.
-- Vector index rebuild is now synchronous on server startup, eliminating a race window where early requests would query stale indexes.
-- Server startup silences HuggingFace/transformers noise (`HF_HUB_VERBOSITY=error`, `TRANSFORMERS_VERBOSITY=error`, `HF_HUB_DISABLE_PROGRESS_BARS=1`).
-- `charlie context` and `charlie hooks session-start` now default `--workspace` to `os.getcwd()` when not provided, so context always reflects the current directory.
-- Session builder now fetches the 10 most recent sessions globally instead of workspace-scoped sessions within 1 day.
-- Empty reminder results are filtered before rendering to prevent blank XML tags in the activation context.
 - Hook stdin parsing centralized into `IncomingHookContext` dataclass and `_incoming_context()` helper. All hooks now share a single validation path for session_id, subagent detection, and agent-type filtering.
 - Hooks now skip processing when `agent_type` is present but is not `Charlieverse:Charlie`, preventing activation context from running for other agents in the same session.
 - `StoryStore.upsert` now matches rollup stories by (tier, period_start, period_end) before falling back to ID — prevents duplicate rollup stories from being created across timezone-shifted period windows.
@@ -43,12 +23,47 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 - Installer (`integrations/claude/install.sh`) cleaned up.
 
 ### Fixed
+- Malformed XML in activation context: `time=` attribute missing closing quote, orphan `</important>` tag removed.
+- Circular import in reminders system: `system_prompt.py` now imports `ReminderTag` from `types` directly.
+- Type error in story dedup: `groups` cursor result converted to list before `len()`.
+- Renderer tests updated to match current tag format (session attributes, wrapper tags, truncation length).
 - Temporal context fallback and trailing newline issue resolved.
 
 ### Removed
-- Work-log system: `WorkLog` model, `WorkLogStore`, `POST /api/log`, `GET /api/work-logs/latest` endpoints, `charlie log` CLI command, `work_logs` / `work_logs_fts` database tables, and the `scripts/migrate.sh` helper.
-- `save-reminder` hook (PreCompact): removed from `charlie hooks`.
 - Codex and Copilot CLI agent integrations (`prompts/cli/Codex.md`, `prompts/cli/Copilot.md`, `prompts/skills/codex/`, `prompts/skills/copilot/`) — these passthrough wrappers were unused and unmaintained.
+
+### Decisions Recorded
+- ADR: Hook stdin parsing centralized with IncomingHookContext dataclass
+- ADR: Codex and Copilot CLI agent integrations removed
+
+---
+
+## [v1.14.1] — 2026-03-31
+
+### Added
+- `charlie context --save` (`-S`) flag: writes the activation context to a temp file and prints the path, making it easy to pipe into other tools.
+- `format_time` helper in `time_utils`: formats a datetime as a locale-aware time string (e.g. "02:30 PM").
+- Hatchling build hooks (`tools/build_web.py`, `tools/extract_tags.py`) so `uv build --wheel` bundles the compiled web dashboard automatically.
+
+### Changed
+- `relative_date` now returns `"Yesterday at HH:MM AM/PM"` instead of bare `"Yesterday"`, preserving time-of-day context.
+- FTS query sanitizer now uses `spacy.lang.en.stop_words.STOP_WORDS` (~300+ words) instead of a hardcoded ~70-word set, improving search relevance.
+- Vector index rebuild is now synchronous on server startup, eliminating a race window where early requests would query stale indexes.
+- Server startup silences HuggingFace/transformers noise (`HF_HUB_VERBOSITY=error`, `TRANSFORMERS_VERBOSITY=error`, `HF_HUB_DISABLE_PROGRESS_BARS=1`).
+- `charlie context` and `charlie hooks session-start` now default `--workspace` to `os.getcwd()` when not provided, so context always reflects the current directory.
+- `charlie hooks session-start` no longer injects a `very-very-important` XML block into the activation context.
+- Session builder now fetches the 10 most recent sessions globally instead of workspace-scoped sessions within 1 day.
+- Empty reminder results are filtered before rendering to prevent blank XML tags in the activation context.
+- `recent_messages` renderer removes a stray leading space from message content.
+- `Charlie.md` rewritten as structured XML with identity, language rules, voice (kill list + examples), personality, and behavior blocks.
+- `setup.sh` rewritten as a lightweight POSIX shell installer.
+- `spacy` model download in `charlie init` uses `spacy.cli.download` API directly instead of subprocess.
+- Server health polling interval increased to 1s with a 5s initial delay to account for startup time.
+- `bin/charlie` no longer passes `--no-sync` to `uv run`.
+
+### Removed
+- Work-log system: `WorkLog` model, `WorkLogStore`, `POST /api/log`, `GET /api/work-logs/latest` endpoints, `charlie log` CLI command, `work_logs` / `work_logs_fts` database tables, and the `scripts/migrate.sh` helper. The feature was never wired into the activation context or MCP tools.
+- `save-reminder` hook (PreCompact): removed from `charlie hooks`.
 - `docs/competitive-intel-ai-coding-tools-2025.md`: stale research document removed.
 
 ### Decisions Recorded
