@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
+
 
 class ReminderTag(Enum):
     """XML tag used to wrap reminder content in additionalContext."""
@@ -32,7 +33,7 @@ class HookContext:
     """
 
     event: str  # "UserPromptSubmit", "PreToolUse", "PostToolUse", etc.
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     session_id: str | None = None
     message: str | None = None
     tool_name: str | None = None

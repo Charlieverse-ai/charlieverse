@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def _normalize_tz(dt: datetime) -> datetime:
@@ -13,13 +13,13 @@ def _normalize_tz(dt: datetime) -> datetime:
     """
     if dt.tzinfo is None:
         # Naive — assume local time, make aware, then convert to UTC
-        return dt.astimezone(timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.astimezone(UTC)
+    return dt.astimezone(UTC)
 
 
 def format_datetime(dt: datetime) -> str:
     """Format a datetime for display in reminders/context."""
-    
+
     import locale
     import time
 
@@ -30,12 +30,12 @@ def format_datetime(dt: datetime) -> str:
 
     if time.strftime("%p"):
         return dt.strftime("%B %d, %Y %I:%M %p")
-    
+
     return dt.strftime("%B %d, %Y %H:%M")
 
 def format_time(dt: datetime) -> str:
     """Format a datetime for display in reminders/context."""
-    
+
     import locale
     import time
 
@@ -46,7 +46,7 @@ def format_time(dt: datetime) -> str:
 
     if time.strftime("%p"):
         return dt.strftime("%I:%M %p")
-    
+
     return dt.strftime("%Y %H:%M")
 
 def relative_time(start: datetime, now: datetime) -> str:
@@ -79,7 +79,7 @@ def relative_date(date: datetime) -> str:
     e.g. "just now", "5 minutes ago", "2.5 hours ago", "3 days ago"
     Falls back to full date format for dates older than a week.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     diff = now - _normalize_tz(date)
     total_seconds = diff.total_seconds()
 

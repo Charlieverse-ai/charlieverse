@@ -7,7 +7,11 @@ from collections import defaultdict
 
 from charlieverse.context.reminders.rules import register_rules
 from charlieverse.context.reminders.rules.base import ReminderRule
-from charlieverse.context.reminders.types import HookContext, ReminderResult, ReminderTag
+from charlieverse.context.reminders.types import (
+    HookContext,
+    ReminderResult,
+    ReminderTag,
+)
 
 
 class RemindersEngine:

@@ -1,13 +1,25 @@
 """Entity extraction from text using spaCy NER + keyword extraction."""
-
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 
-import spacy
+from spacy.language import Language
 
-_nlp: spacy.language.Language | None = None
+from charlieverse.config import config
+
+logger = logging.getLogger(__name__)
+
+_nlp: Language | None = None
+
+_MODEL_NAME = "en_core_web_sm"
+_MODEL_VERSION = "3.8.0"
+_MODEL_URL = (
+    f"https://github.com/explosion/spacy-models/releases/download/"
+    f"{_MODEL_NAME}-{_MODEL_VERSION}/{_MODEL_NAME}-{_MODEL_VERSION}-py3-none-any.whl"
+)
 
 # Entity labels worth extracting for memory search
 _RELEVANT_LABELS = {"PERSON", "ORG", "PRODUCT", "GPE", "EVENT", "WORK_OF_ART", "FAC", "NORP"}
@@ -19,8 +31,6 @@ _RANGE_KEYWORDS = {
     "year": 365,
     "quarter": 90,
 }
-
-
 @dataclass
 class TemporalRef:
     """A resolved temporal reference with a date range."""
@@ -30,16 +40,68 @@ class TemporalRef:
     end: datetime
 
 
-def _get_nlp() -> spacy.language.Language | None:
-    """Lazy-load the spaCy model. Returns None if model not installed."""
+def _model_dir() -> Path:
+    """Persistent model directory outside uv's environment."""
+    return config.path / "models"
+
+
+def _model_path() -> Path:
+    """Path to the extracted spaCy model."""
+    return _model_dir() / _MODEL_NAME / f"{_MODEL_NAME}-{_MODEL_VERSION}"
+
+
+def _ensure_model() -> Path:
+    """Download and extract the spaCy model if not already present."""
+    path = _model_path()
+    if path.exists() and (path / "meta.json").exists():
+        return path
+
+    import io
+    import urllib.request
+    import zipfile
+
+    logger.info("Downloading spaCy model %s-%s...", _MODEL_NAME, _MODEL_VERSION)
+    dest = _model_dir()
+    dest.mkdir(parents=True, exist_ok=True)
+
+    # Download the wheel (it's a zip)
+    with urllib.request.urlopen(_MODEL_URL) as resp:
+        data = resp.read()
+
+    # Extract only the model package (skip dist-info)
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        for member in zf.namelist():
+            if member.startswith(f"{_MODEL_NAME}/"):
+                zf.extract(member, dest)
+
+    if not path.exists():
+        raise RuntimeError(f"Model extraction failed: {path} not found")
+
+    logger.info("spaCy model installed to %s", path)
+    return path
+
+
+def _load_model() -> Language:
+    from spacy import load
+    path = _ensure_model()
+    return load(path)
+
+def prewarm_nlp():
+    logger.info("Loading Vector Models")
+    global _nlp
+    _nlp = _load_model()
+    logger.info("Vector Models Loaded")
+
+def _get_nlp() -> Language | None:
+    """Lazy-load the spaCy model. Returns None if unavailable."""
     global _nlp
     if _nlp is None:
         try:
-            _nlp = spacy.load("en_core_web_sm")
-        except OSError:
+            _nlp = _load_model()
+        except Exception:
+            logger.exception("Failed to load spaCy model")
             return None
     return _nlp
-
 
 def _resolve_date_range(text: str, now: datetime | None = None) -> TemporalRef | None:
     """Resolve a temporal expression to a date range.

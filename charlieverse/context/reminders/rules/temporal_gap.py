@@ -5,8 +5,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from charlieverse.context.reminders.rules.base import ReminderRule
-from charlieverse.context.reminders.types import HookContext, ReminderResult, ReminderTag
-from charlieverse.context.time_utils import relative_time, _normalize_tz
+from charlieverse.context.reminders.types import (
+    HookContext,
+    ReminderResult,
+    ReminderTag,
+)
+from charlieverse.context.time_utils import _normalize_tz, relative_time
 
 GAP_THRESHOLD_SECONDS = 300  # 5 minutes
 

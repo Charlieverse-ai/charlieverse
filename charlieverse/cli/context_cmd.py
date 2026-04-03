@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import typer
 import os
-from charlieverse.config import config
-
 import tempfile
+
+import typer
+
+from charlieverse.config import config
 
 DEFAULT_HOST = config.server.ip_address()
 DEFAULT_PORT = config.server.port
@@ -46,9 +47,9 @@ async def _context(
                 params=params,
             )
             resp.raise_for_status()
-            
+
             if save:
-                with tempfile.NamedTemporaryFile(mode='w+t', delete=False) as tmpfile:
+                with tempfile.NamedTemporaryFile(mode="w+t", delete=False) as tmpfile:
                     tmpfile.write(resp.text)
                     tmpfile.close()
                     typer.echo(tmpfile.name)

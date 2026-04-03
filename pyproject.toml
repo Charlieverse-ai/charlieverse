@@ -1,12 +1,12 @@
 [project]
 name = "charlieverse"
-version = "1.14.2"
+version = "1.14.3"
 description = "Persistent memory layer for your AI with a personality that just knows."
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 license = "Apache-2.0"
 dependencies = [
-    "fastmcp>=2.0",
+    "fastmcp>=3.0",
     "typer>=0.12",
     "aiosqlite>=0.20",
     "sqlite-vec>=0.1",
@@ -14,9 +14,10 @@ dependencies = [
     "pydantic>=2.0",
     "httpx>=0.28.1",
     "pyyaml>=6.0",
-    "spacy>=3.7",
+    "spacy>=3.8",
     "dateparser>=1.2",
     "pip>=26.0.1",
+    "requests>=2.32.5",
 ]
 
 [project.scripts]
@@ -64,6 +65,7 @@ dev = [
     "ruff>=0.15.6",
     "ty>=0.0.23",
     "hatch>=1.16.5",
+    "debugpy>=1.8.20",
 ]
 
 [tool.pytest.ini_options]
@@ -79,3 +81,9 @@ omit = ["charlieverse/cli/server_cmd.py"]
 [tool.coverage.report]
 show_missing = true
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
+
+[tool.ruff]
+line-length = 160
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "Q", "UP", "I", "N"]

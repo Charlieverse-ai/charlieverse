@@ -11,18 +11,16 @@ import shutil
 import socket
 import sqlite3
 import sys
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Callable
 
 import typer
 from rich.console import Console
-from rich.table import Table
-from rich import box
 
-from charlieverse.config import config
 from charlieverse import paths
+from charlieverse.config import config
 
 console = Console()
 
@@ -30,7 +28,7 @@ console = Console()
 # ── Result types ─────────────────────────────────────────────────────────────
 
 
-class Status(str, Enum):
+class Status(Enum):
     PASS = "pass"
     FAIL = "fail"
     WARN = "warn"
@@ -105,22 +103,23 @@ def check_dependencies() -> list[CheckResult]:
 
 
 def check_spacy_model() -> CheckResult:
-    """Verify en_core_web_sm is installed."""
+    """Verify model is installed."""
+    from charlieverse.nlp.extractor import _load_model
+
     try:
-        import spacy  # noqa: F401
-        spacy.load("en_core_web_sm")
-        return _pass("spaCy model", "en_core_web_sm loaded")
+        _load_model()
+        return _pass("spaCy model", "model loaded")
     except ImportError:
-        return _fail(
-            "spaCy model",
-            "spacy not installed",
-            fix="uv sync",
-        )
+        return _fail("spaCy model", "spacy not installed")
     except OSError:
         return _fail(
             "spaCy model",
-            "en_core_web_sm not found",
-            fix="uv sync  (or: python -m spacy download en_core_web_sm)",
+            "model not found",
+        )
+    except Exception:
+        return _fail(
+            "spaCy model",
+            "model not found",
         )
 
 
@@ -299,8 +298,8 @@ def check_server() -> list[CheckResult]:
         )
 
     # Health endpoint
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     health_url = config.server.api_url("health")
     try:
@@ -381,10 +380,7 @@ def check_providers() -> list[CheckResult]:
             try:
                 settings = json.loads(claude_settings.read_text())
                 enabled_plugins = settings.get("enabledPlugins", {})
-                charlie_enabled = any(
-                    "charlieverse" in k.lower() or "Charlie" in k
-                    for k in enabled_plugins
-                )
+                charlie_enabled = any("charlieverse" in k.lower() or "Charlie" in k for k in enabled_plugins)
                 if charlie_enabled:
                     results.append(_pass("Claude Code config", "Charlieverse plugin enabled in settings.json"))
                 else:
@@ -421,7 +417,7 @@ def check_providers() -> list[CheckResult]:
         if charlie_integration:
             hooks_json = charlie_integration / "hooks" / "hooks.json"
             if hooks_json.exists():
-                results.append(_pass("Claude Code hooks", f"hooks.json present"))
+                results.append(_pass("Claude Code hooks", "hooks.json present"))
             else:
                 results.append(
                     _warn(
@@ -449,9 +445,7 @@ def check_providers() -> list[CheckResult]:
             Path.home() / "Library" / "Application Support" / "Code" / "User" / "settings.json",
             Path.home() / ".config" / "Code" / "User" / "settings.json",
         ]
-        vscode_settings: Path | None = next(
-            (p for p in vscode_settings_candidates if p.exists()), None
-        )
+        vscode_settings: Path | None = next((p for p in vscode_settings_candidates if p.exists()), None)
 
         if vscode_settings is None:
             results.append(
@@ -551,7 +545,9 @@ def check_hooks() -> list[CheckResult]:
                         )
                     )
                 else:
-                    results.append(_pass("Claude Code hooks registration", f"SessionStart, UserPromptSubmit, Stop registered"))
+                    results.append(
+                        _pass("Claude Code hooks registration", "SessionStart, UserPromptSubmit, Stop registered")
+                    )
             except (json.JSONDecodeError, OSError) as exc:
                 results.append(
                     _warn(
@@ -577,7 +573,9 @@ def check_hooks() -> list[CheckResult]:
                     )
                 )
             else:
-                results.append(_pass("VS Code / Copilot hooks registration", "SessionStart, UserPromptSubmit, Stop registered"))
+                results.append(
+                    _pass("VS Code / Copilot hooks registration", "SessionStart, UserPromptSubmit, Stop registered")
+                )
         except (json.JSONDecodeError, OSError) as exc:
             results.append(
                 _warn(

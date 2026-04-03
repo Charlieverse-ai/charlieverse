@@ -1,10 +1,13 @@
 """System prompt reminder — always on."""
 
 from __future__ import annotations
-from charlieverse.context.reminders.types import ReminderTag
 
 from charlieverse.context.reminders.rules.base import ReminderRule
-from charlieverse.context.reminders.types import HookContext, ReminderResult
+from charlieverse.context.reminders.types import (
+    HookContext,
+    ReminderResult,
+    ReminderTag,
+)
 
 
 class SystemPromptRule(ReminderRule):

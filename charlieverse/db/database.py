@@ -9,7 +9,6 @@ from pathlib import Path
 import aiosqlite
 import sqlite_vec
 
-
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 logger = logging.getLogger(__name__)
 

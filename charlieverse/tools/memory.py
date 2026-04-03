@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore
@@ -277,10 +278,10 @@ def _rank_by_relevance_and_recency(
     Recency: exponential decay based on days since updated_at.
     Final score = (1 - recency_weight) * relevance + recency_weight * recency.
     """
-    from datetime import datetime, timezone
     import math
+    from datetime import datetime
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     def score(e: Entity) -> float:
         # Relevance: both sources = 1.0, one source = 0.5
@@ -292,9 +293,7 @@ def _rank_by_relevance_and_recency(
             relevance = 0.5
 
         # Recency: half-life of 14 days (2 weeks old = 0.5, 4 weeks = 0.25)
-        days_old = max((now - e.updated_at.replace(tzinfo=timezone.utc
-                        if e.updated_at.tzinfo is None else e.updated_at.tzinfo)
-                        ).total_seconds() / 86400, 0)
+        days_old = max((now - e.updated_at.replace(tzinfo=UTC if e.updated_at.tzinfo is None else e.updated_at.tzinfo)).total_seconds() / 86400, 0)
         recency = math.exp(-0.693 * days_old / 14)  # ln(2) ≈ 0.693
 
         return (1 - recency_weight) * relevance + recency_weight * recency
@@ -347,7 +346,9 @@ async def recall(
 
     # Re-sort by combined relevance + recency score
     merged_entities = _rank_by_relevance_and_recency(
-        merged_entities, fts_ids, vec_ids,
+        merged_entities,
+        fts_ids,
+        vec_ids,
     )
 
     # Search stories
@@ -361,13 +362,14 @@ async def recall(
             pass
 
     # Search messages if db is available
-    from charlieverse.tools.responses.recall_response import MessageSummary
-    from charlieverse.db.fts import sanitize_fts_query
+    from datetime import datetime
+
     from charlieverse.context.time_utils import relative_date
-    from datetime import datetime, timezone
+    from charlieverse.db.fts import sanitize_fts_query
+    from charlieverse.tools.responses.recall_response import MessageSummary
 
     # Junk patterns to filter out of message search results
-    _JUNK_PREFIXES = (
+    _junk_prefixes = (
         "<task-notification>",
         "<command-name>",
         "<local-command",
@@ -392,18 +394,21 @@ async def recall(
                     if len(message_results) >= min(limit, 5):
                         break
                     content = row["content"].strip()
-                    if any(content.startswith(p) for p in _JUNK_PREFIXES):
+                    if any(content.startswith(p) for p in _junk_prefixes):
                         continue
                     try:
                         dt = datetime.fromisoformat(row["created_at"])
                         age = relative_date(dt)
                     except (ValueError, TypeError):
                         age = row["created_at"]
-                    message_results.append(MessageSummary(
-                        id=row["id"], role=row["role"],
-                        content=_truncate(content, _MAX_MESSAGE_CONTENT)[0],
-                        age=age,
-                    ))
+                    message_results.append(
+                        MessageSummary(
+                            id=row["id"],
+                            role=row["role"],
+                            content=_truncate(content, _MAX_MESSAGE_CONTENT)[0],
+                            age=age,
+                        )
+                    )
         except Exception:
             pass
 
@@ -411,9 +416,13 @@ async def recall(
     knowledge_summaries = []
     for k in knowledge_results:
         content, truncated = _truncate(k.content, _MAX_KNOWLEDGE_CONTENT)
-        knowledge_summaries.append(KnowledgeSummary(
-            id=k.id, content=content, truncated=truncated,
-        ))
+        knowledge_summaries.append(
+            KnowledgeSummary(
+                id=k.id,
+                content=content,
+                truncated=truncated,
+            )
+        )
 
     # Build story summaries — prefer summary field, fall back to truncated content
     story_summaries = []
@@ -422,10 +431,15 @@ async def recall(
             summary_text, truncated = s.summary, False
         else:
             summary_text, truncated = _truncate(s.content, _MAX_STORY_CONTENT)
-        story_summaries.append(StorySummary(
-            id=str(s.id), title=s.title, tier=s.tier.value,
-            summary=summary_text, truncated=truncated,
-        ))
+        story_summaries.append(
+            StorySummary(
+                id=str(s.id),
+                title=s.title,
+                tier=s.tier.value,
+                summary=summary_text,
+                truncated=truncated,
+            )
+        )
 
     return RecallResponse(
         entities=[_to_summary(e) for e in merged_entities[:limit]],
@@ -447,6 +461,7 @@ async def update_memory(
     entity = await memories.get(UUID(id))
     if not entity:
         from fastmcp.exceptions import ToolError
+
         raise ToolError(f"Entity {id} not found")
 
     if content is not None:

@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-import pytest
-
-from charlieverse.context.time_utils import format_datetime, format_time, relative_date, relative_time
-
+from charlieverse.context.time_utils import (
+    format_datetime,
+    format_time,
+    relative_date,
+    relative_time,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _ago(seconds: float) -> datetime:
@@ -27,7 +29,7 @@ def _ago(seconds: float) -> datetime:
 
 
 def test_format_datetime_returns_string():
-    dt = datetime(2026, 3, 22, 14, 30, tzinfo=timezone.utc)
+    dt = datetime(2026, 3, 22, 14, 30, tzinfo=UTC)
     result = format_datetime(dt)
     assert isinstance(result, str)
     assert "2026" in result
@@ -40,14 +42,14 @@ def test_format_datetime_returns_string():
 
 
 def test_format_time_returns_string():
-    dt = datetime(2026, 3, 22, 14, 30, tzinfo=timezone.utc)
+    dt = datetime(2026, 3, 22, 14, 30, tzinfo=UTC)
     result = format_time(dt)
     assert isinstance(result, str)
     assert len(result) > 0
 
 
 def test_format_time_contains_digits():
-    dt = datetime(2026, 3, 22, 9, 5, tzinfo=timezone.utc)
+    dt = datetime(2026, 3, 22, 9, 5, tzinfo=UTC)
     result = format_time(dt)
     # Should contain time digits
     assert any(c.isdigit() for c in result)

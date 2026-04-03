@@ -2,38 +2,38 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from uuid import UUID, uuid4
+from datetime import UTC, datetime
 
+from attr import dataclass
 from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore
+from charlieverse.db.stores.context import StoreContext
 from charlieverse.embeddings import encode_one
+from charlieverse.helpers.uuid import uuid_from_str
 from charlieverse.models import Entity, EntityType, Knowledge
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _parse_uuid(value: str | None) -> UUID | None:
-    """Parse a UUID string, returning None on malformed input."""
-    if not value:
-        return None
-    try:
-        return UUID(value)
-    except (ValueError, AttributeError):
-        return None
 
+@dataclass
+class ErrorResponse:
+    invalid_uuid = JSONResponse({"error": "Invalid UUID format"}, status_code=400)
+    not_found = JSONResponse({"error": "Entity not found"}, status_code=404)
 
-_BAD_UUID = JSONResponse({"error": "Invalid UUID format"}, status_code=400)
+    @staticmethod
+    def missing_required(desc: str) -> JSONResponse:
+        return JSONResponse({"error": f"Missing Required: {desc}"}, status_code=400)
 
 
 # ---------------------------------------------------------------------------
 # Serializers
 # ---------------------------------------------------------------------------
+
 
 def _serialize_entity(entity) -> dict:
     """Convert an Entity model to a JSON-safe dict."""
@@ -80,7 +80,8 @@ def _serialize_knowledge(article) -> dict:
 # Route registration
 # ---------------------------------------------------------------------------
 
-def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
+
+def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     """Register entity/knowledge/session REST endpoints on the given FastMCP instance."""
 
     @mcp.custom_route("/api/entities", methods=["GET"])
@@ -99,13 +100,16 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_get_entity(request: Request) -> JSONResponse:
         """Get a single entity by ID."""
         memories: MemoryStore = rest_stores["memories"]
-        uid = _parse_uuid(request.path_params["id"])
+        uuid_str = request.path_params.get("id")
+        if not uuid_str:
+            return ErrorResponse.missing_required("Entity ID")
+        uid = uuid_from_str(uuid_str)
         if not uid:
-            return _BAD_UUID
+            return ErrorResponse.invalid_uuid
 
         entity = await memories.get(uid)
         if not entity:
-            return JSONResponse({"error": "Entity not found"}, status_code=404)
+            return ErrorResponse.not_found
 
         return JSONResponse(_serialize_entity(entity))
 
@@ -114,13 +118,20 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         """Create a new entity."""
         body = await request.json()
         memories: MemoryStore = rest_stores["memories"]
+        session_id = body.get("session_id")
+        if not session_id:
+            return ErrorResponse.missing_required("session_id")
+
+        uuid = uuid_from_str(session_id)
+        if not uuid:
+            return ErrorResponse.invalid_uuid
 
         entity = Entity(
             type=EntityType(body["type"]),
             content=body["content"],
             tags=body.get("tags"),
             pinned=body.get("pinned", False),
-            created_session_id=UUID(body.get("session_id", str(uuid4()))),
+            created_session_id=uuid,
         )
         created = await memories.create(entity)
 
@@ -136,14 +147,18 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_update_entity(request: Request) -> JSONResponse:
         """Update an entity's content, tags, or pinned status."""
         memories: MemoryStore = rest_stores["memories"]
-        uid = _parse_uuid(request.path_params["id"])
+        uuid_str = request.path_params.get("id")
+        if not uuid_str:
+            return ErrorResponse.missing_required("Entity ID")
+        uid = uuid_from_str(uuid_str)
         if not uid:
-            return _BAD_UUID
+            return ErrorResponse.invalid_uuid
+
         body = await request.json()
 
         entity = await memories.get(uid)
         if not entity:
-            return JSONResponse({"error": "Entity not found"}, status_code=404)
+            return ErrorResponse.not_found
 
         if "content" in body:
             entity.content = body["content"]
@@ -152,7 +167,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         if "pinned" in body:
             entity.pinned = body["pinned"]
 
-        entity.updated_at = datetime.now(timezone.utc)
+        entity.updated_at = datetime.now(UTC)
         updated = await memories.update(entity)
 
         if "content" in body:
@@ -168,13 +183,16 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_delete_entity(request: Request) -> JSONResponse:
         """Soft-delete an entity."""
         memories: MemoryStore = rest_stores["memories"]
-        uid = _parse_uuid(request.path_params["id"])
+        uuid_str = request.path_params.get("id")
+        if not uuid_str:
+            return ErrorResponse.missing_required("Entity ID")
+        uid = uuid_from_str(uuid_str)
         if not uid:
-            return _BAD_UUID
+            return ErrorResponse.invalid_uuid
 
         entity = await memories.get(uid)
         if not entity:
-            return JSONResponse({"error": "Entity not found"}, status_code=404)
+            return ErrorResponse.not_found
 
         await memories.delete(uid)
         return JSONResponse({"deleted": True})
@@ -183,14 +201,17 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_pin_entity(request: Request) -> JSONResponse:
         """Toggle pin status on an entity."""
         memories: MemoryStore = rest_stores["memories"]
-        uid = _parse_uuid(request.path_params["id"])
+        uuid_str = request.path_params.get("id")
+        if not uuid_str:
+            return ErrorResponse.missing_required("Entity ID")
+        uid = uuid_from_str(uuid_str)
         if not uid:
-            return _BAD_UUID
+            return ErrorResponse.invalid_uuid
         body = await request.json()
 
         entity = await memories.get(uid)
         if not entity:
-            return JSONResponse({"error": "Entity not found"}, status_code=404)
+            return ErrorResponse.not_found
 
         pinned = body.get("pinned", not entity.pinned)
         await memories.pin(uid, pinned)
@@ -212,9 +233,12 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_get_knowledge(request: Request) -> JSONResponse:
         """Get a single knowledge article by ID."""
         knowledge: KnowledgeStore = rest_stores["knowledge"]
-        uid = _parse_uuid(request.path_params["id"])
+        uuid_str = request.path_params.get("id")
+        if not uuid_str:
+            return ErrorResponse.missing_required("Entity ID")
+        uid = uuid_from_str(uuid_str)
         if not uid:
-            return _BAD_UUID
+            return ErrorResponse.invalid_uuid
 
         article = await knowledge.get(uid)
         if not article:
@@ -227,13 +251,19 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         """Create a new knowledge article."""
         body = await request.json()
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
+        uuid_str = body.get("session_id")
+        if not uuid_str:
+            return ErrorResponse.missing_required("session_id")
+        uid = uuid_from_str(uuid_str)
+        if not uid:
+            return ErrorResponse.invalid_uuid
 
         article = Knowledge(
             topic=body["topic"],
             content=body["content"],
             tags=body.get("tags"),
             pinned=body.get("pinned", False),
-            created_session_id=UUID(body.get("session_id", str(uuid4()))),
+            created_session_id=uid,
         )
         created = await knowledge_store.create(article)
 
@@ -249,9 +279,12 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_update_knowledge(request: Request) -> JSONResponse:
         """Update a knowledge article's topic, content, tags, or pinned status."""
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
-        uid = _parse_uuid(request.path_params["id"])
+        uuid_str = request.path_params.get("id")
+        if not uuid_str:
+            return ErrorResponse.missing_required("Entity ID")
+        uid = uuid_from_str(uuid_str)
         if not uid:
-            return _BAD_UUID
+            return ErrorResponse.invalid_uuid
         body = await request.json()
 
         article = await knowledge_store.get(uid)
@@ -267,7 +300,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         if "pinned" in body:
             article.pinned = body["pinned"]
 
-        article.updated_at = datetime.now(timezone.utc)
+        article.updated_at = datetime.now(UTC)
         updated = await knowledge_store.upsert(article)
 
         if "topic" in body or "content" in body:
@@ -283,9 +316,12 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_delete_knowledge(request: Request) -> JSONResponse:
         """Delete a knowledge article."""
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
-        uid = _parse_uuid(request.path_params["id"])
+        uuid_str = request.path_params.get("id")
+        if not uuid_str:
+            return ErrorResponse.missing_required("Entity ID")
+        uid = uuid_from_str(uuid_str)
         if not uid:
-            return _BAD_UUID
+            return ErrorResponse.invalid_uuid
 
         article = await knowledge_store.get(uid)
         if not article:
@@ -298,9 +334,12 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_pin_knowledge(request: Request) -> JSONResponse:
         """Toggle pin status on a knowledge article."""
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
-        uid = _parse_uuid(request.path_params["id"])
+        uuid_str = request.path_params.get("id")
+        if not uuid_str:
+            return ErrorResponse.missing_required("Entity ID")
+        uid = uuid_from_str(uuid_str)
         if not uid:
-            return _BAD_UUID
+            return ErrorResponse.invalid_uuid
         body = await request.json()
 
         article = await knowledge_store.get(uid)
@@ -327,9 +366,12 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_get_session(request: Request) -> JSONResponse:
         """Get a single session by ID."""
         sessions: SessionStore = rest_stores["sessions"]
-        uid = _parse_uuid(request.path_params["id"])
+        uuid_str = request.path_params.get("id")
+        if not uuid_str:
+            return ErrorResponse.missing_required("Entity ID")
+        uid = uuid_from_str(uuid_str)
         if not uid:
-            return _BAD_UUID
+            return ErrorResponse.invalid_uuid
 
         session = await sessions.get(uid)
         if not session:
@@ -371,36 +413,34 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
             except Exception:
                 pass
 
-        return JSONResponse({
-            "entities": [_serialize_entity(e) for e in entity_results],
-            "knowledge": [_serialize_knowledge(a) for a in knowledge_results],
-        })
+        return JSONResponse(
+            {
+                "entities": [_serialize_entity(e) for e in entity_results],
+                "knowledge": [_serialize_knowledge(a) for a in knowledge_results],
+            }
+        )
 
     @mcp.custom_route("/api/stats", methods=["GET"])
     async def api_stats(request: Request) -> JSONResponse:
         """Dashboard stats — entity counts by type, session count, knowledge count."""
         db = rest_stores["db"]
 
-        cursor = await db.execute(
-            "SELECT type, COUNT(*) as count FROM entities WHERE deleted_at IS NULL GROUP BY type"
-        )
+        cursor = await db.execute("SELECT type, COUNT(*) as count FROM entities WHERE deleted_at IS NULL GROUP BY type")
         entity_rows = await cursor.fetchall()
         entity_counts = {row["type"]: row["count"] for row in entity_rows}
 
-        cursor = await db.execute(
-            "SELECT COUNT(*) as count FROM sessions WHERE deleted_at IS NULL AND what_happened IS NOT NULL"
-        )
+        cursor = await db.execute("SELECT COUNT(*) as count FROM sessions WHERE deleted_at IS NULL AND what_happened IS NOT NULL")
         session_row = await cursor.fetchone()
         session_count = session_row["count"] if session_row else 0
 
-        cursor = await db.execute(
-            "SELECT COUNT(*) as count FROM knowledge WHERE deleted_at IS NULL"
-        )
+        cursor = await db.execute("SELECT COUNT(*) as count FROM knowledge WHERE deleted_at IS NULL")
         knowledge_row = await cursor.fetchone()
         knowledge_count = knowledge_row["count"] if knowledge_row else 0
 
-        return JSONResponse({
-            "entities": entity_counts,
-            "sessions": session_count,
-            "knowledge": knowledge_count,
-        })
+        return JSONResponse(
+            {
+                "entities": entity_counts,
+                "sessions": session_count,
+                "knowledge": knowledge_count,
+            }
+        )

@@ -2,25 +2,28 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
-import pytest
-
 from charlieverse.context.builder import ContextBundle
 from charlieverse.context.renderer import (
-    render,
-    _render_entity,
-    _render_all_time_story,
-    _render_tricks,
-    _parse_period_date,
     _date_group_key,
+    _parse_period_date,
+    _render_all_time_story,
+    _render_entity,
+    _render_tricks,
     _session_time,
+    render,
 )
-from charlieverse.models import ContextMessage, Entity, EntityType, Knowledge, Session, Story
-
+from charlieverse.models import (
+    ContextMessage,
+    Entity,
+    EntityType,
+    Knowledge,
+    Session,
+    Story,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -72,7 +75,7 @@ def _bundle(**kwargs) -> ContextBundle:
 
 
 def test_most_recent_session_wrapped_in_last_session_tag():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = _session("most recent work", updated_at=now - timedelta(minutes=5))
     older = _session("older work", updated_at=now - timedelta(hours=2))
     bundle = _bundle(recent_sessions=[recent, older])
@@ -82,7 +85,7 @@ def test_most_recent_session_wrapped_in_last_session_tag():
 
 
 def test_non_recent_sessions_wrapped_in_session_tag():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = _session("most recent", updated_at=now - timedelta(minutes=5))
     older = _session("older session", updated_at=now - timedelta(hours=2))
     bundle = _bundle(recent_sessions=[recent, older])
@@ -92,7 +95,7 @@ def test_non_recent_sessions_wrapped_in_session_tag():
 
 
 def test_only_first_session_gets_last_session_tag():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     s1 = _session("first", updated_at=now - timedelta(minutes=5))
     s2 = _session("second", updated_at=now - timedelta(hours=1))
     s3 = _session("third", updated_at=now - timedelta(hours=2))
@@ -105,7 +108,7 @@ def test_only_first_session_gets_last_session_tag():
 
 
 def test_no_our_timeline_wrapper():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = _session("some work", updated_at=now - timedelta(minutes=5))
     bundle = _bundle(recent_sessions=[recent])
     output = render(bundle)
@@ -114,7 +117,7 @@ def test_no_our_timeline_wrapper():
 
 
 def test_single_session_uses_last_session_tag():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     only = _session("only session", updated_at=now - timedelta(minutes=10))
     bundle = _bundle(recent_sessions=[only])
     output = render(bundle)
@@ -134,7 +137,7 @@ def test_time_weighting_note_present():
 
 
 def test_sessions_ordering_note_present_when_sessions_exist():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = _session("recent", updated_at=now - timedelta(minutes=5))
     bundle = _bundle(recent_sessions=[recent])
     output = render(bundle)
@@ -172,7 +175,7 @@ def test_non_moment_entity_date_header_has_no_saved_prefix():
     assert "Saved:" not in output
     # Date line should start with "### " but NOT "### Saved:"
     lines = output.strip().splitlines()
-    date_lines = [l for l in lines if l.startswith("### ")]
+    date_lines = [line for line in lines if line.startswith("### ")]
     assert len(date_lines) == 1
     assert not date_lines[0].startswith("### Saved:")
 
@@ -212,7 +215,7 @@ def test_date_group_key_older():
     older = now - timedelta(days=5)
     result = _date_group_key(older, now)
     # Should be a full date string, not Today/Yesterday
-    assert result not in ("Today", ) and not result.startswith("Yesterday")
+    assert result not in ("Today",) and not result.startswith("Yesterday")
 
 
 # ---------------------------------------------------------------------------
@@ -529,12 +532,12 @@ def _context_message(role: str = "user", content: str = "hello", offset_seconds:
     return ContextMessage(
         role=role,
         content=content,
-        created_at=datetime.now(timezone.utc) - timedelta(seconds=offset_seconds),
+        created_at=datetime.now(UTC) - timedelta(seconds=offset_seconds),
     )
 
 
 def test_render_includes_recent_messages_tag_when_present():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = _session("most recent work", updated_at=now - timedelta(minutes=5))
     msgs = [
         _context_message("user", "what are we working on?", 120),
@@ -547,7 +550,7 @@ def test_render_includes_recent_messages_tag_when_present():
 
 
 def test_render_recent_messages_shows_user_content():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = _session("recent work", updated_at=now - timedelta(minutes=5))
     msgs = [_context_message("user", "tell me about the changes", 60)]
     bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
@@ -556,7 +559,7 @@ def test_render_recent_messages_shows_user_content():
 
 
 def test_render_recent_messages_shows_assistant_content():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = _session("recent work", updated_at=now - timedelta(minutes=5))
     msgs = [_context_message("assistant", "here is what i found", 60)]
     bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
@@ -565,7 +568,7 @@ def test_render_recent_messages_shows_assistant_content():
 
 
 def test_render_recent_messages_truncates_long_content():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = _session("recent work", updated_at=now - timedelta(minutes=5))
     long_content = "x" * 600
     msgs = [_context_message("assistant", long_content, 60)]
@@ -582,7 +585,7 @@ def test_render_recent_messages_does_not_appear_when_empty():
 
 
 def test_render_recent_messages_only_in_last_session():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = _session("most recent", updated_at=now - timedelta(minutes=5))
     older = _session("older", updated_at=now - timedelta(hours=2))
     msgs = [_context_message("user", "context message", 60)]

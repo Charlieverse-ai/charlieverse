@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from charlieverse.models.entity import EntityType
 
-
 # ---------------------------------------------------------------------------
 # String values
 # ---------------------------------------------------------------------------

@@ -16,15 +16,14 @@ Defaults:
 """
 
 from __future__ import annotations
-from typing import Callable
 
 import json
+import os
 import platform
 import sys
-import os
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 # ============================================================
 # Shared helpers
@@ -181,7 +180,7 @@ def process_claude_file(jsonl_path: Path) -> list[dict]:
 
 def _epoch_ms_to_iso(ms: int | float) -> str:
     """Convert epoch milliseconds to ISO timestamp."""
-    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(ms / 1000, tz=UTC).isoformat()
 
 
 def _extract_copilot_response(response: list, session_id: str, workspace: str,

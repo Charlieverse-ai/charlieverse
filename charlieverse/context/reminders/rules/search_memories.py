@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from charlieverse.context.reminders.rules.base import ReminderRule
-from charlieverse.context.reminders.types import HookContext, ReminderResult, ReminderTag
+from charlieverse.context.reminders.types import (
+    HookContext,
+    ReminderResult,
+    ReminderTag,
+)
 
 
 class SearchMemoriesRule(ReminderRule):

@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
-
-import pytest
 
 from charlieverse.db.stores.session_store import _is_noise
 from charlieverse.models import Session
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -238,7 +235,7 @@ def test_is_noise_strips_whitespace():
 async def _insert_message(db, role: str, content: str, created_at: datetime | None = None) -> None:
     """Helper to insert a raw message row."""
     if created_at is None:
-        created_at = datetime.now(timezone.utc)
+        created_at = datetime.now(UTC)
     await db.execute(
         "INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
         (str(uuid4()), str(uuid4()), role, content, created_at.isoformat()),
@@ -252,7 +249,7 @@ async def test_recent_messages_returns_empty_when_no_messages(session_store):
 
 
 async def test_recent_messages_returns_chronological_order(db, session_store):
-    base = datetime.now(timezone.utc)
+    base = datetime.now(UTC)
     await _insert_message(db, "user", "first message", base - timedelta(minutes=5))
     await _insert_message(db, "assistant", "first reply", base - timedelta(minutes=4))
     await _insert_message(db, "user", "second message", base - timedelta(minutes=3))
@@ -266,7 +263,7 @@ async def test_recent_messages_returns_chronological_order(db, session_store):
 
 
 async def test_recent_messages_filters_noise(db, session_store):
-    base = datetime.now(timezone.utc)
+    base = datetime.now(UTC)
     await _insert_message(db, "user", "real question", base - timedelta(minutes=10))
     await _insert_message(db, "assistant", "real answer", base - timedelta(minutes=9))
     await _insert_message(db, "user", "/session-save", base - timedelta(minutes=8))
@@ -278,7 +275,7 @@ async def test_recent_messages_filters_noise(db, session_store):
 
 
 async def test_recent_messages_filters_system_reminder(db, session_store):
-    base = datetime.now(timezone.utc)
+    base = datetime.now(UTC)
     await _insert_message(db, "user", "normal question", base - timedelta(minutes=5))
     await _insert_message(db, "user", "<system-reminder>injected</system-reminder>", base - timedelta(minutes=4))
     await _insert_message(db, "assistant", "ok", base - timedelta(minutes=3))
@@ -289,7 +286,7 @@ async def test_recent_messages_filters_system_reminder(db, session_store):
 
 
 async def test_recent_messages_respects_turn_limit(db, session_store):
-    base = datetime.now(timezone.utc)
+    base = datetime.now(UTC)
     # Insert 5 user+assistant turns
     for i in range(5):
         offset = timedelta(minutes=10 - i * 2)
@@ -304,7 +301,7 @@ async def test_recent_messages_respects_turn_limit(db, session_store):
 
 async def test_recent_messages_returns_context_message_objects(db, session_store):
     from charlieverse.models import ContextMessage
-    base = datetime.now(timezone.utc)
+    base = datetime.now(UTC)
     await _insert_message(db, "user", "hello charlie", base - timedelta(minutes=2))
     await _insert_message(db, "assistant", "hello there!", base - timedelta(minutes=1))
 

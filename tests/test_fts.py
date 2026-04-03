@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-import pytest_asyncio
 import aiosqlite
-from hypothesis import given, settings
 import hypothesis.strategies as st
+import pytest_asyncio
+from hypothesis import given, settings
 
 from charlieverse.db.fts import sanitize_fts_query
-
 
 # ---------------------------------------------------------------------------
 # Basic unit tests

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import aiosqlite
-
-from datetime import datetime, timezone
+import builtins
+from datetime import UTC, datetime
 from uuid import UUID
-from typing import List
+
+import aiosqlite
 
 from charlieverse.db.stores._utils import _tags_json, _tags_list
 from charlieverse.models import Knowledge
@@ -59,6 +59,13 @@ class KnowledgeStore:
             (row[0], row[1], row[2], row[3] or ""),
         )
 
+    async def rebuild(self) -> None:
+        from asyncio import gather
+        await gather(
+            self.rebuild_fts(),
+            self.rebuild_vec()
+        )
+
     async def rebuild_fts(self) -> None:
         """Full FTS rebuild — used on startup, not per-write."""
         await self.db.execute("INSERT INTO knowledge_fts(knowledge_fts) VALUES('rebuild')")
@@ -70,8 +77,9 @@ class KnowledgeStore:
         Drops and recreates the vec table to avoid corruption from partial
         writes on the vec0 virtual table.
         """
-        from charlieverse.embeddings import encode
         from sqlite_vec import serialize_float32
+
+        from charlieverse.embeddings import encode
 
         articles = await self.list(limit=5000)
         if not articles:
@@ -148,7 +156,7 @@ class KnowledgeStore:
         """Insert or update a knowledge article by topic."""
         existing = await self.find_by_topic(knowledge.topic)
         if existing:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             # Delete old FTS entry BEFORE updating (needs old values from content table)
             await self._sync_fts_delete(existing.id)
             await self.db.execute(
@@ -172,7 +180,7 @@ class KnowledgeStore:
             return existing
         return await self.create(knowledge)
 
-    async def list(self, limit: int = 50) -> List[Knowledge]:
+    async def list(self, limit: int = 50) -> builtins.list[Knowledge]:
         """List active knowledge articles."""
         cursor = await self.db.execute(
             "SELECT * FROM knowledge WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?",
@@ -180,7 +188,7 @@ class KnowledgeStore:
         )
         return [_row_to_knowledge(row) for row in await cursor.fetchall()]
 
-    async def pinned(self) -> List[Knowledge]:
+    async def pinned(self) -> builtins.list[Knowledge]:
         """Fetch all pinned, active knowledge articles."""
         cursor = await self.db.execute(
             "SELECT * FROM knowledge WHERE pinned = 1 AND deleted_at IS NULL ORDER BY topic",
@@ -189,7 +197,7 @@ class KnowledgeStore:
 
     async def delete(self, knowledge_id: UUID) -> None:
         """Soft-delete a knowledge article."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await self.db.execute(
             "UPDATE knowledge SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
             (now.isoformat(), now.isoformat(), str(knowledge_id)),
@@ -198,14 +206,14 @@ class KnowledgeStore:
 
     async def pin(self, knowledge_id: UUID, pinned: bool) -> None:
         """Set the pinned state of a knowledge article."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await self.db.execute(
             "UPDATE knowledge SET pinned = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
             (int(pinned), now.isoformat(), str(knowledge_id)),
         )
         await self.db.commit()
 
-    async def search(self, query: str, limit: int = 10) -> List[Knowledge]:
+    async def search(self, query: str, limit: int = 10) -> builtins.list[Knowledge]:
         """Full-text search across knowledge using FTS5 + BM25 ranking."""
         from charlieverse.db.fts import sanitize_fts_query
 
@@ -224,7 +232,7 @@ class KnowledgeStore:
         )
         return [_row_to_knowledge(row) for row in await cursor.fetchall()]
 
-    async def search_by_vector(self, embedding: List[float], limit: int = 10) -> List[Knowledge]:
+    async def search_by_vector(self, embedding: builtins.list[float], limit: int = 10) -> builtins.list[Knowledge]:
         """Semantic search using sqlite-vec."""
         from sqlite_vec import serialize_float32
 
@@ -240,7 +248,7 @@ class KnowledgeStore:
         )
         return [_row_to_knowledge(row) for row in await cursor.fetchall()]
 
-    async def upsert_embedding(self, knowledge_id: UUID, embedding: List[float]) -> None:
+    async def upsert_embedding(self, knowledge_id: UUID, embedding: builtins.list[float]) -> None:
         """Store or update the embedding for a knowledge article."""
         from sqlite_vec import serialize_float32
 

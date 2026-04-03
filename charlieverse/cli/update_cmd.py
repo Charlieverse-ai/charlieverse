@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 import typer
 
 from charlieverse import paths
-from charlieverse.config import config
 
 _PKG_DIR = Path(__file__).resolve().parent.parent
 _REPO_DIR = _PKG_DIR.parent
@@ -60,6 +58,7 @@ def _run(cmd: list[str], label: str) -> bool:
     """Run a command, print status, return success."""
     typer.echo(f"  {label}...", nl=False)
     result = subprocess.run(cmd, capture_output=True, text=True)
+
     if result.returncode == 0:
         typer.echo(" ✓")
         return True
@@ -73,17 +72,18 @@ def _run(cmd: list[str], label: str) -> bool:
 def update() -> None:
     """Update Charlieverse to the latest version, reinstall integrations, and restart."""
     typer.echo("Updating Charlieverse...\n")
+    _run(["uv", "run", "charlie", "server", "stop"], "Stopping Server")
 
     # Step 1: Pull latest
     if _is_dev_install():
-        typer.echo("→ Dev install detected (git repo)")
-        _run(["git", "-C", str(_REPO_DIR), "pull", "--ff-only"], "Pulling latest")
-        _run([sys.executable, "-m", "pip", "install", "-e", str(_REPO_DIR)], "Reinstalling package")
+        typer.echo(f"→ Dev install detected at {_REPO_DIR}")
+        # _run(["git", "-C", str(_REPO_DIR), "pull", "--ff-only"], "Pulling latest")
+        _run(["uv", "tool", "install", str(_REPO_DIR), "-e"], "Reinstalling package")
     else:
         typer.echo("→ Package install detected")
-        _run(["uv", "tool", "upgrade", "charlieverse"], "Upgrading via uv")
+        _run(["uv", "tool", "install", "-U", "charlieverse"], "Upgrading via uv")
 
-    # Step 2: Reinstall provider integrations
+    # # Step 2: Reinstall provider integrations
     providers = _installed_providers()
     if providers:
         typer.echo(f"\n→ Reinstalling integrations: {', '.join(providers)}")
@@ -101,11 +101,11 @@ def update() -> None:
         typer.echo("\n→ No provider integrations detected, skipping")
 
     # Step 3: Restart server
-    typer.echo("\n→ Restarting server")
-    _run(["charlie", "server", "restart"], "Server restart")
+    _run(["uv", "run", "charlie", "server", "start"], "Restarting Server")
 
     # Step 4: Remind about MCP reconnect
     typer.echo("\n✓ Update complete!")
-    typer.echo("\nTo finish, reconnect your MCP in Claude Code:")
-    typer.echo("  /mcp reconnect plugin:Charlieverse:charlie-tools")
-    typer.echo("\nOr start a new session.")
+    if "claude" in providers:
+        typer.echo("\nTo finish, reconnect your MCP in Claude Code:")
+        typer.echo("  /mcp reconnect plugin:Charlieverse:charlie-tools")
+        typer.echo("\nOr start a new session.")

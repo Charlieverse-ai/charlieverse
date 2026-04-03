@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 import aiosqlite
@@ -79,7 +79,7 @@ class SessionStore:
 
     async def update(self, session: Session) -> Session:
         """Update an existing session."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await self.db.execute(
             """UPDATE sessions SET what_happened = ?, for_next_session = ?,
                tags = ?, workspace = ?, transcript_path = ?, updated_at = ?
@@ -205,7 +205,7 @@ class SessionStore:
 
     async def delete(self, session_id: UUID) -> None:
         """Soft-delete a session."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await self.db.execute(
             "UPDATE sessions SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
             (now.isoformat(), now.isoformat(), str(session_id)),

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastmcp import FastMCP
@@ -13,11 +13,13 @@ from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
 from charlieverse.db.fts import sanitize_fts_query
 from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
+from charlieverse.db.stores.context import StoreContext
 from charlieverse.embeddings import encode_one
+from charlieverse.helpers.uuid import uuid_from_str
 from charlieverse.models import Session
 
 
-def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
+def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     """Register hook REST endpoints on the given FastMCP instance."""
     # Lazy import to avoid circular dependency (hooks → server → mcp → tools → server)
     from charlieverse.server import get_seen_ids, set_seen_ids  # noqa: E402
@@ -29,7 +31,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         memories_store: MemoryStore = rest_stores["memories"]
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
 
-        session_id = request.query_params.get("session_id")
+        session_id = uuid_from_str(request.query_params.get("session_id"))
         workspace = request.query_params.get("workspace")
         session: Session | None = None
 
@@ -106,10 +108,10 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         session_id = body.get("session_id")
         role = body.get("role")
         content = str(body.get("content", "")).strip()
-        
+
         if not session_id or not role or not content:
             return JSONResponse({"error": "Missing Required params"}, status_code=400)
-        
+
         # TODO: Move this into a validation helper
         if "<task-notification>" in content and "</task-notification>" in content:
             return JSONResponse({"saved": False, "reason": "Not saved because the user message is not valid"})
@@ -117,7 +119,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         cursor = await db.execute(
             """INSERT OR IGNORE INTO messages (id, session_id, role, content, created_at)
                VALUES (?, ?, ?, ?, ?)""",
-            (msg_id, session_id, role, content, datetime.now(timezone.utc).isoformat()),
+            (msg_id, session_id, role, content, datetime.now(UTC).isoformat()),
         )
         # Only sync FTS if the row was actually inserted (not a duplicate)
         if cursor.rowcount > 0:

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import typer
-from charlieverse.config import config
 from rich.console import Console
-from rich.table import Table
+
+from charlieverse.config import config
+
 console = Console()
 
 app = typer.Typer(
@@ -18,6 +19,7 @@ app = typer.Typer(
 def dump_config(ctx: typer.Context):
     if ctx.invoked_subcommand is not None:
         return
+    from rich.table import Table
     table = Table("Key", "Value", show_lines=True)
     table.add_row("Charlieverse Path", config.path.as_posix())
     table.add_row("Database", config.database.as_posix())

@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from uuid import uuid4
-
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
 from charlieverse.db.fts import sanitize_fts_query
 from charlieverse.db.stores import SessionStore
+from charlieverse.helpers.uuid import uuid_str_from_str
 from charlieverse.mcp.context import _permalink, _stores
 
 
@@ -48,37 +47,33 @@ def register(mcp: FastMCP) -> None:
             )
 
         rows = await cursor.fetchall()
-        return {
-            "messages": [
-                {"id": row["id"], "role": row["role"],
-                 "content": row["content"][:500], "created_at": row["created_at"]}
-                for row in rows
-            ]
-        }
+        return {"messages": [{"id": row["id"], "role": row["role"], "content": row["content"][:500], "created_at": row["created_at"]} for row in rows]}
 
     @mcp.tool
     async def session_update(
         what_happened: str,
         for_next_session: str,
         tags: list[str],
-        session_id: str | None = None,
-        workspace: str | None = None,
+        session_id: str,
+        workspace: str,
         ctx: Context = CurrentContext(),
     ) -> dict:
         """Save a detailed snapshot of the current session — what happened and what's next."""
+        sid = uuid_str_from_str(session_id.strip())
+
         if not what_happened.strip():
             raise ToolError("what_happened cannot be empty")
         if not for_next_session.strip():
             raise ToolError("for_next_session cannot be empty")
+        if not sid:
+            raise ToolError("Invalid session_id")
 
         from charlieverse.tools.sessions import session_update as _session_update
 
         stores = _stores(ctx)
         sessions: SessionStore = stores["sessions"]
 
-        sid = session_id or str(uuid4())
-
-        result = await _session_update(
+        await _session_update(
             id=sid,
             what_happened=what_happened,
             for_next_session=for_next_session,
@@ -86,4 +81,4 @@ def register(mcp: FastMCP) -> None:
             workspace=workspace,
             sessions=sessions,
         )
-        return {"saved": True, "session_id": sid, "url": _permalink("sessions", sid)}
+        return {"saved": True, "url": _permalink("sessions", sid)}

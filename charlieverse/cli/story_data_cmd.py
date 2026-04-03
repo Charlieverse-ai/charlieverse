@@ -28,8 +28,9 @@ def story_data(
 
 
 async def _story_data(target: str, date: str | None, host: str, port: int) -> None:
-    import httpx
     from datetime import date as date_type
+
+    import httpx
 
     tier_names = {"daily", "weekly", "monthly", "quarterly", "yearly"}
 

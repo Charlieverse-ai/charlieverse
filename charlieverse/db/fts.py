@@ -1,9 +1,10 @@
 """FTS5 query utilities."""
 
 from __future__ import annotations
-from spacy.lang.en.stop_words import STOP_WORDS
 
 import re
+
+from spacy.lang.en.stop_words import STOP_WORDS
 
 
 def sanitize_fts_query(raw: str) -> str:

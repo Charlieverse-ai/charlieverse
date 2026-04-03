@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
 from charlieverse.models import ContextMessage, Entity, EntityType, Knowledge, Session
 from charlieverse.models.story import Story, StoryTier
-from datetime import datetime
+
 
 @dataclass
 class ContextBundle:

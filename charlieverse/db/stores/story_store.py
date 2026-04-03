@@ -1,11 +1,11 @@
 """Story store — CRUD for tiered narrative arcs."""
 
 from __future__ import annotations
-from typing import List
 
 import asyncio
+import builtins
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 import aiosqlite
@@ -80,9 +80,7 @@ class StoryStore:
         if story.session_id:
             existing = await self.find_by_session(story.session_id)
         if not existing and story.period_start and story.period_end:
-            existing = await self.find_by_tier_and_period(
-                story.tier, story.period_start, story.period_end
-            )
+            existing = await self.find_by_tier_and_period(story.tier, story.period_start, story.period_end)
         if not existing:
             existing = await self.get(story.id)
         if existing:
@@ -91,9 +89,7 @@ class StoryStore:
             return await self.update(story)
         return await self.create(story)
 
-    async def find_by_tier_and_period(
-        self, tier: StoryTier, period_start: str, period_end: str
-    ) -> Story | None:
+    async def find_by_tier_and_period(self, tier: StoryTier, period_start: str, period_end: str) -> Story | None:
         """Find a rollup story matching the tier and period window (tz-agnostic)."""
         cursor = await self.db.execute(
             """SELECT * FROM stories
@@ -125,9 +121,7 @@ class StoryStore:
 
     async def get_all_time(self) -> Story | None:
         """Fetch a story by ID."""
-        cursor = await self.db.execute(
-            "SELECT * FROM stories WHERE tier = 'all-time' AND deleted_at IS NULL LIMIT 1"
-        )
+        cursor = await self.db.execute("SELECT * FROM stories WHERE tier = 'all-time' AND deleted_at IS NULL LIMIT 1")
         row = await cursor.fetchone()
         return _row_to_story(row) if row else None
 
@@ -135,7 +129,7 @@ class StoryStore:
         self,
         tier: StoryTier | None = None,
         limit: int = 50,
-    ) -> List[Story]:
+    ) -> builtins.list[Story]:
         """List stories, optionally filtered by tier."""
         if tier:
             cursor = await self.db.execute(
@@ -155,7 +149,7 @@ class StoryStore:
         end: str,
         limit: int = 5,
         workspace: str | None = None,
-    ) -> List[Story]:
+    ) -> builtins.list[Story]:
         """Find stories whose period overlaps with the given date range.
 
         Workspace is stored as metadata but does not filter results.
@@ -172,7 +166,7 @@ class StoryStore:
 
     async def update(self, story: Story) -> Story:
         """Update an existing story."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Delete old FTS entry BEFORE updating (needs old values from content table)
         await self._sync_fts_delete(story.id)
         await self.db.execute(
@@ -202,7 +196,7 @@ class StoryStore:
 
     async def delete(self, story_id: UUID) -> None:
         """Soft-delete a story."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await self.db.execute(
             "UPDATE stories SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
             (now.isoformat(), now.isoformat(), str(story_id)),
@@ -213,9 +207,7 @@ class StoryStore:
 
     async def _sync_fts_insert(self, story: Story) -> None:
         """Insert a new story into the FTS index."""
-        cursor = await self.db.execute(
-            "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
-        )
+        cursor = await self.db.execute("SELECT rowid FROM stories WHERE id = ?", (str(story.id),))
         row = await cursor.fetchone()
         if not row:
             return
@@ -226,9 +218,7 @@ class StoryStore:
 
     async def _sync_fts_delete(self, story_id: UUID) -> None:
         """Remove a story's FTS entry using values from the content table."""
-        cursor = await self.db.execute(
-            "SELECT rowid, title, summary, content, tags FROM stories WHERE id = ?", (str(story_id),)
-        )
+        cursor = await self.db.execute("SELECT rowid, title, summary, content, tags FROM stories WHERE id = ?", (str(story_id),))
         row = await cursor.fetchone()
         if not row:
             return
@@ -243,7 +233,7 @@ class StoryStore:
         period_start: str | None = None,
         period_end: str | None = None,
         limit: int = 5,
-    ) -> List[Story]:
+    ) -> builtins.list[Story]:
         """Search stories via FTS, optionally filtered by date range.
 
         If both query and date range are provided, results must match both.
@@ -288,11 +278,11 @@ class StoryStore:
 
     async def search_by_vector(
         self,
-        embedding: List[float],
+        embedding: builtins.list[float],
         period_start: str | None = None,
         period_end: str | None = None,
         limit: int = 5,
-    ) -> List[Story]:
+    ) -> builtins.list[Story]:
         """Search stories by vector similarity, optionally filtered by date range."""
         from sqlite_vec import serialize_float32
 
@@ -326,27 +316,29 @@ class StoryStore:
     async def _sync_vec(self, story: Story) -> None:
         """Sync a story's embedding to the vector index. Best-effort — never fails the caller."""
         try:
-            from charlieverse.embeddings import encode_one
             from sqlite_vec import serialize_float32
+
+            from charlieverse.embeddings import encode_one
 
             text = f"{story.title}\n{story.summary or ''}\n{story.content}"
             embedding = await encode_one(text)
 
             async with self._vec_lock:
-                cursor = await self.db.execute(
-                    "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
-                )
+                cursor = await self.db.execute("SELECT rowid FROM stories WHERE id = ?", (str(story.id),))
                 row = await cursor.fetchone()
                 if row:
-                    await self.db.execute(
-                        "DELETE FROM stories_vec WHERE rowid = ?", (row[0],)
-                    )
+                    await self.db.execute("DELETE FROM stories_vec WHERE rowid = ?", (row[0],))
                     await self.db.execute(
                         "INSERT INTO stories_vec(rowid, embedding) VALUES(?, ?)",
                         (row[0], serialize_float32(embedding)),
                     )
         except Exception:
             logger.warning("Vec sync failed for story %s", story.id, exc_info=True)
+
+    async def rebuild(self) -> None:
+        from asyncio import gather
+
+        await gather(self.rebuild_fts(), self.rebuild_vec())
 
     async def rebuild_fts(self) -> None:
         """Rebuild the FTS index from scratch."""
@@ -359,8 +351,9 @@ class StoryStore:
         Drops and recreates the vec table to avoid corruption from partial
         DELETE + INSERT cycles on the vec0 virtual table.
         """
-        from charlieverse.embeddings import encode
         from sqlite_vec import serialize_float32
+
+        from charlieverse.embeddings import encode
 
         all_stories = await self.list(limit=1000)
         if not all_stories:
@@ -372,9 +365,7 @@ class StoryStore:
         rows: list[tuple[int, bytes]] = []
         for story, embedding in zip(all_stories, embeddings):
             try:
-                cursor = await self.db.execute(
-                    "SELECT rowid FROM stories WHERE id = ?", (str(story.id),)
-                )
+                cursor = await self.db.execute("SELECT rowid FROM stories WHERE id = ?", (str(story.id),))
                 row = await cursor.fetchone()
                 if row:
                     rows.append((row[0], serialize_float32(embedding)))
@@ -386,12 +377,44 @@ class StoryStore:
             # Drop and recreate is safer than DELETE for vec0 virtual tables,
             # which don't release space on delete and can corrupt on partial writes.
             await self.db.execute("DROP TABLE IF EXISTS stories_vec")
-            await self.db.execute(
-                "CREATE VIRTUAL TABLE stories_vec USING vec0(embedding float[384])"
-            )
+            await self.db.execute("CREATE VIRTUAL TABLE stories_vec USING vec0(embedding float[384])")
             for rowid, embedding in rows:
                 await self.db.execute(
                     "INSERT INTO stories_vec(rowid, embedding) VALUES(?, ?)",
                     (rowid, embedding),
                 )
             await self.db.commit()
+
+    async def dedupe(self, store: StoryStore) -> None:
+        """Remove duplicate rollup stories, keeping the most recently updated."""
+        cursor = await store.db.execute("""
+            SELECT tier, period_start, period_end, COUNT(*) as cnt
+            FROM stories
+            WHERE deleted_at IS NULL AND session_id IS NULL
+            GROUP BY tier, SUBSTR(period_start, 1, 10), SUBSTR(period_end, 1, 10)
+            HAVING cnt > 1
+        """)
+        groups = list(await cursor.fetchall())
+        if not groups:
+            return
+
+        deleted = 0
+        for row in groups:
+            tier, p_start, p_end = row[0], row[1], row[2]
+            dupes = await store.db.execute(
+                """SELECT id FROM stories
+                WHERE tier = ? AND SUBSTR(period_start, 1, 10) = SUBSTR(?, 1, 10) AND SUBSTR(period_end, 1, 10) = SUBSTR(?, 1, 10)
+                AND deleted_at IS NULL AND session_id IS NULL
+                ORDER BY updated_at DESC""",
+                (tier, p_start, p_end),
+            )
+            ids = [r[0] for r in await dupes.fetchall()]
+            # Keep the first (most recently updated), soft-delete the rest
+            for stale_id in ids[1:]:
+                from uuid import UUID
+
+                await store.delete(UUID(stale_id))
+                deleted += 1
+
+        if deleted:
+            logger.info("Deduped %d rollup stories across %d groups", deleted, len(groups))

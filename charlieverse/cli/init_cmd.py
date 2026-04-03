@@ -8,14 +8,12 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import typer
 
-from charlieverse.config import config
 from charlieverse import paths
-
+from charlieverse.config import config
 
 # ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -94,16 +92,6 @@ def _verify_dependencies() -> None:
     """Check that required dependencies are working."""
     _step("🔍 Verifying dependencies")
 
-    # spaCy model
-    try:
-        import spacy
-        spacy.load("en_core_web_sm")
-        _ok("spaCy model verified")
-    except (OSError, ImportError):
-        _step("  Installing spaCy model en_core_web_sm...")
-        from spacy.cli.download import download
-        download("en_core_web_sm")
-
     # Web dashboard
     dist = paths.web_dist()
     if dist and (dist / "index.html").exists():
@@ -123,17 +111,15 @@ def _start_server() -> None:
     """Start the Charlie server."""
     _step("🚀 Starting Charlie server")
 
-    charlie = shutil.which("charlie")
-    if not charlie:
-        # We're running as charlie, so use sys.executable
-        charlie_cmd = [sys.executable, "-m", "charlieverse.cli", "server", "status"]
-    else:
-        charlie_cmd = ["charlie", "server", "status"]
+    charlie_cmd = ["uv", "run", "charlie", "server"]
+
+    status_cmd = charlie_cmd + ["status"]
+    start_cmd = charlie_cmd + ["start"]
 
     # Check if already running
     try:
         result = subprocess.run(
-            charlie_cmd,
+            status_cmd,
             capture_output=True,
             text=True,
             timeout=5,
@@ -145,13 +131,11 @@ def _start_server() -> None:
         pass
 
     # Start it — the server forks to background, so don't capture output
-    start_cmd = charlie_cmd[:-1] + ["start"]
     try:
-        subprocess.run(start_cmd, timeout=30)
-        time.sleep(2)
+        subprocess.run(start_cmd)
 
         # Verify
-        result = subprocess.run(charlie_cmd, capture_output=True, text=True, timeout=5)
+        result = subprocess.run(status_cmd, capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
             _ok(f"Server started at {config.server.base_url()}")
         else:

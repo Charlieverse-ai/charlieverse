@@ -4,27 +4,19 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime, timedelta
-from uuid import UUID
 
 from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from charlieverse.db.stores import SessionStore, StoryStore
+from charlieverse.db.stores.context import StoreContext
+from charlieverse.helpers.uuid import uuid_from_str
 from charlieverse.models import Session, StoryTier
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _parse_uuid(value: str) -> UUID | None:
-    """Parse a UUID string, returning None on malformed input."""
-    try:
-        return UUID(value)
-    except (ValueError, AttributeError):
-        return None
-
 
 _BAD_UUID = JSONResponse({"error": "Invalid UUID format"}, status_code=400)
 
@@ -66,33 +58,10 @@ def _serialize_session(session) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Rebuild helper (also used by api/entities rebuild endpoint)
-# ---------------------------------------------------------------------------
-
-async def _rebuild_all(stores: dict) -> dict:
-    """Rebuild FTS + vector indexes for all tables."""
-    from charlieverse.db.stores import MemoryStore, KnowledgeStore
-
-    memories: MemoryStore = stores["memories"]
-    knowledge: KnowledgeStore = stores["knowledge"]
-    stories: StoryStore = stores["stories"]
-
-    await memories.rebuild_fts()
-    await knowledge.rebuild_fts()
-    await stories.rebuild_fts()
-
-    await memories.rebuild_vec()
-    await knowledge.rebuild_vec()
-    await stories.rebuild_vec()
-
-    return {"fts": "rebuilt", "vec": "rebuilt"}
-
-
-# ---------------------------------------------------------------------------
 # Route registration
 # ---------------------------------------------------------------------------
 
-def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
+def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     """Register story REST endpoints on the given FastMCP instance."""
 
     @mcp.custom_route("/api/stories", methods=["GET"])
@@ -111,7 +80,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_get_story(request: Request) -> JSONResponse:
         """Get a single story by ID."""
         stories: StoryStore = rest_stores["stories"]
-        uid = _parse_uuid(request.path_params["id"])
+        uid = uuid_from_str(request.path_params["id"])
         if not uid:
             return _BAD_UUID
 
@@ -129,7 +98,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         body = await request.json()
         story_store: StoryStore = rest_stores["stories"]
 
-        session_id = UUID(body["session_id"]) if body.get("session_id") else None
+        session_id = uuid_from_str(body["session_id"]) if body.get("session_id") else None
 
         if session_id:
             sessions_store: SessionStore = rest_stores["sessions"]
@@ -190,7 +159,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     async def api_delete_story(request: Request) -> JSONResponse:
         """Delete a story."""
         story_store: StoryStore = rest_stores["stories"]
-        uid = _parse_uuid(request.path_params["id"])
+        uid = uuid_from_str(request.path_params["id"])
         if not uid:
             return _BAD_UUID
 
@@ -217,8 +186,10 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         deleted = 0
 
         for row in rows:
-            await story_store.delete(UUID(row["id"]))
-            deleted += 1
+            uuid = uuid_from_str(row["id"])
+            if uuid:
+                await story_store.delete(uuid)
+                deleted += 1
 
         return JSONResponse({"deleted": deleted})
 
@@ -229,7 +200,7 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
         Returns: messages, existing story, recent memories/knowledge since last save.
         """
         raw_session_id = request.path_params["session_id"]
-        uid = _parse_uuid(raw_session_id)
+        uid = uuid_from_str(raw_session_id)
         if not uid:
             return _BAD_UUID
         session_id = raw_session_id
@@ -432,5 +403,6 @@ def register_routes(mcp: FastMCP, rest_stores: dict) -> None:
     @mcp.custom_route("/api/rebuild", methods=["POST"])
     async def api_rebuild(request: Request) -> JSONResponse:
         """Rebuild all FTS and vector indexes across entities, knowledge, and stories."""
-        result = await _rebuild_all(rest_stores)
-        return JSONResponse(result)
+        from charlieverse.db.stores.context import rebuild_all
+        await rebuild_all(rest_stores)
+        return JSONResponse({"success": True})

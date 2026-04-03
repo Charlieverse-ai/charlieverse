@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import builtins
+from datetime import UTC, datetime
 from uuid import UUID
-from typing import List
 
 import aiosqlite
 
@@ -59,6 +59,12 @@ class MemoryStore:
             (row[0], row[1], row[2] or ""),
         )
 
+    async def rebuild(self) -> None:
+        from asyncio import gather
+        await gather(
+            self.rebuild_fts(),
+            self.rebuild_vec()
+        )
     async def rebuild_fts(self) -> None:
         """Full FTS rebuild — used on startup, not per-write."""
         await self.db.execute("INSERT INTO entities_fts(entities_fts) VALUES('rebuild')")
@@ -70,8 +76,9 @@ class MemoryStore:
         Drops and recreates the vec table to avoid corruption from partial
         writes on the vec0 virtual table.
         """
-        from charlieverse.embeddings import encode, prepare_entity_text
         from sqlite_vec import serialize_float32
+
+        from charlieverse.embeddings import encode, prepare_entity_text
 
         entities = await self.list(limit=5000)
         if not entities:
@@ -139,7 +146,7 @@ class MemoryStore:
         self,
         entity_type: EntityType | None = None,
         limit: int = 50,
-    ) -> List[Entity]:
+    ) -> builtins.list[Entity]:
         """List active entities, optionally filtered by type."""
         if entity_type:
             cursor = await self.db.execute(
@@ -155,7 +162,7 @@ class MemoryStore:
 
     async def update(self, entity: Entity) -> Entity:
         """Update an existing entity."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Delete old FTS entry BEFORE updating (needs old values from content table)
         await self._sync_fts_delete(entity.id)
         await self.db.execute(
@@ -178,7 +185,7 @@ class MemoryStore:
 
     async def delete(self, entity_id: UUID) -> None:
         """Soft-delete an entity."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await self.db.execute(
             "UPDATE entities SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
             (now.isoformat(), now.isoformat(), str(entity_id)),
@@ -187,21 +194,21 @@ class MemoryStore:
 
     async def pin(self, entity_id: UUID, pinned: bool) -> None:
         """Set the pinned state of an entity."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await self.db.execute(
             "UPDATE entities SET pinned = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
             (int(pinned), now.isoformat(), str(entity_id)),
         )
         await self.db.commit()
 
-    async def pinned(self) -> List[Entity]:
+    async def pinned(self) -> builtins.list[Entity]:
         """Fetch all pinned, active entities."""
         cursor = await self.db.execute(
             "SELECT * FROM entities WHERE pinned = 1 AND deleted_at IS NULL ORDER BY created_at DESC",
         )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
 
-    async def for_sessions(self, session_ids: List[UUID]) -> List[Entity]:
+    async def for_sessions(self, session_ids: builtins.list[UUID]) -> builtins.list[Entity]:
         """Fetch active entities linked to the given sessions."""
         if not session_ids:
             return []
@@ -215,7 +222,7 @@ class MemoryStore:
         )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
 
-    async def search(self, query: str, limit: int = 10) -> List[Entity]:
+    async def search(self, query: str, limit: int = 10) -> builtins.list[Entity]:
         """Full-text search across entities using FTS5 + BM25 ranking."""
         from charlieverse.db.fts import sanitize_fts_query
 
@@ -234,7 +241,7 @@ class MemoryStore:
         )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
 
-    async def search_by_vector(self, embedding: List[float], limit: int = 10) -> List[Entity]:
+    async def search_by_vector(self, embedding: builtins.list[float], limit: int = 10) -> builtins.list[Entity]:
         """Semantic search using sqlite-vec cosine similarity."""
         from sqlite_vec import serialize_float32
 
@@ -251,7 +258,7 @@ class MemoryStore:
         rows = await cursor.fetchall()
         return [_row_to_entity(row) for row in rows]
 
-    async def upsert_embedding(self, entity_id: UUID, embedding: List[float]) -> None:
+    async def upsert_embedding(self, entity_id: UUID, embedding: builtins.list[float]) -> None:
         """Store or update the embedding for an entity."""
         from sqlite_vec import serialize_float32
 

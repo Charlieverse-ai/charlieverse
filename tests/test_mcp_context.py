@@ -8,7 +8,6 @@ import pytest
 
 from charlieverse.mcp.context import _permalink, _remember_with_url
 
-
 # ---------------------------------------------------------------------------
 # _permalink
 # ---------------------------------------------------------------------------

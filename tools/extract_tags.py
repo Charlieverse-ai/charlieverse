@@ -1,12 +1,12 @@
-from _collections_abc import dict_keys
 import re
 import sys
+
 
 def extract():
     input = sys.stdin.read()
 
     tags = re.findall(r"<\s*([\w-]+)[^>]*>([\s\S]*?)<\s*\/\s*\1\s*>", input)
-    
+
     if not tags:
         print("No tags")
         exit

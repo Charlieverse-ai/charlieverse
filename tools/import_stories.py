@@ -3,11 +3,12 @@
 import asyncio
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from charlieverse.config import config
+
 import aiosqlite
 
+from charlieverse.config import config
 
 STORIES_DIR = config.path / "import" / "stories"
 DB_PATH = config.database
@@ -132,7 +133,7 @@ async def main():
             continue
 
         story_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         await db.execute(
             """INSERT INTO stories (id, title, content, tier, period_start, period_end, tags, created_at, updated_at)

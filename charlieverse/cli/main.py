@@ -4,9 +4,18 @@ from importlib.metadata import version
 
 import typer
 
-from charlieverse.cli import hooks_cmd, init_cmd, server_cmd
-from charlieverse.cli import story_data_cmd, context_cmd, import_cmd
-from charlieverse.cli import config_cmd, trick_cmd, doctor_cmd, update_cmd
+from charlieverse.cli import (
+    config_cmd,
+    context_cmd,
+    doctor_cmd,
+    hooks_cmd,
+    import_cmd,
+    init_cmd,
+    server_cmd,
+    story_data_cmd,
+    trick_cmd,
+    update_cmd,
+)
 
 
 def _version_callback(value: bool) -> None:

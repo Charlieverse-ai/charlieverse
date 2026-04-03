@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from charlieverse import paths
 from charlieverse.context.builder import ContextBundle
 from charlieverse.models import ContextMessage, Entity, EntityType, Session
 from charlieverse.models.story import Story
-from charlieverse import paths
 
 PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "prompts"
 
@@ -44,9 +43,9 @@ def render(bundle: ContextBundle) -> str:
             if date_key != current_date_key:
                 current_date_key = date_key
                 parts.append(f"# {date_key}")
-            path = f" path=\"{_display_path(session.workspace)}\"" if session.workspace else ""
+            path = f' path="{_display_path(session.workspace)}"' if session.workspace else ""
             tag = "last_session" if most_recent else "session"
-            parts.append(f"<{tag} time=\"{_session_time(session.updated_at, now)}\"{path}>")
+            parts.append(f'<{tag} time="{_session_time(session.updated_at, now)}"{path}>')
             parts.append(_render_session(session, now, most_recent=most_recent))
             # Recent messages go inside the last session block
             if most_recent and bundle.recent_messages:
@@ -55,7 +54,7 @@ def render(bundle: ContextBundle) -> str:
             most_recent = False
 
     if bundle.pinned_entities:
-        parts.append('<pinned>')
+        parts.append("<pinned>")
         # Pinned entities get important_ prefix
         for entity in bundle.pinned_entities:
             parts.append(_render_entity(entity))
@@ -63,21 +62,21 @@ def render(bundle: ContextBundle) -> str:
 
     # Moments
     if bundle.moments:
-        parts.append('<moments>')
+        parts.append("<moments>")
         for entity in bundle.moments:
             parts.append(_render_entity(entity))
         parts.append("</moments>\n")
 
     # Pinned knowledge (expertise)
     if bundle.pinned_knowledge:
-        parts.append('<knowledge>')    
+        parts.append("<knowledge>")
         for knowledge in bundle.pinned_knowledge:
-            parts.append(f'## {knowledge.topic}')
+            parts.append(f"## {knowledge.topic}")
             parts.append(knowledge.content)
 
         parts.append("</knowledge>\n")
 
-    parts.append('<related_memories>')
+    parts.append("<related_memories>")
 
     # Session entities (non-pinned, non-moment)
     if bundle.session_entities:
@@ -89,7 +88,7 @@ def render(bundle: ContextBundle) -> str:
         for entity in bundle.related_entities:
             parts.append(_render_entity(entity))
 
-    parts.append('</related_memories>')
+    parts.append("</related_memories>")
 
     if bundle.all_time_story:
         parts.append(_render_all_time_story(bundle.all_time_story))
@@ -113,7 +112,7 @@ def _render_recent_messages(messages: list[ContextMessage]) -> str:
         if len(content) > 200:
             content = content[:200] + "…"
         age = _relative_date(msg.created_at)
-        lines.append(f"<{label} date=\"{age}\">{content}</{label}>")
+        lines.append(f'<{label} date="{age}">{content}</{label}>')
 
     lines.append("</recent_messages>")
     return "\n".join(lines)
@@ -125,10 +124,10 @@ def _render_first_run(bundle: ContextBundle) -> str:
     parts.append("<activation_output>")
 
     now_str = datetime.now().astimezone().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
-    parts.append('---')
+    parts.append("---")
     parts.append(f"Now: {now_str}")
     parts.append(f"Current Session ID: {bundle.session.id}\n")
-    parts.append('---')
+    parts.append("---")
 
     # Load the birthday letter
     first_run_path = PROMPTS_DIR / "first-run.md"
@@ -177,7 +176,7 @@ def _render_all_time_story(story: Story) -> str:
     lines.append("<our_story_so_far>")
     lines.append(story.content)
     lines.append("</our_story_so_far>\n")
-    
+
     return "\n".join(lines)
 
 
@@ -194,7 +193,7 @@ def _render_session(session: Session, now: datetime, most_recent: bool) -> str:
 def _render_entity(entity: Entity) -> str:
     """Render an entity's content."""
     lines: list[str] = []
-    
+
     if entity.type is EntityType.moment:
         lines.append(f"- {_relative_date(entity.updated_at)}")
     else:
@@ -220,7 +219,7 @@ def _date_group_key(date: datetime, now: datetime) -> str:
 
 def _display_path(path: str) -> str:
     import os.path
-    return path.replace(os.path.expanduser("~"), '~', 1)
+    return path.replace(os.path.expanduser("~"), "~", 1)
 
 def _session_time(date: datetime, now: datetime) -> str:
     """Return session time within its date group.
@@ -251,7 +250,7 @@ def _parse_period_date(period: str | None) -> datetime | None:
     try:
         dt = datetime.fromisoformat(period)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt
     except (ValueError, TypeError):
         return None

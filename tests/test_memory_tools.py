@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC
+
 import pytest
 
 from charlieverse.tools.memory import (
@@ -19,7 +21,6 @@ from charlieverse.tools.memory import (
     update_memory,
 )
 from charlieverse.tools.responses import IdResponse, RecallResponse
-
 
 # ---------------------------------------------------------------------------
 # remember_decision
@@ -43,8 +44,6 @@ async def test_remember_decision_with_rationale(memory_store, mock_embed):
     )
     assert isinstance(result, IdResponse)
     # Verify the rationale was embedded in the stored content
-    from charlieverse.models import EntityType
-    from charlieverse.db.stores import MemoryStore
     stored = await memory_store.get(result.id)
     assert stored is not None
     assert "Rationale:" in stored.content
@@ -320,6 +319,7 @@ async def test_update_memory_changes_content(memory_store, mock_embed):
 
 async def test_update_memory_nonexistent_raises(memory_store, mock_embed):
     from uuid import uuid4
+
     from fastmcp.exceptions import ToolError
 
     with pytest.raises(ToolError):
@@ -374,8 +374,9 @@ async def test_unpin_entity(memory_store, mock_embed):
 
 
 async def test_pin_knowledge_article(knowledge_store, memory_store, mock_embed):
-    from charlieverse.models import Knowledge
     from uuid import UUID
+
+    from charlieverse.models import Knowledge
 
     article = Knowledge(
         topic="pinnable topic",
@@ -393,8 +394,9 @@ async def test_pin_knowledge_article(knowledge_store, memory_store, mock_embed):
 
 
 async def test_unpin_knowledge_article(knowledge_store, memory_store, mock_embed):
-    from charlieverse.models import Knowledge
     from uuid import UUID
+
+    from charlieverse.models import Knowledge
 
     article = Knowledge(
         topic="unpinnable topic",
@@ -512,12 +514,12 @@ async def test_recall_with_no_type_filter_returns_mixed_types(memory_store, know
 
 async def test_recall_ranks_recent_entities_higher(memory_store, knowledge_store, mock_embed):
     """A newer entity should rank above an older one when both match the query."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     # Create an old entity
     old = await remember_decision(content="deploy strategy for servers", memories=memory_store)
     # Manually age it by updating created_at and updated_at
-    old_date = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    old_date = (datetime.now(UTC) - timedelta(days=60)).isoformat()
     await memory_store.db.execute(
         "UPDATE entities SET created_at = ?, updated_at = ? WHERE id = ?",
         (old_date, old_date, str(old.id)),
@@ -615,8 +617,9 @@ async def test_recall_truncates_long_entity_content(memory_store, knowledge_stor
 
 
 async def test_recall_truncates_long_knowledge_content(memory_store, knowledge_store, mock_embed):
-    from charlieverse.models import Knowledge
     from uuid import UUID
+
+    from charlieverse.models import Knowledge
 
     article = Knowledge(
         topic="long topic",

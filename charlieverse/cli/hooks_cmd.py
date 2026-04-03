@@ -6,16 +6,17 @@ for logbook tracking and message capture.
 """
 
 from __future__ import annotations
-from charlieverse.api.entities import _parse_uuid
 
 import asyncio
 import json
 import os
 import sys
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
-from dataclasses import dataclass, field
+
+from charlieverse.helpers.uuid import uuid_str_from_str
 
 if TYPE_CHECKING:
     from charlieverse.context.reminders.types import HookContext
@@ -153,7 +154,7 @@ async def _run_user_hooks(hook_dir_name: str, **env_vars: str | None) -> str:
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
             if proc.returncode == 0 and stdout:
                 return stdout.decode().strip()
-        except (asyncio.TimeoutError, Exception):
+        except (TimeoutError, Exception):
             pass
         return ""
 
@@ -178,7 +179,7 @@ def _incoming_context() -> IncomingHookContext | None:
     stdin_data = _parse_stdin()
 
     _log("stdin", "Incoming Hook Data", data=stdin_data)
-    
+
     if not stdin_data:
         _log("missing-context", "ERROR: Skipped because of missing hook data in stdin")
         return None
@@ -188,7 +189,7 @@ def _incoming_context() -> IncomingHookContext | None:
     if not hook_name:
         _log("missing-hook-name", "ERROR: Skipped because of missing hook name", data=stdin_data)
         return None
-    
+
     hook_name = str(hook_name)
 
     # Skip activation context for subagents — they don't need the full boot sequence
@@ -204,8 +205,8 @@ def _incoming_context() -> IncomingHookContext | None:
 
     # Providers send cwd in stdin JSON, fallback to cwd
     workspace = str(stdin_data.get("cwd")) or os.getcwd()
-    session_id = _parse_uuid(stdin_data.get("session_id"))
-    
+    session_id = uuid_str_from_str(stdin_data.get("session_id"))
+
     if not session_id:
         _log(f"{hook_name}.skipped", "ERROR: Missing or invalid session_id", data=stdin_data)
         return None
@@ -258,8 +259,8 @@ async def _session_start(
     result = _build_context_static(activation)
 
     # Run user hooks from ~/.charlieverse/hooks/session-start/
-    user_hook_output = await _run_user_hooks("session-start", 
-        session_id=context.session_id, 
+    user_hook_output = await _run_user_hooks("session-start",
+        session_id=context.session_id,
         workspace=context.workspace
     )
 
@@ -295,9 +296,9 @@ async def _prompt_submit(
         _log("prompt-submit", "ERROR: Missing User Submitted Text", data=context.stdin)
         return
 
-    from charlieverse.context.reminders import HookContext
-
     import httpx
+
+    from charlieverse.context.reminders import HookContext
 
     # Build the hook context for the reminders engine
     now = datetime.now()
@@ -319,7 +320,7 @@ async def _prompt_submit(
 
             if not isinstance(session_resp, Exception) and session_resp.status_code == 200:
                 session_data = session_resp.json()
-                
+
                 if session_data.get("created_at"):
                     metadata["session_start"] = session_data["created_at"]
                 if session_data.get("updated_at"):
@@ -369,7 +370,7 @@ def stop(
     """Hook: Stop. Captures assistant response and logs stop event."""
     context = _incoming_context()
 
-    if context:        
+    if context:
         last_message = context.stdin.get("last_assistant_message")
         if not last_message:
             _log(context.event, "ERROR: Skipping stop hook because it's missing the last assistant message", data=context.stdin)
@@ -384,8 +385,8 @@ def stop(
         ))
 
         # Run user hooks from ~/.charlieverse/hooks/stop/
-        asyncio.run(_run_user_hooks("stop", 
-            session_id=context.session_id, 
+        asyncio.run(_run_user_hooks("stop",
+            session_id=context.session_id,
             last_assistant_message=last_message
         ))
 
@@ -405,7 +406,7 @@ def tool_use(
     if context:
         tool_name = context.stdin.get("tool_name", "unknown")
         _log("tool-use", f"session={context.session_id} tool={tool_name}")
-    
+
     typer.Exit(0)
 
 # ===== session-end =====

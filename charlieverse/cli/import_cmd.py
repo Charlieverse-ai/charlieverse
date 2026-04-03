@@ -18,7 +18,7 @@ import hashlib
 import json
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import aiosqlite
@@ -101,8 +101,8 @@ async def _import(
 
         try:
             from extract_conversations import (  # ty:ignore[unresolved-import]
-                _discover_providers,
                 PROVIDER_PROCESSORS,
+                _discover_providers,
             )
         except ImportError:
             typer.echo("Can't find tools/extract_conversations.py", err=True)
@@ -167,7 +167,7 @@ async def _import(
     if import_messages:
         if recent_days is not None:
             # Import recent messages in foreground, older ones in background
-            cutoff = datetime.now(timezone.utc) - __import__("datetime").timedelta(days=recent_days)
+            cutoff = datetime.now(UTC) - __import__("datetime").timedelta(days=recent_days)
             recent_file, older_file = _split_by_date(output, cutoff)
 
             typer.echo(f"\nImporting recent messages ({recent_days} days) from {recent_file}...")
@@ -237,8 +237,8 @@ async def _import(
         # Check if all-time needs regeneration
         alltime_stale = await _is_alltime_stale()
         if alltime_stale:
-            extends = alltime_stale.get('data_extends_to', '')
-            covers = alltime_stale.get('covers', 'none')
+            extends = alltime_stale.get("data_extends_to", "")
+            covers = alltime_stale.get("covers", "none")
             msg = f"\nAll-time story needs generation (covers: {covers})"
             if extends:
                 msg += f" — data goes back to {extends}"
@@ -385,12 +385,12 @@ async def _import_messages_to_db(
 
     return imported, skipped
 
-async def total_messages(db: "aiosqlite.Connection") -> int:
+async def total_messages(db: aiosqlite.Connection) -> int:
     cursor = await db.execute("SELECT COUNT(*) as total FROM messages LIMIT 1")
     row: aiosqlite.Row | None = await cursor.fetchone()
     return row[0] if row else 0
 
-async def _flush_batch(db: "aiosqlite.Connection", batch: list[tuple]) -> int:
+async def _flush_batch(db: aiosqlite.Connection, batch: list[tuple]) -> int:
     """Insert a batch of messages, returns count of rows inserted."""
     before = await total_messages(db)
 
@@ -418,7 +418,7 @@ def _parse_timestamp(ts: str | None) -> datetime | None:
             ts = ts.replace("Z", "+00:00")
             return datetime.fromisoformat(ts)
         if isinstance(ts, (int, float)):
-            return datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+            return datetime.fromtimestamp(ts / 1000, tz=UTC)
     except (ValueError, OSError):
         return None
     return None

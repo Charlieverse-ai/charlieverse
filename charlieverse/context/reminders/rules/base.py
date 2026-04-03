@@ -5,7 +5,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from charlieverse.context.reminders.template import ReminderTemplate
-from charlieverse.context.reminders.types import HookContext, ReminderResult, ReminderTag
+from charlieverse.context.reminders.types import (
+    HookContext,
+    ReminderResult,
+    ReminderTag,
+)
 
 
 class ReminderRule(ABC):
