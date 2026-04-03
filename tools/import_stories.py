@@ -57,8 +57,19 @@ def derive_metadata(filepath: Path) -> dict | None:
         year = parts[0]
         month = int(parts[1])
         month_names = [
-            "", "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December",
+            "",
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
         ]
         return {
             "title": f"{month_names[month]} {year}",
@@ -74,8 +85,19 @@ def derive_metadata(filepath: Path) -> dict | None:
         month = int(parts[1])
         week_num = int(week_match.group(1))
         month_names = [
-            "", "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December",
+            "",
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
         ]
         # Approximate week start/end
         day_start = max(1, (week_num - 1) * 7 + 1)
@@ -102,9 +124,7 @@ async def main():
     db.row_factory = aiosqlite.Row
 
     # Check if stories table exists
-    cursor = await db.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='stories'"
-    )
+    cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stories'")
     if not await cursor.fetchone():
         print("Stories table doesn't exist. Run the server first to apply migrations.")
         await db.close()

@@ -17,6 +17,7 @@ class StoreContext(TypedDict):
     sessions: SessionStore
     stories: StoryStore
 
+
 async def rebuild_all(stores: StoreContext):
     """Rebuild FTS + vector indexes for all tables."""
     from asyncio import gather

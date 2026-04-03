@@ -80,12 +80,8 @@ def test_sanitized_query_never_errors_against_real_fts5(raw: str) -> None:
 
     async def _run() -> None:
         async with aiosqlite.connect(":memory:") as db:
-            await db.execute(
-                "CREATE VIRTUAL TABLE test_fts USING fts5(content)"
-            )
-            await db.execute(
-                "INSERT INTO test_fts VALUES('hello world test')"
-            )
+            await db.execute("CREATE VIRTUAL TABLE test_fts USING fts5(content)")
+            await db.execute("INSERT INTO test_fts VALUES('hello world test')")
             await db.commit()
             sanitized = sanitize_fts_query(raw)
             if sanitized:
@@ -120,9 +116,7 @@ async def test_known_query_returns_rows(fts_db) -> None:
     """A well-formed query against our fixture data must return at least one row."""
     sanitized = sanitize_fts_query("hello")
     assert sanitized  # should not be empty for "hello"
-    cursor = await fts_db.execute(
-        "SELECT * FROM test_fts WHERE test_fts MATCH ?", (sanitized,)
-    )
+    cursor = await fts_db.execute("SELECT * FROM test_fts WHERE test_fts MATCH ?", (sanitized,))
     rows = await cursor.fetchall()
     assert len(rows) > 0
 
@@ -132,6 +126,4 @@ async def test_version_string_does_not_error(fts_db) -> None:
     sanitized = sanitize_fts_query("v1.6")
     if sanitized:
         # Should not raise
-        await fts_db.execute(
-            "SELECT * FROM test_fts WHERE test_fts MATCH ?", (sanitized,)
-        )
+        await fts_db.execute("SELECT * FROM test_fts WHERE test_fts MATCH ?", (sanitized,))

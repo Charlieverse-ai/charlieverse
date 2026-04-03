@@ -27,8 +27,12 @@ def register(mcp: FastMCP) -> None:
         if not decision.strip():
             raise ToolError("decision cannot be empty")
         result = await memory_tools.remember_decision(
-            content=decision, rationale=rationale, session_id=session_id,
-            tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
+            content=decision,
+            rationale=rationale,
+            session_id=session_id,
+            tags=tags,
+            pinned=pinned,
+            memories=_stores(ctx)["memories"],
         )
         return await _remember_with_url(result)
 
@@ -47,8 +51,12 @@ def register(mcp: FastMCP) -> None:
         if not solution.strip():
             raise ToolError("solution cannot be empty")
         result = await memory_tools.remember_solution(
-            problem=problem, solution=solution, session_id=session_id,
-            tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
+            problem=problem,
+            solution=solution,
+            session_id=session_id,
+            tags=tags,
+            pinned=pinned,
+            memories=_stores(ctx)["memories"],
         )
         return await _remember_with_url(result)
 
@@ -64,8 +72,11 @@ def register(mcp: FastMCP) -> None:
         if not content.strip():
             raise ToolError("content cannot be empty")
         result = await memory_tools.remember_preference(
-            content=content, session_id=session_id,
-            tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
+            content=content,
+            session_id=session_id,
+            tags=tags,
+            pinned=pinned,
+            memories=_stores(ctx)["memories"],
         )
         return await _remember_with_url(result)
 
@@ -81,8 +92,11 @@ def register(mcp: FastMCP) -> None:
         if not content.strip():
             raise ToolError("content cannot be empty")
         result = await memory_tools.remember_person(
-            content=content, session_id=session_id,
-            tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
+            content=content,
+            session_id=session_id,
+            tags=tags,
+            pinned=pinned,
+            memories=_stores(ctx)["memories"],
         )
         return await _remember_with_url(result)
 
@@ -99,8 +113,12 @@ def register(mcp: FastMCP) -> None:
         if not milestone.strip():
             raise ToolError("milestone cannot be empty")
         result = await memory_tools.remember_milestone(
-            milestone=milestone, significance=significance, session_id=session_id,
-            tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
+            milestone=milestone,
+            significance=significance,
+            session_id=session_id,
+            tags=tags,
+            pinned=pinned,
+            memories=_stores(ctx)["memories"],
         )
         return await _remember_with_url(result)
 
@@ -118,8 +136,13 @@ def register(mcp: FastMCP) -> None:
         if not moment.strip():
             raise ToolError("moment cannot be empty")
         result = await memory_tools.remember_moment(
-            moment=moment, feeling=feeling, context=context, session_id=session_id,
-            tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
+            moment=moment,
+            feeling=feeling,
+            context=context,
+            session_id=session_id,
+            tags=tags,
+            pinned=pinned,
+            memories=_stores(ctx)["memories"],
         )
         return await _remember_with_url(result)
 
@@ -136,8 +159,12 @@ def register(mcp: FastMCP) -> None:
         if not name.strip():
             raise ToolError("name cannot be empty")
         result = await memory_tools.remember_project(
-            name=name, details=details, session_id=session_id,
-            tags=tags, pinned=pinned, memories=_stores(ctx)["memories"],
+            name=name,
+            details=details,
+            session_id=session_id,
+            tags=tags,
+            pinned=pinned,
+            memories=_stores(ctx)["memories"],
         )
         return await _remember_with_url(result)
 
@@ -159,8 +186,14 @@ def register(mcp: FastMCP) -> None:
         if not when.strip():
             raise ToolError("when cannot be empty")
         result = await memory_tools.remember_event(
-            what=what, when=when, who=who, where=where, why=why,
-            session_id=session_id, tags=tags, pinned=pinned,
+            what=what,
+            when=when,
+            who=who,
+            where=where,
+            why=why,
+            session_id=session_id,
+            tags=tags,
+            pinned=pinned,
             memories=_stores(ctx)["memories"],
         )
         return await _remember_with_url(result)
@@ -176,7 +209,9 @@ def register(mcp: FastMCP) -> None:
         if not query.strip():
             raise ToolError("query cannot be empty")
         return await memory_tools.recall(
-            query=query, limit=limit, type=type,
+            query=query,
+            limit=limit,
+            type=type,
             memories=_stores(ctx)["memories"],
             knowledge_store=_stores(ctx)["knowledge"],
             story_store=_stores(ctx)["stories"],
@@ -195,7 +230,10 @@ def register(mcp: FastMCP) -> None:
         if not id.strip():
             raise ToolError("id cannot be empty")
         await memory_tools.update_memory(
-            id=id, content=content, tags=tags, session_id=session_id,
+            id=id,
+            content=content,
+            tags=tags,
+            session_id=session_id,
             memories=_stores(ctx)["memories"],
         )
         return {"url": _permalink("memories", id)}
@@ -220,7 +258,8 @@ def register(mcp: FastMCP) -> None:
         if not id.strip():
             raise ToolError("id cannot be empty")
         return await memory_tools.pin(
-            id=id, pinned=pinned,
+            id=id,
+            pinned=pinned,
             memories=_stores(ctx)["memories"],
             knowledge_store=_stores(ctx)["knowledge"],
         )

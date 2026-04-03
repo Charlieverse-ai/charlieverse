@@ -44,10 +44,7 @@ def _installed_providers() -> list[str]:
                 break
 
     # Copilot: check for agent file
-    copilot_agent = (
-        Path.home() / "Library" / "Application Support" / "Code" / "User"
-        / "prompts" / "charlieverse-Charlie.agent.md"
-    )
+    copilot_agent = Path.home() / "Library" / "Application Support" / "Code" / "User" / "prompts" / "charlieverse-Charlie.agent.md"
     if copilot_agent.exists():
         providers.append("copilot")
 

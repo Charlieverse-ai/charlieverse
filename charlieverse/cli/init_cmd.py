@@ -17,6 +17,7 @@ from charlieverse.config import config
 
 # ── Formatting helpers ────────────────────────────────────────────────────────
 
+
 def _ok(msg: str) -> None:
     typer.echo(typer.style("✔", fg=typer.colors.GREEN) + f" {msg}")
 
@@ -59,6 +60,7 @@ def _ask_choice(prompt: str, options: list[str]) -> int:
 
 
 # ── Steps ─────────────────────────────────────────────────────────────────────
+
 
 def _setup_directories(root: Path) -> None:
     """Create the ~/.charlieverse directory structure."""
@@ -287,6 +289,7 @@ def _summary() -> None:
 
 # ── Command ───────────────────────────────────────────────────────────────────
 
+
 def init(
     path: str = typer.Option(
         str(config.path),
@@ -294,7 +297,8 @@ def init(
     ),
     quick: bool = typer.Option(
         False,
-        "--quick", "-q",
+        "--quick",
+        "-q",
         help="Skip interactive prompts (directories + deps only)",
     ),
 ) -> None:

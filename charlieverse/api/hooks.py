@@ -45,7 +45,9 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             return PlainTextResponse("Missing")
 
         builder = ActivationBuilder(
-            memories_store, sessions_store, knowledge_store,
+            memories_store,
+            sessions_store,
+            knowledge_store,
             stories=rest_stores.get("stories"),
         )
         bundle = await builder.build(session, workspace)
@@ -70,7 +72,9 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             await sessions_store.create(session)
 
         builder = ActivationBuilder(
-            memories_store, sessions_store, knowledge_store,
+            memories_store,
+            sessions_store,
+            knowledge_store,
             stories=rest_stores.get("stories"),
         )
         bundle = await builder.build(session, workspace)
@@ -78,10 +82,12 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
 
         set_seen_ids(str(session.id), bundle.seen_ids)
 
-        return JSONResponse({
-            "session_id": str(session.id),
-            "activation": activation,
-        })
+        return JSONResponse(
+            {
+                "session_id": str(session.id),
+                "activation": activation,
+            }
+        )
 
     @mcp.custom_route("/api/sessions/heartbeat", methods=["POST"])
     async def api_heartbeat(request: Request) -> JSONResponse:
@@ -158,13 +164,15 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if not row:
             return JSONResponse({})
 
-        return JSONResponse({
-            "id": row[0],
-            "session_id": row[1],
-            "role": row[2],
-            "content": row[3][:200],
-            "created_at": row[4],
-        })
+        return JSONResponse(
+            {
+                "id": row[0],
+                "session_id": row[1],
+                "role": row[2],
+                "content": row[3][:200],
+                "created_at": row[4],
+            }
+        )
 
     @mcp.custom_route("/api/context/enrich", methods=["POST"])
     async def api_context_enrich(request: Request) -> JSONResponse:
@@ -199,38 +207,32 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             memory_results = await memories.search(entity, limit=3)
             knowledge_results = await knowledge.search(entity, limit=2)
 
-            new_memories = [
-                m for m in memory_results
-                if str(m.id) not in seen_ids
-                and (not session_id or str(m.created_session_id) != session_id)
-            ]
-            new_knowledge = [
-                k for k in knowledge_results
-                if str(k.id) not in seen_ids
-                and (not session_id or str(k.created_session_id) != session_id)
-            ]
+            new_memories = [m for m in memory_results if str(m.id) not in seen_ids and (not session_id or str(m.created_session_id) != session_id)]
+            new_knowledge = [k for k in knowledge_results if str(k.id) not in seen_ids and (not session_id or str(k.created_session_id) != session_id)]
 
             if new_memories or new_knowledge:
-                found.append({
-                    "entity": entity,
-                    "memories": [
-                        {
-                            "id": str(m.id),
-                            "type": m.type.value,
-                            "content": m.content[:200],
-                            "tags": m.tags,
-                        }
-                        for m in new_memories
-                    ],
-                    "knowledge": [
-                        {
-                            "id": str(k.id),
-                            "topic": k.topic,
-                            "content": k.content[:200],
-                        }
-                        for k in new_knowledge
-                    ],
-                })
+                found.append(
+                    {
+                        "entity": entity,
+                        "memories": [
+                            {
+                                "id": str(m.id),
+                                "type": m.type.value,
+                                "content": m.content[:200],
+                                "tags": m.tags,
+                            }
+                            for m in new_memories
+                        ],
+                        "knowledge": [
+                            {
+                                "id": str(k.id),
+                                "topic": k.topic,
+                                "content": k.content[:200],
+                            }
+                            for k in new_knowledge
+                        ],
+                    }
+                )
             else:
                 not_found.append(entity)
 
@@ -291,12 +293,14 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                 existing.update(prompt_ids)
                 set_seen_ids(session_id, existing)
 
-        return JSONResponse({
-            "entities": entities,
-            "found": found,
-            "not_found": not_found,
-            "stories": stories_result,
-        })
+        return JSONResponse(
+            {
+                "entities": entities,
+                "found": found,
+                "not_found": not_found,
+                "stories": stories_result,
+            }
+        )
 
     @mcp.custom_route("/api/messages/search", methods=["POST"])
     async def api_search_messages(request: Request) -> JSONResponse:
@@ -328,15 +332,17 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             )
 
         rows = await cursor.fetchall()
-        return JSONResponse({
-            "messages": [
-                {
-                    "id": row["id"],
-                    "session_id": row["session_id"],
-                    "role": row["role"],
-                    "content": row["content"][:500],
-                    "created_at": row["created_at"],
-                }
-                for row in rows
-            ]
-        })
+        return JSONResponse(
+            {
+                "messages": [
+                    {
+                        "id": row["id"],
+                        "session_id": row["session_id"],
+                        "role": row["role"],
+                        "content": row["content"][:500],
+                        "created_at": row["created_at"],
+                    }
+                    for row in rows
+                ]
+            }
+        )

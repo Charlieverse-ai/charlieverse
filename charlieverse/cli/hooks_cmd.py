@@ -29,7 +29,7 @@ app = typer.Typer(
     name="hooks",
     help="Provider integration hooks.",
     no_args_is_help=True,
-    )
+)
 
 DEFAULT_HOST = config.server.ip_address()
 DEFAULT_PORT = config.server.port
@@ -38,12 +38,14 @@ LOG_FILE = config.logs / "hooks.log"
 
 # ===== Helpers =====
 
+
 @dataclass
 class IncomingHookContext:
     event: str
     session_id: str
     workspace: str
     stdin: dict = field(default_factory=dict)
+
 
 def _log(event: str, msg: str, data: dict | None = None) -> None:
     """Append to hooks log file."""
@@ -92,6 +94,7 @@ def _is_subagent(stdin_data: dict | None) -> bool:
     """
     return bool(stdin_data and stdin_data.get("agent_id"))
 
+
 async def _post_message(host: str, port: int, **kwargs) -> None:
     """POST a message to the server. Best-effort."""
     import httpx
@@ -101,6 +104,7 @@ async def _post_message(host: str, port: int, **kwargs) -> None:
             await client.post(f"http://{host}:{port}/api/messages", json=kwargs)
     except Exception:
         pass
+
 
 async def _build_reminders(ctx: HookContext) -> str:
     """Run the reminders engine and return formatted output."""
@@ -129,10 +133,7 @@ async def _run_user_hooks(hook_dir_name: str, **env_vars: str | None) -> str:
     if not hooks_dir.is_dir():
         return ""
 
-    scripts = sorted(
-        f for f in hooks_dir.iterdir()
-        if f.is_file() and os.access(f, os.X_OK)
-    )
+    scripts = sorted(f for f in hooks_dir.iterdir() if f.is_file() and os.access(f, os.X_OK))
     if not scripts:
         return ""
 
@@ -165,15 +166,18 @@ async def _run_user_hooks(hook_dir_name: str, **env_vars: str | None) -> str:
 
 def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
     """Output context in the universal hookSpecificOutput JSON format."""
-    output = json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": hook_event,
-            "additionalContext": f"{context}",
+    output = json.dumps(
+        {
+            "hookSpecificOutput": {
+                "hookEventName": hook_event,
+                "additionalContext": f"{context}",
+            }
         }
-    })
+    )
     _log(f"{hook_event}.result", msg=output)
     sys.stdout.write(output)
     sys.stdout.flush()
+
 
 def _incoming_context() -> IncomingHookContext | None:
     stdin_data = _parse_stdin()
@@ -211,14 +215,11 @@ def _incoming_context() -> IncomingHookContext | None:
         _log(f"{hook_name}.skipped", "ERROR: Missing or invalid session_id", data=stdin_data)
         return None
 
-    return IncomingHookContext(
-        hook_name,
-        session_id=str(session_id),
-        workspace=workspace,
-        stdin=stdin_data
-    )
+    return IncomingHookContext(hook_name, session_id=str(session_id), workspace=workspace, stdin=stdin_data)
+
 
 # ===== session-start =====
+
 
 @app.command("session-start")
 def session_start(
@@ -237,10 +238,7 @@ def session_start(
     typer.Exit(0)
 
 
-async def _session_start(
-    host: str, port: int, source: str,
-    context: IncomingHookContext
-) -> None:
+async def _session_start(host: str, port: int, source: str, context: IncomingHookContext) -> None:
     import httpx
 
     try:
@@ -259,10 +257,7 @@ async def _session_start(
     result = _build_context_static(activation)
 
     # Run user hooks from ~/.charlieverse/hooks/session-start/
-    user_hook_output = await _run_user_hooks("session-start",
-        session_id=context.session_id,
-        workspace=context.workspace
-    )
+    user_hook_output = await _run_user_hooks("session-start", session_id=context.session_id, workspace=context.workspace)
 
     if user_hook_output:
         result += user_hook_output
@@ -272,6 +267,7 @@ async def _session_start(
 
 
 # ===== prompt-submit =====
+
 
 @app.command("prompt-submit")
 def prompt_submit(
@@ -287,10 +283,8 @@ def prompt_submit(
 
     typer.Exit(0)
 
-async def _prompt_submit(
-    host: str, port: int,
-    context: IncomingHookContext
-) -> None:
+
+async def _prompt_submit(host: str, port: int, context: IncomingHookContext) -> None:
     user_prompt = context.stdin.get("prompt")
     if not user_prompt:
         _log("prompt-submit", "ERROR: Missing User Submitted Text", data=context.stdin)
@@ -353,13 +347,16 @@ async def _prompt_submit(
 
     # Post user message to server
     await _post_message(
-        host, port,
+        host,
+        port,
         session_id=session_id,
         role="user",
         content=user_prompt,
     )
 
+
 # ===== stop =====
+
 
 @app.command("stop")
 def stop(
@@ -377,22 +374,24 @@ def stop(
             return
 
         # Save assistant message
-        asyncio.run(_post_message(
-            host, port,
-            session_id=context.session_id,
-            role="assistant",
-            content=last_message,
-        ))
+        asyncio.run(
+            _post_message(
+                host,
+                port,
+                session_id=context.session_id,
+                role="assistant",
+                content=last_message,
+            )
+        )
 
         # Run user hooks from ~/.charlieverse/hooks/stop/
-        asyncio.run(_run_user_hooks("stop",
-            session_id=context.session_id,
-            last_assistant_message=last_message
-        ))
+        asyncio.run(_run_user_hooks("stop", session_id=context.session_id, last_assistant_message=last_message))
 
     typer.Exit(0)
 
+
 # ===== tool-use =====
+
 
 @app.command("tool-use")
 def tool_use(
@@ -409,13 +408,15 @@ def tool_use(
 
     typer.Exit(0)
 
+
 # ===== session-end =====
+
 
 @app.command("session-end")
 def session_end(
     host: str = typer.Option(DEFAULT_HOST, help="Server host"),
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
-    source: str = typer.Option(..., help="Provider identifier")
+    source: str = typer.Option(..., help="Provider identifier"),
 ) -> None:
     """Hook: SessionEnd. Silent on success."""
     context = _incoming_context()
@@ -424,6 +425,7 @@ def session_end(
         asyncio.run(_session_end(host, port, source, context.session_id))
 
     typer.Exit(0)
+
 
 async def _session_end(host: str, port: int, source: str, session_id: str) -> None:
     import httpx

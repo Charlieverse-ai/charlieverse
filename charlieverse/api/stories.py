@@ -25,6 +25,7 @@ _BAD_UUID = JSONResponse({"error": "Invalid UUID format"}, status_code=400)
 # Serializer
 # ---------------------------------------------------------------------------
 
+
 def _serialize_story(story) -> dict:
     """Convert a Story model to a JSON-safe dict."""
     return {
@@ -60,6 +61,7 @@ def _serialize_session(session) -> dict:
 # ---------------------------------------------------------------------------
 # Route registration
 # ---------------------------------------------------------------------------
+
 
 def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     """Register story REST endpoints on the given FastMCP instance."""
@@ -104,10 +106,12 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             sessions_store: SessionStore = rest_stores["sessions"]
             existing = await sessions_store.get(session_id)
             if not existing:
-                await sessions_store.create(Session(
-                    id=session_id,
-                    workspace=body.get("workspace"),
-                ))
+                await sessions_store.create(
+                    Session(
+                        id=session_id,
+                        workspace=body.get("workspace"),
+                    )
+                )
 
         title = body.get("title", "")
         summary = body.get("summary")
@@ -248,12 +252,14 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                 seconds_between = str(int((created - prev_time).total_seconds()))
             prev_time = created
 
-            messages.append({
-                "content": row["content"],
-                "from": "charlie" if row["role"] == "assistant" else "user",
-                "date_time": created.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
-                "seconds_between_messages": seconds_between,
-            })
+            messages.append(
+                {
+                    "content": row["content"],
+                    "from": "charlie" if row["role"] == "assistant" else "user",
+                    "date_time": created.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+                    "seconds_between_messages": seconds_between,
+                }
+            )
 
         cursor = await db.execute(
             """SELECT id, type, content, tags, created_at FROM entities
@@ -262,10 +268,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             (session_id,),
         )
         memory_rows = await cursor.fetchall()
-        memories_data = [
-            {"type": row["type"], "content": row["content"][:300], "tags": row["tags"]}
-            for row in memory_rows
-        ]
+        memories_data = [{"type": row["type"], "content": row["content"][:300], "tags": row["tags"]} for row in memory_rows]
 
         cursor = await db.execute(
             """SELECT id, topic, content, tags, created_at FROM knowledge
@@ -274,18 +277,17 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             (session_id,),
         )
         knowledge_rows = await cursor.fetchall()
-        knowledge_data = [
-            {"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]}
-            for row in knowledge_rows
-        ]
+        knowledge_data = [{"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]} for row in knowledge_rows]
 
-        return JSONResponse({
-            "session": session_data,
-            "existing_story": existing_story_data,
-            "messages": messages,
-            "memories": memories_data,
-            "knowledge": knowledge_data,
-        })
+        return JSONResponse(
+            {
+                "session": session_data,
+                "existing_story": existing_story_data,
+                "messages": messages,
+                "memories": memories_data,
+                "knowledge": knowledge_data,
+            }
+        )
 
     @mcp.custom_route("/api/story-data/{tier}/{date}", methods=["GET"])
     async def api_story_data_tier(request: Request) -> JSONResponse:
@@ -317,11 +319,13 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                     (sid,),
                 )
                 for row in await cursor.fetchall():
-                    messages.append({
-                        "from": "charlie" if row["role"] == "assistant" else "user",
-                        "content": row["content"][:500],
-                        "created_at": row["created_at"],
-                    })
+                    messages.append(
+                        {
+                            "from": "charlie" if row["role"] == "assistant" else "user",
+                            "content": row["content"][:500],
+                            "created_at": row["created_at"],
+                        }
+                    )
 
             day_start = f"{target_date.isoformat()}T00:00:00"
             cursor = await db.execute(
@@ -330,10 +334,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                    ORDER BY created_at ASC""",
                 (day_start,),
             )
-            memories = [
-                {"type": row["type"], "content": row["content"][:300], "tags": row["tags"]}
-                for row in await cursor.fetchall()
-            ]
+            memories = [{"type": row["type"], "content": row["content"][:300], "tags": row["tags"]} for row in await cursor.fetchall()]
 
             cursor = await db.execute(
                 """SELECT topic, content, tags FROM knowledge
@@ -341,21 +342,20 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                    ORDER BY created_at ASC""",
                 (day_start,),
             )
-            knowledge = [
-                {"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]}
-                for row in await cursor.fetchall()
-            ]
+            knowledge = [{"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]} for row in await cursor.fetchall()]
 
-            return JSONResponse({
-                "tier": "daily",
-                "date": date_str,
-                "range_start": target_date.isoformat(),
-                "range_end": target_date.isoformat(),
-                "sessions": [_serialize_session(s) for s in sessions],
-                "messages": messages,
-                "memories": memories,
-                "knowledge": knowledge,
-            })
+            return JSONResponse(
+                {
+                    "tier": "daily",
+                    "date": date_str,
+                    "range_start": target_date.isoformat(),
+                    "range_end": target_date.isoformat(),
+                    "sessions": [_serialize_session(s) for s in sessions],
+                    "messages": messages,
+                    "memories": memories,
+                    "knowledge": knowledge,
+                }
+            )
         elif tier == "weekly":
             source_tier = StoryTier.daily
             monday = target_date - timedelta(days=target_date.weekday())
@@ -375,9 +375,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             range_start = target_date.replace(month=quarter_start_month, day=1).isoformat()
             end_month = quarter_start_month + 3
             if end_month > 12:
-                range_end = target_date.replace(
-                    year=target_date.year + 1, month=end_month - 12, day=1
-                ).isoformat()
+                range_end = target_date.replace(year=target_date.year + 1, month=end_month - 12, day=1).isoformat()
             else:
                 range_end = target_date.replace(month=end_month, day=1).isoformat()
         elif tier == "yearly":
@@ -391,18 +389,21 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if source_tier:
             stories = [s for s in stories if s.tier == source_tier]
 
-        return JSONResponse({
-            "tier": tier,
-            "date": date_str,
-            "source_tier": source_tier.value if source_tier else None,
-            "range_start": range_start,
-            "range_end": range_end,
-            "stories": [_serialize_story(s) for s in stories],
-        })
+        return JSONResponse(
+            {
+                "tier": tier,
+                "date": date_str,
+                "source_tier": source_tier.value if source_tier else None,
+                "range_start": range_start,
+                "range_end": range_end,
+                "stories": [_serialize_story(s) for s in stories],
+            }
+        )
 
     @mcp.custom_route("/api/rebuild", methods=["POST"])
     async def api_rebuild(request: Request) -> JSONResponse:
         """Rebuild all FTS and vector indexes across entities, knowledge, and stories."""
         from charlieverse.db.stores.context import rebuild_all
+
         await rebuild_all(rest_stores)
         return JSONResponse({"success": True})

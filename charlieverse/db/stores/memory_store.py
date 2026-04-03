@@ -35,9 +35,7 @@ class MemoryStore:
 
     async def _sync_fts_insert(self, entity: Entity) -> None:
         """Insert a new entity into the FTS index."""
-        cursor = await self.db.execute(
-            "SELECT rowid FROM entities WHERE id = ?", (str(entity.id),)
-        )
+        cursor = await self.db.execute("SELECT rowid FROM entities WHERE id = ?", (str(entity.id),))
         row = await cursor.fetchone()
         if not row:
             return
@@ -48,9 +46,7 @@ class MemoryStore:
 
     async def _sync_fts_delete(self, entity_id: UUID) -> None:
         """Remove an entity's current FTS entry using values from the content table."""
-        cursor = await self.db.execute(
-            "SELECT rowid, content, tags FROM entities WHERE id = ?", (str(entity_id),)
-        )
+        cursor = await self.db.execute("SELECT rowid, content, tags FROM entities WHERE id = ?", (str(entity_id),))
         row = await cursor.fetchone()
         if not row:
             return
@@ -61,10 +57,9 @@ class MemoryStore:
 
     async def rebuild(self) -> None:
         from asyncio import gather
-        await gather(
-            self.rebuild_fts(),
-            self.rebuild_vec()
-        )
+
+        await gather(self.rebuild_fts(), self.rebuild_vec())
+
     async def rebuild_fts(self) -> None:
         """Full FTS rebuild — used on startup, not per-write."""
         await self.db.execute("INSERT INTO entities_fts(entities_fts) VALUES('rebuild')")
@@ -90,9 +85,7 @@ class MemoryStore:
         rows: list[tuple[int, bytes]] = []
         for entity, embedding in zip(entities, embeddings):
             try:
-                cursor = await self.db.execute(
-                    "SELECT rowid FROM entities WHERE id = ?", (str(entity.id),)
-                )
+                cursor = await self.db.execute("SELECT rowid FROM entities WHERE id = ?", (str(entity.id),))
                 row = await cursor.fetchone()
                 if row:
                     rows.append((row[0], serialize_float32(embedding)))
@@ -100,9 +93,7 @@ class MemoryStore:
                 continue
 
         await self.db.execute("DROP TABLE IF EXISTS entities_vec")
-        await self.db.execute(
-            "CREATE VIRTUAL TABLE entities_vec USING vec0(embedding float[384])"
-        )
+        await self.db.execute("CREATE VIRTUAL TABLE entities_vec USING vec0(embedding float[384])")
         for rowid, embedding in rows:
             await self.db.execute(
                 "INSERT INTO entities_vec(rowid, embedding) VALUES(?, ?)",
@@ -262,9 +253,7 @@ class MemoryStore:
         """Store or update the embedding for an entity."""
         from sqlite_vec import serialize_float32
 
-        cursor = await self.db.execute(
-            "SELECT rowid FROM entities WHERE id = ?", (str(entity_id),)
-        )
+        cursor = await self.db.execute("SELECT rowid FROM entities WHERE id = ?", (str(entity_id),))
         row = await cursor.fetchone()
         if not row:
             return

@@ -9,6 +9,7 @@ from charlieverse.tools.responses.story_summary import StorySummary
 
 class MessageSummary(BaseModel):
     """A message search result."""
+
     id: str
     role: str
     content: str

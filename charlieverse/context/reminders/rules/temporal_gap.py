@@ -14,6 +14,7 @@ from charlieverse.context.time_utils import _normalize_tz, relative_time
 
 GAP_THRESHOLD_SECONDS = 300  # 5 minutes
 
+
 class TemporalGapRule(ReminderRule):
     tag = ReminderTag.TEMPORAL_CONTEXT
 
@@ -30,6 +31,11 @@ class TemporalGapRule(ReminderRule):
             return None
 
         gap_text = relative_time(last_response_at, ctx.timestamp)
-        return self.result(self.template.render("temporal-gap", {
-            "TIME_SINCE": gap_text,
-        }))
+        return self.result(
+            self.template.render(
+                "temporal-gap",
+                {
+                    "TIME_SINCE": gap_text,
+                },
+            )
+        )

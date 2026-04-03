@@ -114,11 +114,14 @@ def _kill_port_holder(port: int) -> bool:
     terminating unrelated services that happen to use the same port.
     """
     import subprocess
+
     try:
         # Get PIDs and their command names for the port
         result = subprocess.run(
             ["lsof", "-ti", f":{port}"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         pids = [int(p.strip()) for p in result.stdout.strip().split("\n") if p.strip()]
         killed = False
@@ -127,7 +130,9 @@ def _kill_port_holder(port: int) -> bool:
                 # Verify the process belongs to us before killing
                 cmd_result = subprocess.run(
                     ["ps", "-p", str(pid), "-o", "command="],
-                    capture_output=True, text=True, timeout=2,
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
                 )
                 cmdline = cmd_result.stdout.strip().lower()
                 if "charlieverse" not in cmdline and "charlie" not in cmdline:
@@ -145,7 +150,8 @@ def _kill_port_holder(port: int) -> bool:
 def start(
     host: str = typer.Option(DEFAULT_HOST, help="Host to bind to"),
     port: int = typer.Option(DEFAULT_PORT, help="Port to listen on"),
-    foreground: bool = typer.Option(False, "-f", "--foreground", help="Run in foreground")) -> None:
+    foreground: bool = typer.Option(False, "-f", "--foreground", help="Run in foreground"),
+) -> None:
     """Start the Charlieverse server."""
     if _is_running():
         typer.echo(f"Charlieverse is already running (PID {_read_pid()})")
@@ -169,6 +175,7 @@ def start(
         if pid > 0:
             # Parent — wait for child to write PID, then poll health
             import time
+
             for _ in range(20):
                 if _read_pid() is not None:
                     break
@@ -214,6 +221,7 @@ def start(
     signal.signal(signal.SIGINT, handle_signal)
 
     from charlieverse.server import start_server
+
     asyncio.run(start_server(host=host, port=port))
 
 
@@ -254,10 +262,8 @@ def restart(
     _wait_for_port_free(port)
     start(host=host, port=port, foreground=False)
 
+
 @app.command("url")
-def url(
-    host: str = typer.Option(DEFAULT_HOST, help="Host to bind to"),
-    port: int = typer.Option(DEFAULT_PORT, help="Port to listen on")
-) -> None:
+def url(host: str = typer.Option(DEFAULT_HOST, help="Host to bind to"), port: int = typer.Option(DEFAULT_PORT, help="Port to listen on")) -> None:
     """Print the server URL."""
     typer.echo(f"http://{host}:{port}")

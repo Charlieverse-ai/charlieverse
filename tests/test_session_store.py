@@ -37,12 +37,14 @@ async def test_create_returns_session(session_store):
 
 
 async def test_create_stores_fields(session_store):
-    s = await session_store.create(_session(
-        what_happened="fixed bugs",
-        for_next_session="write tests",
-        workspace="/some/path",
-        tags=["bugfix"],
-    ))
+    s = await session_store.create(
+        _session(
+            what_happened="fixed bugs",
+            for_next_session="write tests",
+            workspace="/some/path",
+            tags=["bugfix"],
+        )
+    )
     fetched = await session_store.get(s.id)
     assert fetched is not None
     assert fetched.what_happened == "fixed bugs"
@@ -301,6 +303,7 @@ async def test_recent_messages_respects_turn_limit(db, session_store):
 
 async def test_recent_messages_returns_context_message_objects(db, session_store):
     from charlieverse.models import ContextMessage
+
     base = datetime.now(UTC)
     await _insert_message(db, "user", "hello charlie", base - timedelta(minutes=2))
     await _insert_message(db, "assistant", "hello there!", base - timedelta(minutes=1))

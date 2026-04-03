@@ -86,4 +86,23 @@ exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
 line-length = 160
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "Q", "UP", "I", "N"]
+select = [
+    "E",   # pycodestyle (error)
+    "F",   # pyflakes
+    "B",   # bugbear
+    "B9",
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "I",   # isort
+    "UP",  # pyupgrade
+    "PIE", # flake8-pie
+    "PGH", # pygrep-hooks
+    "PYI", # flake8-pyi
+    "RUF",
+]
+
+ignore = [
+    "B011",
+    "E501",
+]
+

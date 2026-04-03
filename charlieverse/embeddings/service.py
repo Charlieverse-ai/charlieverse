@@ -16,8 +16,10 @@ EMBEDDING_DIM = 384
 _executor = ThreadPoolExecutor(max_workers=1)
 _model: SentenceTransformer | None = None
 
+
 def prewarm_embeddings():
     _get_model()
+
 
 def _get_model() -> SentenceTransformer:
     """Lazy-load the embedding model on first use."""

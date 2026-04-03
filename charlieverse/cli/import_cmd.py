@@ -51,6 +51,7 @@ def import_conversations(
         asyncio.get_running_loop()
         # Already in an event loop — run in a thread to avoid nested asyncio.run()
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor() as pool:
             pool.submit(asyncio.run, _import(*args)).result()
     except RuntimeError:
@@ -180,9 +181,16 @@ async def _import(
                 typer.echo("\nImporting older messages in the background...")
                 # Fork a background process for older messages
                 import subprocess
+
                 bg_cmd = [
-                    "uv", "run", "python", "-m", "charlieverse.cli", "import",
-                    "--from-file", str(older_file),
+                    "uv",
+                    "run",
+                    "python",
+                    "-m",
+                    "charlieverse.cli",
+                    "import",
+                    "--from-file",
+                    str(older_file),
                     "--messages",
                     "--no-stories",
                 ]
@@ -212,11 +220,13 @@ async def _import(
 
         for week_key, info in sorted(weekly_files.items()):
             if week_key not in existing_weeks:
-                weeks_needing_stories.append({
-                    "week": week_key,
-                    "file": str(info["path"]),
-                    "entries": info["count"],
-                })
+                weeks_needing_stories.append(
+                    {
+                        "week": week_key,
+                        "file": str(info["path"]),
+                        "entries": info["count"],
+                    }
+                )
 
         if weeks_needing_stories:
             typer.echo(f"\n{len(weeks_needing_stories)} weeks need Storyteller processing:")
@@ -293,9 +303,7 @@ def _split_by_date(jsonl_path: Path, cutoff: datetime) -> tuple[Path, Path]:
     older_path = jsonl_path.with_suffix(".older.jsonl")
     cutoff_iso = cutoff.isoformat()
 
-    with open(jsonl_path) as f, \
-         open(recent_path, "w") as recent_f, \
-         open(older_path, "w") as older_f:
+    with open(jsonl_path) as f, open(recent_path, "w") as recent_f, open(older_path, "w") as older_f:
         for line in f:
             line = line.strip()
             if not line:
@@ -342,7 +350,6 @@ async def _import_messages_to_db(
 
     db = await connect(db_path)
     try:
-
         with open(jsonl_path) as f:
             for line_num, line in enumerate(f, 1):
                 try:
@@ -385,10 +392,12 @@ async def _import_messages_to_db(
 
     return imported, skipped
 
+
 async def total_messages(db: aiosqlite.Connection) -> int:
     cursor = await db.execute("SELECT COUNT(*) as total FROM messages LIMIT 1")
     row: aiosqlite.Row | None = await cursor.fetchone()
     return row[0] if row else 0
+
 
 async def _flush_batch(db: aiosqlite.Connection, batch: list[tuple]) -> int:
     """Insert a batch of messages, returns count of rows inserted."""
@@ -480,9 +489,7 @@ async def _get_existing_weekly_stories() -> set[str]:
 
     db = await connect(db_path)
     try:
-        cursor = await db.execute(
-            "SELECT period_start, period_end FROM stories WHERE tier = 'weekly'"
-        )
+        cursor = await db.execute("SELECT period_start, period_end FROM stories WHERE tier = 'weekly'")
         rows = await cursor.fetchall()
 
         for period_start, _period_end in rows:
@@ -508,9 +515,7 @@ async def _get_months_needing_stories() -> list[dict]:
     db = await connect(db_path)
     try:
         # Get all months that have weekly stories
-        cursor = await db.execute(
-            "SELECT period_start FROM stories WHERE tier = 'weekly'"
-        )
+        cursor = await db.execute("SELECT period_start FROM stories WHERE tier = 'weekly'")
         weekly_rows = await cursor.fetchall()
 
         months_with_weeklies: dict[str, int] = defaultdict(int)
@@ -521,9 +526,7 @@ async def _get_months_needing_stories() -> list[dict]:
                 months_with_weeklies[month_key] += 1
 
         # Get all months that have monthly stories
-        cursor = await db.execute(
-            "SELECT period_start FROM stories WHERE tier = 'monthly'"
-        )
+        cursor = await db.execute("SELECT period_start FROM stories WHERE tier = 'monthly'")
         monthly_rows = await cursor.fetchall()
 
         months_with_monthlies: set[str] = set()
@@ -535,10 +538,12 @@ async def _get_months_needing_stories() -> list[dict]:
         # Diff
         for month_key in sorted(months_with_weeklies):
             if month_key not in months_with_monthlies:
-                results.append({
-                    "month": month_key,
-                    "weekly_count": months_with_weeklies[month_key],
-                })
+                results.append(
+                    {
+                        "month": month_key,
+                        "weekly_count": months_with_weeklies[month_key],
+                    }
+                )
     finally:
         await db.close()
 
@@ -557,9 +562,7 @@ async def _is_alltime_stale() -> dict | None:
     db = await connect(db_path)
     try:
         # Get earliest weekly story date
-        cursor = await db.execute(
-            "SELECT MIN(period_start) FROM stories WHERE tier = 'weekly'"
-        )
+        cursor = await db.execute("SELECT MIN(period_start) FROM stories WHERE tier = 'weekly'")
         row = await cursor.fetchone()
         earliest_weekly = row[0] if row else None
 
@@ -567,9 +570,7 @@ async def _is_alltime_stale() -> dict | None:
             return {"covers": "none"}
 
         # Get all-time story
-        cursor = await db.execute(
-            "SELECT period_start, period_end FROM stories WHERE tier = 'all-time' LIMIT 1"
-        )
+        cursor = await db.execute("SELECT period_start, period_end FROM stories WHERE tier = 'all-time' LIMIT 1")
         alltime = await cursor.fetchone()
 
         if not alltime:

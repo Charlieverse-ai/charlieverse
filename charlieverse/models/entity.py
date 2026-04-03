@@ -25,7 +25,6 @@ class EntityType(StrEnum):
     event = "event"
 
 
-
 class Entity(BaseModel):
     """A memory entity — decisions, solutions, preferences, people, milestones, moments, projects, events."""
 

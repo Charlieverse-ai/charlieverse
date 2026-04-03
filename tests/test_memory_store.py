@@ -197,9 +197,7 @@ async def test_list_orders_by_updated_at_desc(memory_store):
 
     results = await memory_store.list()
     ids = [e.id for e in results]
-    assert ids.index(e_first.id) < ids.index(e_second.id), (
-        "The updated entity should appear before the not-updated one"
-    )
+    assert ids.index(e_first.id) < ids.index(e_second.id), "The updated entity should appear before the not-updated one"
 
 
 async def test_list_filtered_by_type_orders_by_updated_at_desc(memory_store):
@@ -213,6 +211,4 @@ async def test_list_filtered_by_type_orders_by_updated_at_desc(memory_store):
 
     results = await memory_store.list(entity_type=EntityType.moment)
     ids = [e.id for e in results]
-    assert ids.index(e_old.id) < ids.index(e_new.id), (
-        "The updated moment should appear first when filtering by type"
-    )
+    assert ids.index(e_old.id) < ids.index(e_new.id), "The updated moment should appear first when filtering by type"

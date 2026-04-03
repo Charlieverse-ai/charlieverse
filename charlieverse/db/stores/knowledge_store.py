@@ -35,9 +35,7 @@ class KnowledgeStore:
 
     async def _sync_fts_insert(self, knowledge: Knowledge) -> None:
         """Insert a new knowledge article into the FTS index."""
-        cursor = await self.db.execute(
-            "SELECT rowid FROM knowledge WHERE id = ?", (str(knowledge.id),)
-        )
+        cursor = await self.db.execute("SELECT rowid FROM knowledge WHERE id = ?", (str(knowledge.id),))
         row = await cursor.fetchone()
         if not row:
             return
@@ -48,9 +46,7 @@ class KnowledgeStore:
 
     async def _sync_fts_delete(self, knowledge_id: UUID) -> None:
         """Remove a knowledge article's current FTS entry using values from the content table."""
-        cursor = await self.db.execute(
-            "SELECT rowid, topic, content, tags FROM knowledge WHERE id = ?", (str(knowledge_id),)
-        )
+        cursor = await self.db.execute("SELECT rowid, topic, content, tags FROM knowledge WHERE id = ?", (str(knowledge_id),))
         row = await cursor.fetchone()
         if not row:
             return
@@ -61,10 +57,8 @@ class KnowledgeStore:
 
     async def rebuild(self) -> None:
         from asyncio import gather
-        await gather(
-            self.rebuild_fts(),
-            self.rebuild_vec()
-        )
+
+        await gather(self.rebuild_fts(), self.rebuild_vec())
 
     async def rebuild_fts(self) -> None:
         """Full FTS rebuild — used on startup, not per-write."""
@@ -91,9 +85,7 @@ class KnowledgeStore:
         rows: list[tuple[int, bytes]] = []
         for article, embedding in zip(articles, embeddings):
             try:
-                cursor = await self.db.execute(
-                    "SELECT rowid FROM knowledge WHERE id = ?", (str(article.id),)
-                )
+                cursor = await self.db.execute("SELECT rowid FROM knowledge WHERE id = ?", (str(article.id),))
                 row = await cursor.fetchone()
                 if row:
                     rows.append((row[0], serialize_float32(embedding)))
@@ -101,9 +93,7 @@ class KnowledgeStore:
                 continue
 
         await self.db.execute("DROP TABLE IF EXISTS knowledge_vec")
-        await self.db.execute(
-            "CREATE VIRTUAL TABLE knowledge_vec USING vec0(embedding float[384])"
-        )
+        await self.db.execute("CREATE VIRTUAL TABLE knowledge_vec USING vec0(embedding float[384])")
         for rowid, embedding in rows:
             await self.db.execute(
                 "INSERT INTO knowledge_vec(rowid, embedding) VALUES(?, ?)",
@@ -252,9 +242,7 @@ class KnowledgeStore:
         """Store or update the embedding for a knowledge article."""
         from sqlite_vec import serialize_float32
 
-        cursor = await self.db.execute(
-            "SELECT rowid FROM knowledge WHERE id = ?", (str(knowledge_id),)
-        )
+        cursor = await self.db.execute("SELECT rowid FROM knowledge WHERE id = ?", (str(knowledge_id),))
         row = await cursor.fetchone()
         if not row:
             return

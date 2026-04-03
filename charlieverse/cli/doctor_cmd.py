@@ -545,9 +545,7 @@ def check_hooks() -> list[CheckResult]:
                         )
                     )
                 else:
-                    results.append(
-                        _pass("Claude Code hooks registration", "SessionStart, UserPromptSubmit, Stop registered")
-                    )
+                    results.append(_pass("Claude Code hooks registration", "SessionStart, UserPromptSubmit, Stop registered"))
             except (json.JSONDecodeError, OSError) as exc:
                 results.append(
                     _warn(
@@ -573,9 +571,7 @@ def check_hooks() -> list[CheckResult]:
                     )
                 )
             else:
-                results.append(
-                    _pass("VS Code / Copilot hooks registration", "SessionStart, UserPromptSubmit, Stop registered")
-                )
+                results.append(_pass("VS Code / Copilot hooks registration", "SessionStart, UserPromptSubmit, Stop registered"))
         except (json.JSONDecodeError, OSError) as exc:
             results.append(
                 _warn(

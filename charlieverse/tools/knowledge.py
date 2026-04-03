@@ -48,7 +48,8 @@ async def search_knowledge(
     return ExpertResponse(
         articles=[
             KnowledgeSummary(
-                id=k.id, content=k.content,
+                id=k.id,
+                content=k.content,
             )
             for k in merged[:limit]
         ],

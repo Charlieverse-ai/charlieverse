@@ -33,6 +33,7 @@ def format_datetime(dt: datetime) -> str:
 
     return dt.strftime("%B %d, %Y %H:%M")
 
+
 def format_time(dt: datetime) -> str:
     """Format a datetime for display in reminders/context."""
 
@@ -48,6 +49,7 @@ def format_time(dt: datetime) -> str:
         return dt.strftime("%I:%M %p")
 
     return dt.strftime("%Y %H:%M")
+
 
 def relative_time(start: datetime, now: datetime) -> str:
     """Format the delta between two datetimes as a human-readable duration.

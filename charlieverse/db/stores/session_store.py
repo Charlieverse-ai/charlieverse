@@ -182,11 +182,13 @@ class SessionStore:
             content = row["content"] or ""
             if _is_noise(content):
                 continue
-            filtered.append(ContextMessage(
-                role=row["role"],
-                content=content,
-                created_at=datetime.fromisoformat(row["created_at"]),
-            ))
+            filtered.append(
+                ContextMessage(
+                    role=row["role"],
+                    content=content,
+                    created_at=datetime.fromisoformat(row["created_at"]),
+                )
+            )
 
         # Count user messages to determine turns, take the last N turns
         user_count = 0

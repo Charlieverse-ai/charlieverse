@@ -30,13 +30,7 @@ class ContextBundle:
     @property
     def is_first_run(self) -> bool:
         """True when the database has no prior context — birthday time."""
-        return (
-            not self.recent_sessions
-            and not self.weekly_stories
-            and not self.pinned_entities
-            and not self.moments
-            and not self.all_time_story
-        )
+        return not self.recent_sessions and not self.weekly_stories and not self.pinned_entities and not self.moments and not self.all_time_story
 
     @property
     def seen_ids(self) -> set[str]:
@@ -51,6 +45,7 @@ class ContextBundle:
         if self.all_time_story:
             ids.add(str(self.all_time_story.id))
         return ids
+
 
 class ActivationBuilder:
     """Assembles the activation context for a session.
@@ -74,11 +69,7 @@ class ActivationBuilder:
         self.knowledge = knowledge
         self.stories = stories
 
-    async def build(
-        self,
-        session: Session,
-        workspace: str | None
-    ) -> ContextBundle:
+    async def build(self, session: Session, workspace: str | None) -> ContextBundle:
         """Build the full context bundle for the given session."""
         # Fetch sessions from the last 2 days (raw data, no story layer dependency)
         recent_sessions = await self.sessions.recent(limit=10)
@@ -114,12 +105,10 @@ class ActivationBuilder:
             today = datetime.now().astimezone().strftime("%Y-%m-%d")
 
             weekly_stories = await self.stories.list(
-                tier=StoryTier.weekly, limit=4,
+                tier=StoryTier.weekly,
+                limit=4,
             )
-            weekly_stories = [
-                s for s in weekly_stories
-                if s.period_start and s.period_start < today
-            ]
+            weekly_stories = [s for s in weekly_stories if s.period_start and s.period_start < today]
 
             all_time_story = await self.stories.get_all_time()
 

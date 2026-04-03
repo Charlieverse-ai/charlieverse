@@ -38,16 +38,20 @@ def _story(
 @pytest.fixture(autouse=True)
 def _mock_vec():
     """Patch encode_one globally so _sync_vec never loads the model."""
-    with patch(
-        "charlieverse.db.stores.story_store.encode_one",
-        new=AsyncMock(return_value=_ZERO_VEC),
-        create=True,
-    ), patch(
-        "charlieverse.embeddings.encode_one",
-        new=AsyncMock(return_value=_ZERO_VEC),
-    ), patch(
-        "charlieverse.embeddings.tasks.encode_one",
-        new=AsyncMock(return_value=_ZERO_VEC),
+    with (
+        patch(
+            "charlieverse.db.stores.story_store.encode_one",
+            new=AsyncMock(return_value=_ZERO_VEC),
+            create=True,
+        ),
+        patch(
+            "charlieverse.embeddings.encode_one",
+            new=AsyncMock(return_value=_ZERO_VEC),
+        ),
+        patch(
+            "charlieverse.embeddings.tasks.encode_one",
+            new=AsyncMock(return_value=_ZERO_VEC),
+        ),
     ):
         yield
 

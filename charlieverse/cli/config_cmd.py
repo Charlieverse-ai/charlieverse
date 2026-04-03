@@ -9,17 +9,15 @@ from charlieverse.config import config
 
 console = Console()
 
-app = typer.Typer(
-    name="config",
-    help="Get config values.",
-    invoke_without_command=True
-)
+app = typer.Typer(name="config", help="Get config values.", invoke_without_command=True)
+
 
 @app.callback()
 def dump_config(ctx: typer.Context):
     if ctx.invoked_subcommand is not None:
         return
     from rich.table import Table
+
     table = Table("Key", "Value", show_lines=True)
     table.add_row("Charlieverse Path", config.path.as_posix())
     table.add_row("Database", config.database.as_posix())
@@ -28,29 +26,36 @@ def dump_config(ctx: typer.Context):
     table.add_row("API", config.server.api_url())
     console.print(table)
 
+
 @app.command()
 def path():
     print(config.path.as_posix())
+
 
 @app.command()
 def database():
     print(config.database.as_posix())
 
+
 @app.command()
 def logs():
     print(config.logs.as_posix())
+
 
 @app.command()
 def hooks():
     print(config.hooks.as_posix())
 
+
 @app.command()
 def dashboard():
     print(config.server.dashboard_url())
 
+
 @app.command()
 def mcp():
     print(config.server.mcp_url())
+
 
 @app.command()
 def api():

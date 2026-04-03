@@ -15,6 +15,7 @@ from charlieverse.config import (
 
 # ── ServerConfig ──────────────────────────────────────────────────────────────
 
+
 class TestServerConfig:
     def test_ip_address_specific_host(self):
         sc = ServerConfig(host="192.168.1.1")
@@ -29,6 +30,7 @@ class TestServerConfig:
 
     def test_ip_address_wildcard_gaierror_fallback(self):
         import socket
+
         sc = ServerConfig(host="0.0.0.0")
         with patch("socket.gethostbyname", side_effect=socket.gaierror):
             assert sc.ip_address() == "127.0.0.1"
@@ -60,6 +62,7 @@ class TestServerConfig:
 
 # ── _deep_merge ───────────────────────────────────────────────────────────────
 
+
 class TestDeepMerge:
     def test_flat_override(self):
         result = _deep_merge({"a": 1, "b": 2}, {"b": 99})
@@ -87,6 +90,7 @@ class TestDeepMerge:
 
 # ── _default_config ───────────────────────────────────────────────────────────
 
+
 class TestDefaultConfig:
     def test_defaults_to_home_charlieverse(self, tmp_path):
         cfg = _default_config(tmp_path)
@@ -101,6 +105,7 @@ class TestDefaultConfig:
 
 
 # ── load() ────────────────────────────────────────────────────────────────────
+
 
 class TestLoad:
     def test_no_config_returns_defaults(self):

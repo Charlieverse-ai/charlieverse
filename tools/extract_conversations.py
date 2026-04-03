@@ -30,10 +30,14 @@ from pathlib import Path
 # ============================================================
 
 SKIP_TAGS = [
-    "<system-reminder>", "<very-important>",
-    "<now>", "hook additional context",
-    "<ide_opened_file>", "<local-command",
-    "<reminderInstructions>", "<environment_info>",
+    "<system-reminder>",
+    "<very-important>",
+    "<now>",
+    "hook additional context",
+    "<ide_opened_file>",
+    "<local-command",
+    "<reminderInstructions>",
+    "<environment_info>",
 ]
 
 
@@ -45,6 +49,7 @@ def _is_system_noise(text: str) -> bool:
 # ============================================================
 # Claude Code extractor
 # ============================================================
+
 
 def _claude_extract_text(content) -> str | None:
     """Pull plain text from Claude message content."""
@@ -77,11 +82,13 @@ def _claude_extract_tool_use(content) -> list[dict]:
         return tools
     for block in content:
         if isinstance(block, dict) and block.get("type") == "tool_use":
-            tools.append({
-                "tool_id": block.get("id"),
-                "name": block.get("name"),
-                "input": block.get("input"),
-            })
+            tools.append(
+                {
+                    "tool_id": block.get("id"),
+                    "name": block.get("name"),
+                    "input": block.get("input"),
+                }
+            )
     return tools
 
 
@@ -94,15 +101,17 @@ def _claude_extract_tool_results(content) -> list[dict]:
         if isinstance(block, dict) and block.get("type") == "tool_result":
             result_content = block.get("content", [])
             text_parts = []
-            for part in (result_content if isinstance(result_content, list) else [result_content]):
+            for part in result_content if isinstance(result_content, list) else [result_content]:
                 if isinstance(part, dict) and part.get("type") == "text":
                     text_parts.append(part["text"])
                 elif isinstance(part, str):
                     text_parts.append(part)
-            results.append({
-                "tool_id": block.get("tool_use_id"),
-                "output": "\n".join(text_parts)[:2000],
-            })
+            results.append(
+                {
+                    "tool_id": block.get("tool_use_id"),
+                    "output": "\n".join(text_parts)[:2000],
+                }
+            )
     return results
 
 
@@ -178,13 +187,13 @@ def process_claude_file(jsonl_path: Path) -> list[dict]:
 # Copilot / VS Code extractor
 # ============================================================
 
+
 def _epoch_ms_to_iso(ms: int | float) -> str:
     """Convert epoch milliseconds to ISO timestamp."""
     return datetime.fromtimestamp(ms / 1000, tz=UTC).isoformat()
 
 
-def _extract_copilot_response(response: list, session_id: str, workspace: str,
-                               timestamp: str | None, source: str = "copilot") -> list[dict]:
+def _extract_copilot_response(response: list, session_id: str, workspace: str, timestamp: str | None, source: str = "copilot") -> list[dict]:
     """Extract assistant entries from a Copilot/Cursor response array.
 
     Shared between JSONL (kind=0) and JSON (version=3) formats.
@@ -214,11 +223,13 @@ def _extract_copilot_response(response: list, session_id: str, workspace: str,
             tool_name = r.get("toolId", "unknown")
             past_tense = r.get("pastTenseMessage", {})
             description = past_tense.get("value", "") if isinstance(past_tense, dict) else ""
-            tool_calls.append({
-                "tool_id": r.get("toolCallId"),
-                "name": tool_name,
-                "description": description,
-            })
+            tool_calls.append(
+                {
+                    "tool_id": r.get("toolCallId"),
+                    "name": tool_name,
+                    "description": description,
+                }
+            )
 
         # Thinking / reasoning
         elif kind == "thinking":
@@ -279,19 +290,26 @@ def process_copilot_file(jsonl_path: Path, source: str = "copilot") -> list[dict
                 user_text = message.get("text", "").strip()
 
                 if user_text and not _is_system_noise(user_text):
-                    entries.append({
-                        "source": source,
-                        "session_id": session_id,
-                        "workspace": workspace_hash,
-                        "timestamp": ts_iso,
-                        "role": "user",
-                        "text": user_text,
-                    })
+                    entries.append(
+                        {
+                            "source": source,
+                            "session_id": session_id,
+                            "workspace": workspace_hash,
+                            "timestamp": ts_iso,
+                            "role": "user",
+                            "text": user_text,
+                        }
+                    )
 
-                entries.extend(_extract_copilot_response(
-                    req.get("response", []), session_id, workspace_hash, ts_iso,
-                    source=source,
-                ))
+                entries.extend(
+                    _extract_copilot_response(
+                        req.get("response", []),
+                        session_id,
+                        workspace_hash,
+                        ts_iso,
+                        source=source,
+                    )
+                )
 
     return entries
 
@@ -344,20 +362,27 @@ def process_copilot_json_file(json_path: Path, source: str = "copilot") -> list[
             user_text = message.get("text", "").strip()
 
         if user_text and not _is_system_noise(user_text):
-            entries.append({
-                "source": source,
-                "session_id": session_id,
-                "workspace": workspace,
-                "timestamp": req_ts,
-                "role": "user",
-                "text": user_text,
-            })
+            entries.append(
+                {
+                    "source": source,
+                    "session_id": session_id,
+                    "workspace": workspace,
+                    "timestamp": req_ts,
+                    "role": "user",
+                    "text": user_text,
+                }
+            )
 
         # Assistant response
-        entries.extend(_extract_copilot_response(
-            req.get("response", []), session_id, workspace, req_ts,
-            source=source,
-        ))
+        entries.extend(
+            _extract_copilot_response(
+                req.get("response", []),
+                session_id,
+                workspace,
+                req_ts,
+                source=source,
+            )
+        )
 
     return entries
 
@@ -365,6 +390,7 @@ def process_copilot_json_file(json_path: Path, source: str = "copilot") -> list[
 # ============================================================
 # Codex extractor
 # ============================================================
+
 
 def process_codex_file(jsonl_path: Path) -> list[dict]:
     """Process a Codex JSONL session file."""
@@ -409,14 +435,16 @@ def process_codex_file(jsonl_path: Path) -> list[dict]:
                             parts.append(text.strip())
                 text = "\n".join(parts).strip()
                 if text:
-                    entries.append({
-                        "source": "codex",
-                        "session_id": session_id,
-                        "workspace": workspace or "unknown",
-                        "timestamp": timestamp,
-                        "role": "user",
-                        "text": text,
-                    })
+                    entries.append(
+                        {
+                            "source": "codex",
+                            "session_id": session_id,
+                            "workspace": workspace or "unknown",
+                            "timestamp": timestamp,
+                            "role": "user",
+                            "text": text,
+                        }
+                    )
 
             # Assistant message
             elif ptype == "message" and role == "assistant":
@@ -429,14 +457,16 @@ def process_codex_file(jsonl_path: Path) -> list[dict]:
                             parts.append(text.strip())
                 text = "\n".join(parts).strip()
                 if text:
-                    entries.append({
-                        "source": "codex",
-                        "session_id": session_id,
-                        "workspace": workspace or "unknown",
-                        "timestamp": timestamp,
-                        "role": "assistant",
-                        "text": text,
-                    })
+                    entries.append(
+                        {
+                            "source": "codex",
+                            "session_id": session_id,
+                            "workspace": workspace or "unknown",
+                            "timestamp": timestamp,
+                            "role": "assistant",
+                            "text": text,
+                        }
+                    )
 
             # Function/tool call
             elif ptype == "function_call":
@@ -445,33 +475,41 @@ def process_codex_file(jsonl_path: Path) -> list[dict]:
                     parsed_input = json.loads(tool_input) if isinstance(tool_input, str) else tool_input
                 except json.JSONDecodeError:
                     parsed_input = tool_input
-                entries.append({
-                    "source": "codex",
-                    "session_id": session_id,
-                    "workspace": workspace or "unknown",
-                    "timestamp": timestamp,
-                    "role": "assistant",
-                    "tool_calls": [{
-                        "tool_id": payload.get("call_id"),
-                        "name": payload.get("name"),
-                        "input": parsed_input,
-                    }],
-                })
+                entries.append(
+                    {
+                        "source": "codex",
+                        "session_id": session_id,
+                        "workspace": workspace or "unknown",
+                        "timestamp": timestamp,
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "tool_id": payload.get("call_id"),
+                                "name": payload.get("name"),
+                                "input": parsed_input,
+                            }
+                        ],
+                    }
+                )
 
             # Function/tool result
             elif ptype == "function_call_output":
                 output = payload.get("output", "")
-                entries.append({
-                    "source": "codex",
-                    "session_id": session_id,
-                    "workspace": workspace or "unknown",
-                    "timestamp": timestamp,
-                    "role": "user",
-                    "tool_results": [{
-                        "tool_id": payload.get("call_id"),
-                        "output": output[:2000],
-                    }],
-                })
+                entries.append(
+                    {
+                        "source": "codex",
+                        "session_id": session_id,
+                        "workspace": workspace or "unknown",
+                        "timestamp": timestamp,
+                        "role": "user",
+                        "tool_results": [
+                            {
+                                "tool_id": payload.get("call_id"),
+                                "output": output[:2000],
+                            }
+                        ],
+                    }
+                )
 
     return entries
 
@@ -479,6 +517,7 @@ def process_codex_file(jsonl_path: Path) -> list[dict]:
 # ============================================================
 # Provider discovery
 # ============================================================
+
 
 def _discover_providers(extra_dirs: list[Path] | None = None) -> list[tuple[str, Path]]:
     """Auto-discover provider data directories.
@@ -513,7 +552,7 @@ def _discover_providers(extra_dirs: list[Path] | None = None) -> list[tuple[str,
     candidates.append(("codex", home / ".codex" / "sessions"))
 
     # Extra directories — detect provider by contents
-    for extra in (extra_dirs or []):
+    for extra in extra_dirs or []:
         if not extra.exists():
             continue
         _detect_providers_in_dir(extra, candidates)
@@ -562,6 +601,7 @@ def _detect_providers_in_dir(root: Path, candidates: list[tuple[str, Path]]) -> 
 # ============================================================
 # Main
 # ============================================================
+
 
 def _find_copilot_files(provider_dir: Path, source: str = "copilot") -> list[tuple[Path, Callable]]:
     """Find both JSONL and JSON copilot/cursor chat files with their processors."""

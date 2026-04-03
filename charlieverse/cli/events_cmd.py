@@ -28,10 +28,14 @@ def events(
 
 
 async def _events(
-    host: str, port: int,
-    session_id: str | None, since: str | None,
-    limit: int, event_type: str | None,
-    verbose: bool, json_output: bool,
+    host: str,
+    port: int,
+    session_id: str | None,
+    since: str | None,
+    limit: int,
+    event_type: str | None,
+    verbose: bool,
+    json_output: bool,
 ) -> None:
     import httpx
 

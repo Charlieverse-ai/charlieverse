@@ -24,7 +24,8 @@ def register(mcp: FastMCP) -> None:
         if not query.strip():
             raise ToolError("query cannot be empty")
         return await knowledge_tools.search_knowledge(
-            query=query, limit=limit,
+            query=query,
+            limit=limit,
             knowledge_store=_stores(ctx)["knowledge"],
         )
 
@@ -43,8 +44,11 @@ def register(mcp: FastMCP) -> None:
         if not content.strip():
             raise ToolError("content cannot be empty")
         result = await knowledge_tools.update_knowledge(
-            topic=topic, content=content, session_id=session_id,
-            tags=tags, pinned=pinned,
+            topic=topic,
+            content=content,
+            session_id=session_id,
+            tags=tags,
+            pinned=pinned,
             knowledge_store=_stores(ctx)["knowledge"],
         )
         return {"url": _permalink("knowledge", str(result.id))}

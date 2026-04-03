@@ -24,6 +24,7 @@ from charlieverse.mcp import (
 
 logger = logging.getLogger(__name__)
 
+
 async def setup_stores() -> StoreContext:
     db_path = config.database
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -44,21 +45,20 @@ async def setup_stores() -> StoreContext:
 
     return context
 
+
 async def prewarm():
     os.environ["HF_HUB_VERBOSITY"] = "error"
-    os.environ["TRANSFORMERS_VERBOSITY"] = "error" # Only show errors
+    os.environ["TRANSFORMERS_VERBOSITY"] = "error"  # Only show errors
     os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
     from charlieverse.embeddings.service import prewarm_embeddings
     from charlieverse.nlp.extractor import prewarm_nlp
 
     try:
-        await asyncio.gather(
-            asyncio.to_thread(prewarm_embeddings),
-            asyncio.to_thread(prewarm_nlp)
-        )
+        await asyncio.gather(asyncio.to_thread(prewarm_embeddings), asyncio.to_thread(prewarm_nlp))
     except Exception as e:
         logger.exception(f"Prewarm Error: {e}")
+
 
 async def start_server(host: str, port: int):
     await prewarm()
@@ -85,6 +85,7 @@ async def start_server(host: str, port: int):
     spa.register_routes(mcp)
 
     await mcp.run_async("http", host=host, port=port, show_banner=False)
+
 
 # Store references for REST routes (populated during lifespan).
 # Typed as dict so the api/ register_routes helpers (which accept dict) stay compatible.
@@ -129,4 +130,3 @@ def _evict_stale_seen_ids() -> None:
 
 # # Re-create mcp with patched lifespan
 # mcp._lifespan = _patched_lifespan
-

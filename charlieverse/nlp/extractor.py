@@ -1,4 +1,5 @@
 """Entity extraction from text using spaCy NER + keyword extraction."""
+
 from __future__ import annotations
 
 import logging
@@ -16,10 +17,7 @@ _nlp: Language | None = None
 
 _MODEL_NAME = "en_core_web_sm"
 _MODEL_VERSION = "3.8.0"
-_MODEL_URL = (
-    f"https://github.com/explosion/spacy-models/releases/download/"
-    f"{_MODEL_NAME}-{_MODEL_VERSION}/{_MODEL_NAME}-{_MODEL_VERSION}-py3-none-any.whl"
-)
+_MODEL_URL = f"https://github.com/explosion/spacy-models/releases/download/{_MODEL_NAME}-{_MODEL_VERSION}/{_MODEL_NAME}-{_MODEL_VERSION}-py3-none-any.whl"
 
 # Entity labels worth extracting for memory search
 _RELEVANT_LABELS = {"PERSON", "ORG", "PRODUCT", "GPE", "EVENT", "WORK_OF_ART", "FAC", "NORP"}
@@ -31,6 +29,8 @@ _RANGE_KEYWORDS = {
     "year": 365,
     "quarter": 90,
 }
+
+
 @dataclass
 class TemporalRef:
     """A resolved temporal reference with a date range."""
@@ -83,14 +83,17 @@ def _ensure_model() -> Path:
 
 def _load_model() -> Language:
     from spacy import load
+
     path = _ensure_model()
     return load(path)
+
 
 def prewarm_nlp():
     logger.info("Loading Vector Models")
     global _nlp
     _nlp = _load_model()
     logger.info("Vector Models Loaded")
+
 
 def _get_nlp() -> Language | None:
     """Lazy-load the spaCy model. Returns None if unavailable."""
@@ -102,6 +105,7 @@ def _get_nlp() -> Language | None:
             logger.exception("Failed to load spaCy model")
             return None
     return _nlp
+
 
 def _resolve_date_range(text: str, now: datetime | None = None) -> TemporalRef | None:
     """Resolve a temporal expression to a date range.
@@ -122,6 +126,7 @@ def _resolve_date_range(text: str, now: datetime | None = None) -> TemporalRef |
 
     # Check for month names — if the expression is a month, cover the whole month
     import calendar
+
     month_names = [m.lower() for m in calendar.month_name[1:]] + [m.lower() for m in calendar.month_abbr[1:]]
     is_month = any(m in text_lower for m in month_names if m)
 

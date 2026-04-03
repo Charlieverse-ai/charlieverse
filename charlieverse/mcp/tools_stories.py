@@ -179,11 +179,13 @@ def register(mcp: FastMCP) -> None:
                         (sid,),
                     )
                     for row in await cursor.fetchall():
-                        messages.append({
-                            "from": "charlie" if row["role"] == "assistant" else "user",
-                            "content": row["content"][:500],
-                            "created_at": row["created_at"],
-                        })
+                        messages.append(
+                            {
+                                "from": "charlie" if row["role"] == "assistant" else "user",
+                                "content": row["content"][:500],
+                                "created_at": row["created_at"],
+                            }
+                        )
 
                 today_start = f"{today.isoformat()}T00:00:00"
                 cursor = await db.execute(
@@ -192,10 +194,7 @@ def register(mcp: FastMCP) -> None:
                        ORDER BY created_at ASC""",
                     (today_start,),
                 )
-                memories = [
-                    {"type": row["type"], "content": row["content"][:300], "tags": row["tags"]}
-                    for row in await cursor.fetchall()
-                ]
+                memories = [{"type": row["type"], "content": row["content"][:300], "tags": row["tags"]} for row in await cursor.fetchall()]
 
                 cursor = await db.execute(
                     """SELECT topic, content, tags FROM knowledge
@@ -203,10 +202,7 @@ def register(mcp: FastMCP) -> None:
                        ORDER BY created_at ASC""",
                     (today_start,),
                 )
-                knowledge = [
-                    {"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]}
-                    for row in await cursor.fetchall()
-                ]
+                knowledge = [{"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]} for row in await cursor.fetchall()]
 
                 return {
                     "type": "rollup",
@@ -247,9 +243,7 @@ def register(mcp: FastMCP) -> None:
                 else:
                     range_end = today.replace(month=today.month + 1, day=1).isoformat()
 
-            stories = await story_store.find_by_period(
-                range_start or "", range_end or "", limit=50
-            )
+            stories = await story_store.find_by_period(range_start or "", range_end or "", limit=50)
             if source_tier:
                 stories = [s for s in stories if s.tier == source_tier]
 
@@ -278,7 +272,8 @@ def register(mcp: FastMCP) -> None:
             if not stories and range_start and range_end:
                 sessions_store = stores["sessions"]
                 sessions = await sessions_store.recent_within_range(
-                    range_start, range_end,
+                    range_start,
+                    range_end,
                 )
                 if sessions:
                     result["fallback"] = "sessions"
@@ -326,12 +321,14 @@ def register(mcp: FastMCP) -> None:
                 if prev_time:
                     seconds_between = str(int((created - prev_time).total_seconds()))
                 prev_time = created
-                messages.append({
-                    "content": row["content"],
-                    "from": "charlie" if row["role"] == "assistant" else "user",
-                    "date_time": created.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
-                    "seconds_between": seconds_between,
-                })
+                messages.append(
+                    {
+                        "content": row["content"],
+                        "from": "charlie" if row["role"] == "assistant" else "user",
+                        "date_time": created.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+                        "seconds_between": seconds_between,
+                    }
+                )
 
             cursor = await db.execute(
                 """SELECT type, content, tags FROM entities
@@ -339,10 +336,7 @@ def register(mcp: FastMCP) -> None:
                    ORDER BY created_at ASC""",
                 (session_id,),
             )
-            memories = [
-                {"type": row["type"], "content": row["content"][:300], "tags": row["tags"]}
-                for row in await cursor.fetchall()
-            ]
+            memories = [{"type": row["type"], "content": row["content"][:300], "tags": row["tags"]} for row in await cursor.fetchall()]
 
             return {
                 "type": "session",
@@ -352,7 +346,9 @@ def register(mcp: FastMCP) -> None:
                     "title": existing_story.title,
                     "summary": existing_story.summary,
                     "content": existing_story.content,
-                } if existing_story else None,
+                }
+                if existing_story
+                else None,
                 "messages": messages,
                 "memories": memories,
             }

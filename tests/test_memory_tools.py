@@ -290,7 +290,9 @@ async def test_remember_event_is_global(memory_store, mock_embed):
     from charlieverse.models import EntityType
 
     result = await remember_event(
-        what="some event", when="today", memories=memory_store,
+        what="some event",
+        when="today",
+        memories=memory_store,
     )
     stored = await memory_store.get(result.id)
     assert stored is not None
@@ -385,8 +387,10 @@ async def test_pin_knowledge_article(knowledge_store, memory_store, mock_embed):
     )
     await knowledge_store.upsert(article)
     await pin(
-        id=str(article.id), pinned=True,
-        memories=memory_store, knowledge_store=knowledge_store,
+        id=str(article.id),
+        pinned=True,
+        memories=memory_store,
+        knowledge_store=knowledge_store,
     )
     stored = await knowledge_store.get(article.id)
     assert stored is not None
@@ -406,8 +410,10 @@ async def test_unpin_knowledge_article(knowledge_store, memory_store, mock_embed
     )
     await knowledge_store.upsert(article)
     await pin(
-        id=str(article.id), pinned=False,
-        memories=memory_store, knowledge_store=knowledge_store,
+        id=str(article.id),
+        pinned=False,
+        memories=memory_store,
+        knowledge_store=knowledge_store,
     )
     stored = await knowledge_store.get(article.id)
     assert stored is not None
@@ -419,8 +425,10 @@ async def test_pin_nonexistent_id_raises(memory_store, knowledge_store):
 
     with pytest.raises(ValueError, match="No entity or knowledge article found"):
         await pin(
-            id=str(uuid4()), pinned=True,
-            memories=memory_store, knowledge_store=knowledge_store,
+            id=str(uuid4()),
+            pinned=True,
+            memories=memory_store,
+            knowledge_store=knowledge_store,
         )
 
 

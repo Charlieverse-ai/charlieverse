@@ -101,11 +101,13 @@ def _discover_skills() -> list[dict]:
                 continue
             seen.add(name)
 
-            skills.append({
-                "name": name,
-                "description": fm.get("description", ""),
-                "path": str(skill_md),
-            })
+            skills.append(
+                {
+                    "name": name,
+                    "description": fm.get("description", ""),
+                    "path": str(skill_md),
+                }
+            )
 
     return skills
 

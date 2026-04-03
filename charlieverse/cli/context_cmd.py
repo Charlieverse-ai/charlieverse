@@ -25,11 +25,7 @@ def context(
     asyncio.run(_context(session_id, workspace, host, port, save_to_file))
 
 
-async def _context(
-    session_id: str | None, workspace: str | None,
-    host: str, port: int,
-    save: bool
-) -> None:
+async def _context(session_id: str | None, workspace: str | None, host: str, port: int, save: bool) -> None:
     import httpx
 
     params: dict[str, str] = {}

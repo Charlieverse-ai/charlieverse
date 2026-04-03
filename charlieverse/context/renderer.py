@@ -50,7 +50,7 @@ def render(bundle: ContextBundle) -> str:
             # Recent messages go inside the last session block
             if most_recent and bundle.recent_messages:
                 parts.append(_render_recent_messages(bundle.recent_messages))
-            parts.append(f"</{"last_session" if most_recent else "session"}>")
+            parts.append(f"</{'last_session' if most_recent else 'session'}>")
             most_recent = False
 
     if bundle.pinned_entities:
@@ -101,6 +101,7 @@ def render(bundle: ContextBundle) -> str:
     parts.append("</activation_output>")
     return "\n".join(parts)
 
+
 def _render_recent_messages(messages: list[ContextMessage]) -> str:
     """Render recent messages for context seeding."""
     lines: list[str] = []
@@ -148,6 +149,7 @@ def _render_tricks(workspace: str | None) -> str:
     """Discover tricks and render them for the activation context."""
     try:
         from charlieverse.skills import _discover_skills, _source_label
+
         tricks = _discover_skills()
     except Exception:
         return ""
@@ -190,6 +192,7 @@ def _render_session(session: Session, now: datetime, most_recent: bool) -> str:
 
     return "\n".join(lines)
 
+
 def _render_entity(entity: Entity) -> str:
     """Render an entity's content."""
     lines: list[str] = []
@@ -204,6 +207,7 @@ def _render_entity(entity: Entity) -> str:
 
     return "\n".join(lines)
 
+
 def _date_group_key(date: datetime, now: datetime) -> str:
     """Return the date group header: 'Today', 'Yesterday (March 14th)', or full date."""
     d = date
@@ -217,9 +221,12 @@ def _date_group_key(date: datetime, now: datetime) -> str:
     else:
         return d.strftime("%A, %B %-d, %Y")
 
+
 def _display_path(path: str) -> str:
     import os.path
+
     return path.replace(os.path.expanduser("~"), "~", 1)
+
 
 def _session_time(date: datetime, now: datetime) -> str:
     """Return session time within its date group.

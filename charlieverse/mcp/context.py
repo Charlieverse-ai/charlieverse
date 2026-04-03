@@ -11,6 +11,7 @@ from charlieverse.db.stores.context import StoreContext
 def _stores(ctx: Context) -> StoreContext:
     return ctx.lifespan_context  # type: ignore[return-value]
 
+
 def _permalink(kind: str, id: str) -> str:
     """Build a web UI permalink URL."""
     return f"{config.server.dashboard_url()}{kind}/{id}"
