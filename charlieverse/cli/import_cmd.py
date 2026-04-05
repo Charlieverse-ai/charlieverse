@@ -25,6 +25,7 @@ import aiosqlite
 import typer
 
 from charlieverse.config import config
+from charlieverse.types.dates import UTCDatetime
 
 DEFAULT_OUTPUT = config.path / "import" / "conversations.jsonl"
 DEFAULT_SPLIT_DIR = config.path / "import" / "weekly"
@@ -358,16 +359,19 @@ async def _flush_batch(db: aiosqlite.Connection, batch: list[tuple]) -> int:
 # ── Weekly split + story gap detection ─────────────────────────
 
 
-def _parse_timestamp(ts: str | None) -> datetime | None:
-    """Parse ISO timestamp or epoch ms."""
+def _parse_timestamp(ts: str | None) -> UTCDatetime | None:
+    """Parse ISO timestamp or epoch ms, normalized to UTC."""
     if not ts:
         return None
     try:
         if isinstance(ts, str):
             ts = ts.replace("Z", "+00:00")
-            return datetime.fromisoformat(ts)
+            dt = datetime.fromisoformat(ts)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return UTCDatetime(dt.astimezone(UTC))
         if isinstance(ts, (int, float)):
-            return datetime.fromtimestamp(ts / 1000, tz=UTC)
+            return UTCDatetime(datetime.fromtimestamp(ts / 1000, tz=UTC))
     except (ValueError, OSError):
         return None
     return None

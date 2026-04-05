@@ -6,7 +6,7 @@ All queries flow through stores — no raw SQL in this module.
 from __future__ import annotations
 
 import json
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from fastmcp import FastMCP
@@ -19,6 +19,7 @@ from charlieverse.helpers.uuid import uuid_from_str
 from charlieverse.memory.sessions import NewSession, Session, SessionId
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import DeleteStory, NewStory, Story, StoryId, StoryStore, StoryTier
+from charlieverse.types.dates import UTCDatetime, at_utc_midnight, to_local
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -212,7 +213,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         session_messages = await sessions_store.messages_for_session(session_id, since=since)
 
         messages: list[dict[str, Any]] = []
-        prev_time: datetime | None = None
+        prev_time: UTCDatetime | None = None
         for msg in session_messages:
             seconds_between = None
             if prev_time is not None:
@@ -222,7 +223,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                 {
                     "content": msg.content,
                     "from": "charlie" if msg.role == "assistant" else "user",
-                    "date_time": msg.created_at.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+                    "date_time": to_local(msg.created_at).strftime("%Y-%m-%d %H:%M:%S"),
                     "seconds_between_messages": seconds_between,
                 }
             )
@@ -273,7 +274,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                         }
                     )
 
-            day_start = datetime(target_date.year, target_date.month, target_date.day, tzinfo=UTC)
+            day_start = at_utc_midnight(target_date)
             entities = await memories_store.created_since(day_start)
             knowledge = await knowledge_store.created_since(day_start)
 

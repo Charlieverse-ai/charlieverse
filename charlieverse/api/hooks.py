@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastmcp import FastMCP
@@ -19,6 +18,7 @@ from charlieverse.helpers.uuid import uuid_from_str
 from charlieverse.memory.sessions import Session, SessionId, UpdateSession
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import StoryStore
+from charlieverse.types.dates import utc_now
 
 
 def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
@@ -124,7 +124,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         cursor = await db.execute(
             """INSERT OR IGNORE INTO messages (id, session_id, role, content, created_at)
                VALUES (?, ?, ?, ?, ?)""",
-            (msg_id, session_id, role, content, datetime.now(UTC).isoformat()),
+            (msg_id, session_id, role, content, utc_now().isoformat()),
         )
         # Only sync FTS if the row was actually inserted (not a duplicate)
         if cursor.rowcount > 0:

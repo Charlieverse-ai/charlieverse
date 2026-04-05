@@ -15,15 +15,14 @@ class GenerateStoryRule(ReminderRule):
         if ctx.event != "UserPromptSubmit":
             return None
 
-        session_start = ctx.metadata.get("session_start")
-        if not session_start:
+        session_start_raw = ctx.metadata.get("session_start")
+        if not session_start_raw:
             # No session timing info — still fire the reminder
             return self.result(self.template.render("generate-story"))
 
-        from datetime import datetime
+        from charlieverse.types.dates import from_iso
 
-        if isinstance(session_start, str):
-            session_start = datetime.fromisoformat(session_start)
+        session_start = from_iso(session_start_raw) if isinstance(session_start_raw, str) else session_start_raw
 
         elapsed = (ctx.timestamp - session_start).total_seconds()
         if elapsed < STORY_NUDGE_INTERVAL_SECONDS:

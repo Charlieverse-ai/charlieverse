@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import builtins
-from datetime import UTC, datetime
 from uuid import UUID
 
 import aiosqlite
@@ -11,6 +10,7 @@ import aiosqlite
 from charlieverse.db.stores._utils import _tags_json, _tags_list
 from charlieverse.memory.sessions import SessionId
 from charlieverse.models import Knowledge
+from charlieverse.types.dates import UTCDatetime, from_iso, from_iso_or_none, utc_now
 
 
 def _row_to_knowledge(row: aiosqlite.Row) -> Knowledge:
@@ -22,9 +22,9 @@ def _row_to_knowledge(row: aiosqlite.Row) -> Knowledge:
         pinned=bool(row["pinned"]),
         created_session_id=UUID(row["created_session_id"]),
         updated_session_id=UUID(row["updated_session_id"]) if row["updated_session_id"] else None,
-        created_at=datetime.fromisoformat(row["created_at"]),
-        updated_at=datetime.fromisoformat(row["updated_at"]),
-        deleted_at=datetime.fromisoformat(row["deleted_at"]) if row["deleted_at"] else None,
+        created_at=from_iso(row["created_at"]),
+        updated_at=from_iso(row["updated_at"]),
+        deleted_at=from_iso_or_none(row["deleted_at"]),
     )
 
 
@@ -147,7 +147,7 @@ class KnowledgeStore:
         """Insert or update a knowledge article by topic."""
         existing = await self.find_by_topic(knowledge.topic)
         if existing:
-            now = datetime.now(UTC)
+            now = utc_now()
             # Delete old FTS entry BEFORE updating (needs old values from content table)
             await self._sync_fts_delete(existing.id)
             await self.db.execute(
@@ -196,7 +196,7 @@ class KnowledgeStore:
         )
         return [_row_to_knowledge(row) for row in await cursor.fetchall()]
 
-    async def created_since(self, since: datetime) -> builtins.list[Knowledge]:
+    async def created_since(self, since: UTCDatetime) -> builtins.list[Knowledge]:
         """Fetch active knowledge articles created at or after the given timestamp."""
         cursor = await self.db.execute(
             """SELECT * FROM knowledge
@@ -208,7 +208,7 @@ class KnowledgeStore:
 
     async def delete(self, knowledge_id: UUID) -> None:
         """Soft-delete a knowledge article."""
-        now = datetime.now(UTC)
+        now = utc_now()
         await self.db.execute(
             "UPDATE knowledge SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
             (now.isoformat(), now.isoformat(), str(knowledge_id)),
@@ -217,7 +217,7 @@ class KnowledgeStore:
 
     async def pin(self, knowledge_id: UUID, pinned: bool) -> None:
         """Set the pinned state of a knowledge article."""
-        now = datetime.now(UTC)
+        now = utc_now()
         await self.db.execute(
             "UPDATE knowledge SET pinned = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
             (int(pinned), now.isoformat(), str(knowledge_id)),

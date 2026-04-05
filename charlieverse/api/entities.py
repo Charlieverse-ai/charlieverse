@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from datetime import UTC, datetime
 
 from attr import dataclass
 from fastmcp import FastMCP
@@ -19,6 +18,7 @@ from charlieverse.helpers.uuid import uuid_from_str
 from charlieverse.memory.sessions import Session, SessionId
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.models import Entity, EntityType, Knowledge
+from charlieverse.types.dates import utc_now
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -171,7 +171,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if "pinned" in body:
             entity.pinned = body["pinned"]
 
-        entity.updated_at = datetime.now(UTC)
+        entity.updated_at = utc_now()
         updated = await memories.update(entity)
 
         if "content" in body:
@@ -304,7 +304,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if "pinned" in body:
             article.pinned = body["pinned"]
 
-        article.updated_at = datetime.now(UTC)
+        article.updated_at = utc_now()
         updated = await knowledge_store.upsert(article)
 
         if "topic" in body or "content" in body:

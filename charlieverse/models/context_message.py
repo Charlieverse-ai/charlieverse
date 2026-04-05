@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+
+from charlieverse.types.dates import UTCDatetime
 
 
 @dataclass(frozen=True)
@@ -12,4 +13,4 @@ class ContextMessage:
 
     role: str  # "user" or "assistant"
     content: str
-    created_at: datetime
+    created_at: UTCDatetime

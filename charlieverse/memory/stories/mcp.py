@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from fastmcp import Context, FastMCP
@@ -13,7 +13,7 @@ from charlieverse.db.stores.context import StoreContext
 from charlieverse.mcp.context import _stores
 from charlieverse.mcp.responses import PermalinkResponse
 from charlieverse.memory.sessions import NewSession, SessionId
-from charlieverse.types.dates import from_iso
+from charlieverse.types.dates import UTCDatetime, at_utc_midnight, to_local
 from charlieverse.types.lists import TagList
 from charlieverse.types.strings import MediumDescription, NonEmptyString, ShortDescription, ShortString
 
@@ -236,7 +236,7 @@ async def _daily_rollup_data(stores: StoreContext, today: date) -> dict[str, Any
                 }
             )
 
-    today_start = datetime.fromisoformat(f"{today.isoformat()}T00:00:00")
+    today_start = at_utc_midnight(today)
     entities = await memories_store.created_since(today_start)
     knowledge = await knowledge_store.created_since(today_start)
 
@@ -270,12 +270,12 @@ async def _session_story_data(stores: StoreContext, session_id: SessionId) -> di
 
     session = await sessions_store.get(session_id)
     existing_story = await story_store.find_by_session(session_id)
-    since = from_iso(existing_story.updated_at.isoformat()) if existing_story else None
+    since: UTCDatetime | None = existing_story.updated_at if existing_story else None
 
     session_messages = await sessions_store.messages_for_session(session_id, since=since)
 
     messages: list[dict[str, Any]] = []
-    prev_time: datetime | None = None
+    prev_time: UTCDatetime | None = None
     for msg in session_messages:
         seconds_between = None
         if prev_time is not None:
@@ -285,7 +285,7 @@ async def _session_story_data(stores: StoreContext, session_id: SessionId) -> di
             {
                 "content": msg.content,
                 "from": "charlie" if msg.role == "assistant" else "user",
-                "date_time": msg.created_at.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+                "date_time": to_local(msg.created_at).strftime("%Y-%m-%d %H:%M:%S"),
                 "seconds_between": seconds_between,
             }
         )

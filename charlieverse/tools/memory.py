@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from datetime import UTC
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore
@@ -21,6 +20,7 @@ from charlieverse.tools.responses import (
     RecallResponse,
     StorySummary,
 )
+from charlieverse.types.dates import from_iso, utc_now
 
 
 def _to_summary(e: Entity) -> EntitySummary:
@@ -280,9 +280,8 @@ def _rank_by_relevance_and_recency(
     Final score = (1 - recency_weight) * relevance + recency_weight * recency.
     """
     import math
-    from datetime import datetime
 
-    now = datetime.now(UTC)
+    now = utc_now()
 
     def score(e: Entity) -> float:
         # Relevance: both sources = 1.0, one source = 0.5
@@ -291,7 +290,7 @@ def _rank_by_relevance_and_recency(
         relevance = 1.0 if in_fts and in_vec else 0.5
 
         # Recency: half-life of 14 days (2 weeks old = 0.5, 4 weeks = 0.25)
-        days_old = max((now - e.updated_at.replace(tzinfo=UTC if e.updated_at.tzinfo is None else e.updated_at.tzinfo)).total_seconds() / 86400, 0)
+        days_old = max((now - e.updated_at).total_seconds() / 86400, 0)
         recency = math.exp(-0.693 * days_old / 14)  # ln(2) ≈ 0.693
 
         return (1 - recency_weight) * relevance + recency_weight * recency
@@ -358,8 +357,6 @@ async def recall(
             story_results = await story_store.search(query, limit=min(limit, 5))
 
     # Search messages if db is available
-    from datetime import datetime
-
     from charlieverse.context.time_utils import relative_date
     from charlieverse.db.fts import sanitize_fts_query
     from charlieverse.tools.responses.recall_response import MessageSummary
@@ -393,8 +390,7 @@ async def recall(
                     if any(content.startswith(p) for p in _junk_prefixes):
                         continue
                     try:
-                        dt = datetime.fromisoformat(row["created_at"])
-                        age = relative_date(dt)
+                        age = relative_date(from_iso(row["created_at"]))
                     except (ValueError, TypeError):
                         age = row["created_at"]
                     message_results.append(

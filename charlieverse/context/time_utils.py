@@ -1,62 +1,62 @@
-"""Shared time formatting utilities for the context system."""
+"""Shared time formatting utilities for the context system.
+
+All display functions accept UTCDatetime — they convert to local for
+presentation internally. No module in the context system should handle
+naive datetimes.
+"""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from charlieverse.types.dates import LocalDatetime, UTCDatetime, to_local, utc_now
 
 
-def _normalize_tz(dt: datetime) -> datetime:
-    """Normalize to UTC-aware for safe arithmetic between naive and aware datetimes.
-
-    Naive datetimes are assumed to be local time and get localized first.
-    Aware datetimes get converted to UTC.
-    """
-    if dt.tzinfo is None:
-        # Naive — assume local time, make aware, then convert to UTC
-        return dt.astimezone(UTC)
-    return dt.astimezone(UTC)
-
-
-def format_datetime(dt: datetime) -> str:
-    """Format a datetime for display in reminders/context."""
+def format_datetime(dt: UTCDatetime) -> str:
+    """Format a UTC instant for display in reminders/context."""
 
     import locale
     import time
 
+    local = to_local(dt)
     try:
         locale.setlocale(locale.LC_TIME, "")
     except locale.Error:
-        return dt.strftime("%B %d, %Y %I:%M %p")
+        return local.strftime("%B %d, %Y %I:%M %p")
 
     if time.strftime("%p"):
-        return dt.strftime("%B %d, %Y %I:%M %p")
+        return local.strftime("%B %d, %Y %I:%M %p")
 
-    return dt.strftime("%B %d, %Y %H:%M")
+    return local.strftime("%B %d, %Y %H:%M")
 
 
-def format_time(dt: datetime) -> str:
-    """Format a datetime for display in reminders/context."""
+def format_time(dt: UTCDatetime) -> str:
+    """Format the time portion of a UTC instant for display."""
 
     import locale
     import time
 
+    local = to_local(dt)
     try:
         locale.setlocale(locale.LC_TIME, "")
     except locale.Error:
-        return dt.strftime("%I:%M %p")
+        return local.strftime("%I:%M %p")
 
     if time.strftime("%p"):
-        return dt.strftime("%I:%M %p")
+        return local.strftime("%I:%M %p")
 
-    return dt.strftime("%Y %H:%M")
+    return local.strftime("%Y %H:%M")
 
 
-def relative_time(start: datetime, now: datetime) -> str:
-    """Format the delta between two datetimes as a human-readable duration.
+def format_local(dt: LocalDatetime, fmt: str) -> str:
+    """Format an already-local datetime with the given strftime pattern."""
+    return dt.strftime(fmt)
+
+
+def relative_time(start: UTCDatetime, now: UTCDatetime) -> str:
+    """Format the delta between two UTC instants as a human-readable duration.
 
     e.g. "just now", "12 minutes", "2 hours, 35 minutes"
     """
-    delta = _normalize_tz(now) - _normalize_tz(start)
+    delta = now - start
     total_seconds = int(delta.total_seconds())
 
     if total_seconds < 60:
@@ -75,14 +75,14 @@ def relative_time(start: datetime, now: datetime) -> str:
     return f"{hours} hour{'s' if hours != 1 else ''}, {remaining_mins} minute{'s' if remaining_mins != 1 else ''}"
 
 
-def relative_date(date: datetime) -> str:
-    """Format a datetime as a relative 'ago' string for activation context.
+def relative_date(date: UTCDatetime) -> str:
+    """Format a UTC instant as a relative 'ago' string for activation context.
 
     e.g. "just now", "5 minutes ago", "2.5 hours ago", "3 days ago"
     Falls back to full date format for dates older than a week.
     """
-    now = datetime.now(UTC)
-    diff = now - _normalize_tz(date)
+    now = utc_now()
+    diff = now - date
     total_seconds = diff.total_seconds()
 
     if total_seconds < 0:

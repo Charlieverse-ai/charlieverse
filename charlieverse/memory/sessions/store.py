@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import builtins
 import re
-from datetime import datetime
 
 import aiosqlite
 
 from charlieverse.models import ContextMessage
-from charlieverse.types.dates import UTCDatetime
+from charlieverse.types.dates import UTCDatetime, from_iso
 
 from .models import DeleteSession, NewSession, Session, SessionId, UpdateSession
 
@@ -183,7 +182,7 @@ class SessionStore:
                 ContextMessage(
                     role=row["role"],
                     content=content,
-                    created_at=datetime.fromisoformat(row["created_at"]),
+                    created_at=from_iso(row["created_at"]),
                 )
             )
 
@@ -234,7 +233,7 @@ class SessionStore:
             ContextMessage(
                 role=row["role"],
                 content=row["content"] or "",
-                created_at=datetime.fromisoformat(row["created_at"]),
+                created_at=from_iso(row["created_at"]),
             )
             for row in await cursor.fetchall()
         ]

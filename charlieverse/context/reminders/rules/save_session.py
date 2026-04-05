@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from charlieverse.context.reminders.rules.base import ReminderRule
 from charlieverse.context.reminders.types import HookContext, ReminderResult
+from charlieverse.types.dates import from_iso
 
 SAVE_INTERVAL_SECONDS = 1800  # 30 minutes
 
@@ -18,12 +17,11 @@ class SaveSessionRule(ReminderRule):
         last_save_at = ctx.metadata.get("last_session_save_at")
         session_start = ctx.metadata.get("session_start")
 
-        reference = last_save_at or session_start
-        if not reference:
+        reference_raw = last_save_at or session_start
+        if not reference_raw:
             return None
 
-        if isinstance(reference, str):
-            reference = datetime.fromisoformat(reference)
+        reference = from_iso(reference_raw) if isinstance(reference_raw, str) else reference_raw
 
         elapsed = (ctx.timestamp - reference).total_seconds()
         if elapsed < SAVE_INTERVAL_SECONDS:

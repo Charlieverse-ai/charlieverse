@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
+from charlieverse.types.dates import UTCDatetime, utc_now
 from charlieverse.types.strings import NonEmptyString
 
 
@@ -20,9 +20,9 @@ class Knowledge(BaseModel):
     pinned: bool = False
     created_session_id: UUID
     updated_session_id: UUID | None = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    deleted_at: datetime | None = None
+    created_at: UTCDatetime = Field(default_factory=utc_now)
+    updated_at: UTCDatetime = Field(default_factory=utc_now)
+    deleted_at: UTCDatetime | None = None
 
     model_config = {"from_attributes": True}
 

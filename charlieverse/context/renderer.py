@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 from charlieverse import paths
@@ -10,6 +10,7 @@ from charlieverse.context.builder import ContextBundle
 from charlieverse.memory.sessions import Session
 from charlieverse.memory.stories import Story
 from charlieverse.models import ContextMessage, Entity, EntityType
+from charlieverse.types.dates import LocalDatetime, UTCDatetime, from_iso_or_none, local_now, to_local
 
 PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "prompts"
 
@@ -30,7 +31,7 @@ def render(bundle: ContextBundle) -> str:
     #     parts.append(f"<workspace-context>New workspace: {bundle.session.workspace} — no previous sessions here.</workspace-context>")
 
     # Use local time for all "today/yesterday" display logic
-    now = datetime.now().astimezone()
+    now = local_now()
 
     # Raw sessions from last 2 days
     if bundle.recent_sessions:
@@ -39,7 +40,7 @@ def render(bundle: ContextBundle) -> str:
         parts.append("<very-important>Sessions are ordered from most recent to least. Weight them according to relative time.</very-important>")
 
         for session in bundle.recent_sessions:
-            session_date = session.updated_at.astimezone()
+            session_date = to_local(session.updated_at)
             date_key = _date_group_key(session_date, now)
             if date_key != current_date_key:
                 current_date_key = date_key
@@ -125,7 +126,7 @@ def _render_first_run(bundle: ContextBundle) -> str:
     parts: list[str] = []
     parts.append("<activation_output>")
 
-    now_str = datetime.now().astimezone().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
+    now_str = local_now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
     parts.append("---")
     parts.append(f"Now: {now_str}")
     parts.append(f"Current Session ID: {bundle.session.id}\n")
@@ -182,7 +183,7 @@ def _render_all_time_story(story: Story) -> str:
     return "\n".join(lines)
 
 
-def _render_session(session: Session, now: datetime, most_recent: bool) -> str:
+def _render_session(session: Session, now: LocalDatetime, most_recent: bool) -> str:
     """Render a session under its date group."""
     lines: list[str] = []
 
@@ -208,18 +209,17 @@ def _render_entity(entity: Entity) -> str:
     return "\n".join(lines)
 
 
-def _date_group_key(date: datetime, now: datetime) -> str:
+def _date_group_key(date: LocalDatetime, now: LocalDatetime) -> str:
     """Return the date group header: 'Today', 'Yesterday (March 14th)', or full date."""
-    d = date
     today = now.date()
-    session_date = d.date()
+    session_date = date.date()
 
     if session_date == today:
         return "Today"
     elif session_date == today - timedelta(days=1):
-        return f"Yesterday ({d.strftime('%B %-d')})"
+        return f"Yesterday ({date.strftime('%B %-d')})"
     else:
-        return d.strftime("%A, %B %-d, %Y")
+        return date.strftime("%A, %B %-d, %Y")
 
 
 def _display_path(path: str) -> str:
@@ -228,17 +228,17 @@ def _display_path(path: str) -> str:
     return path.replace(os.path.expanduser("~"), "~", 1)
 
 
-def _session_time(date: datetime, now: datetime) -> str:
+def _session_time(date: UTCDatetime, now: LocalDatetime) -> str:
     """Return session time within its date group.
 
     Today: relative time (3.5 hours ago)
     Other days: time of day (10:45 PM)
     """
-    d = date.astimezone()
-    total_seconds = (now - d).total_seconds()
-    full = d.strftime("%-I:%M %p")
+    local = to_local(date)
+    total_seconds = (now - local).total_seconds()
+    full = local.strftime("%-I:%M %p")
 
-    if d.date() == now.date() and total_seconds >= 0:
+    if local.date() == now.date() and total_seconds >= 0:
         if total_seconds < 60:
             return f"just now {full}"
         elif total_seconds < 3600:
@@ -250,21 +250,15 @@ def _session_time(date: datetime, now: datetime) -> str:
     return full
 
 
-def _parse_period_date(period: str | None) -> datetime | None:
-    """Parse a period_start/end ISO string into a datetime, or None."""
-    if not period:
-        return None
+def _parse_period_date(period: str | None) -> UTCDatetime | None:
+    """Parse a period_start/end ISO string into a UTC instant, or None."""
     try:
-        dt = datetime.fromisoformat(period)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=UTC)
-        return dt
+        return from_iso_or_none(period)
     except (ValueError, TypeError):
         return None
 
 
-# Convert a datetime object to a "pretty" relative date string
-def _relative_date(date: datetime) -> str:
+def _relative_date(date: UTCDatetime) -> str:
     from charlieverse.context.time_utils import relative_date
 
     return relative_date(date)

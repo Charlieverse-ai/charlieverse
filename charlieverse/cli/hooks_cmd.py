@@ -12,11 +12,11 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from charlieverse.helpers.uuid import uuid_str_from_str
+from charlieverse.types.dates import local_now, utc_now
 
 if TYPE_CHECKING:
     from charlieverse.context.reminders.types import HookContext
@@ -51,7 +51,7 @@ def _log(event: str, msg: str, data: dict | None = None) -> None:
     """Append to hooks log file."""
     try:
         LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ts = local_now().strftime("%Y-%m-%d %H:%M:%S")
         line = f"[{ts}] {event}: {msg}"
         if data:
             keys = {k: str(v)[:500] for k, v in data.items() if k != "tool_input"}
@@ -63,7 +63,7 @@ def _log(event: str, msg: str, data: dict | None = None) -> None:
 
 
 def _time_now() -> str:
-    return datetime.now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
+    return local_now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
 
 
 def _read_stdin() -> str | None:
@@ -296,7 +296,7 @@ async def _prompt_submit(host: str, port: int, context: IncomingHookContext) -> 
     from charlieverse.context.reminders import HookContext
 
     # Build the hook context for the reminders engine
-    now = datetime.now()
+    now = utc_now()
     metadata: dict = {}
     session_id = context.session_id
 

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 from spacy.language import Language
 
 from charlieverse.config import config
+from charlieverse.types.dates import UTCDatetime, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,8 @@ class TemporalRef:
     """A resolved temporal reference with a date range."""
 
     text: str
-    start: datetime
-    end: datetime
+    start: UTCDatetime
+    end: UTCDatetime
 
 
 def _model_dir() -> Path:
@@ -107,31 +108,35 @@ def _get_nlp() -> Language | None:
     return _nlp
 
 
-def _resolve_date_range(text: str, now: datetime | None = None) -> TemporalRef | None:
-    """Resolve a temporal expression to a date range.
+def _resolve_date_range(text: str, now: UTCDatetime | None = None) -> TemporalRef | None:
+    """Resolve a temporal expression to a UTC date range.
 
     Uses dateparser for the anchor point, then infers range width
     from keywords in the expression (week, month, year, etc.).
     """
     import dateparser
 
-    now = now or datetime.now()
-    parsed = dateparser.parse(text, settings={"RELATIVE_BASE": now})
+    anchor = now or utc_now()
+    parsed = dateparser.parse(text, settings={"RELATIVE_BASE": anchor})
     if not parsed:
         return None
+
+    # dateparser returns a tz-aware datetime in the same zone as RELATIVE_BASE.
+    # Normalize to UTC for consistent comparisons.
+    from datetime import UTC
+
+    parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
     # Determine range width from the expression
     text_lower = text.lower()
     range_days = 1  # default: single day (e.g. "yesterday")
 
-    # Check for month names — if the expression is a month, cover the whole month
     import calendar
 
     month_names = [m.lower() for m in calendar.month_name[1:]] + [m.lower() for m in calendar.month_abbr[1:]]
     is_month = any(m in text_lower for m in month_names if m)
 
     if is_month:
-        # Use the first day of that month through the last day
         start = parsed.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         last_day = calendar.monthrange(start.year, start.month)[1]
         end = start.replace(day=last_day) + timedelta(days=1)
@@ -145,10 +150,10 @@ def _resolve_date_range(text: str, now: datetime | None = None) -> TemporalRef |
         end = start + timedelta(days=range_days)
 
     # Clamp end to now if it's in the future
-    if end > now:
-        end = now
+    if end > anchor:
+        end = anchor
 
-    return TemporalRef(text=text, start=start, end=end)
+    return TemporalRef(text=text, start=UTCDatetime(start), end=UTCDatetime(end))
 
 
 def extract_entities(text: str, max_length: int = 1000) -> list[str]:
@@ -207,7 +212,7 @@ def extract_temporal_refs(text: str, max_length: int = 1000) -> list[TemporalRef
     doc = nlp(text[:max_length])
 
     refs: list[TemporalRef] = []
-    now = datetime.now()
+    now = utc_now()
 
     for ent in doc.ents:
         if ent.label_ == "DATE":

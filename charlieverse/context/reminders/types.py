@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from enum import Enum
+
+from charlieverse.types.dates import UTCDatetime, utc_now
 
 
 class ReminderTag(Enum):
@@ -33,7 +34,7 @@ class HookContext:
     """
 
     event: str  # "UserPromptSubmit", "PreToolUse", "PostToolUse", etc.
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    timestamp: UTCDatetime = field(default_factory=utc_now)
     session_id: str | None = None
     message: str | None = None
     tool_name: str | None = None

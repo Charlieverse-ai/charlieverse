@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore
@@ -11,6 +10,7 @@ from charlieverse.memory.sessions import Session
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import Story, StoryStore, StoryTier
 from charlieverse.models import ContextMessage, Entity, EntityType, Knowledge
+from charlieverse.types.dates import local_now
 
 
 @dataclass
@@ -93,7 +93,7 @@ class ActivationBuilder:
         weekly_stories: list[Story] = []
         all_time_story: Story | None = None
         if self.stories:
-            today = datetime.now().astimezone().strftime("%Y-%m-%d")
+            today = local_now().strftime("%Y-%m-%d")
 
             weekly_stories = await self.stories.list(
                 tier=StoryTier.weekly,
