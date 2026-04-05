@@ -4,8 +4,8 @@ import aiosqlite
 
 from charlieverse.db.stores.knowledge_store import KnowledgeStore
 from charlieverse.db.stores.memory_store import MemoryStore
-from charlieverse.db.stores.session_store import SessionStore
-from charlieverse.db.stores.story_store import StoryStore
+from charlieverse.memory.sessions.store import SessionStore
+from charlieverse.memory.stories import StoryStore
 
 
 class StoreContext(TypedDict):

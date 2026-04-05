@@ -52,9 +52,9 @@ async def _context(session_id: str | None, workspace: str | None, host: str, por
             else:
                 typer.echo(resp.text)
 
-    except httpx.ConnectError:
+    except httpx.ConnectError as e:
         typer.echo(f"Can't reach server at {host}:{port}. Is it running?", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e

@@ -105,9 +105,9 @@ async def _import(
                 PROVIDER_PROCESSORS,
                 _discover_providers,
             )
-        except ImportError:
+        except ImportError as e:
             typer.echo("Can't find tools/extract_conversations.py", err=True)
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
 
         extra_paths = [Path(d) for d in extra_dirs]
         providers = _discover_providers(extra_paths)
@@ -166,45 +166,9 @@ async def _import(
     messages_skipped = 0
 
     if import_messages:
-        if recent_days is not None:
-            # Import recent messages in foreground, older ones in background
-            cutoff = datetime.now(UTC) - __import__("datetime").timedelta(days=recent_days)
-            recent_file, older_file = _split_by_date(output, cutoff)
-
-            typer.echo(f"\nImporting recent messages ({recent_days} days) from {recent_file}...")
-            recent_imported, recent_skipped = await _import_messages_to_db(recent_file, host, port)
-            typer.echo(f"Recent: {recent_imported} imported, {recent_skipped} duplicates skipped")
-            messages_imported += recent_imported
-            messages_skipped += recent_skipped
-
-            if older_file.exists() and older_file.stat().st_size > 0:
-                typer.echo("\nImporting older messages in the background...")
-                # Fork a background process for older messages
-                import subprocess
-
-                bg_cmd = [
-                    "uv",
-                    "run",
-                    "python",
-                    "-m",
-                    "charlieverse.cli",
-                    "import",
-                    "--from-file",
-                    str(older_file),
-                    "--messages",
-                    "--no-stories",
-                ]
-                subprocess.Popen(
-                    bg_cmd,
-                    stdout=open(config.logs / "import-bg.log", "w"),
-                    stderr=subprocess.STDOUT,
-                    start_new_session=True,
-                )
-                typer.echo("Background import started — log at ~/.charlieverse/logs/import-bg.log")
-        else:
-            typer.echo(f"\nImporting messages into database from {output}...")
-            messages_imported, messages_skipped = await _import_messages_to_db(output, host, port)
-            typer.echo(f"Messages: {messages_imported} imported, {messages_skipped} duplicates skipped")
+        typer.echo(f"\nImporting messages into database from {output}...")
+        messages_imported, messages_skipped = await _import_messages_to_db(output, host, port)
+        typer.echo(f"Messages: {messages_imported} imported, {messages_skipped} duplicates skipped")
 
     # Optionally split into weekly files and find gaps
     weeks_needing_stories: list[dict] = []
@@ -295,30 +259,6 @@ def _sort_jsonl_newest_first(jsonl_path: Path) -> None:
     with open(jsonl_path, "w") as f:
         for _, line in lines:
             f.write(line + "\n")
-
-
-def _split_by_date(jsonl_path: Path, cutoff: datetime) -> tuple[Path, Path]:
-    """Split a JSONL file into recent (>= cutoff) and older (< cutoff) files."""
-    recent_path = jsonl_path.with_suffix(".recent.jsonl")
-    older_path = jsonl_path.with_suffix(".older.jsonl")
-    cutoff_iso = cutoff.isoformat()
-
-    with open(jsonl_path) as f, open(recent_path, "w") as recent_f, open(older_path, "w") as older_f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-                ts = obj.get("timestamp", "")
-                if ts >= cutoff_iso:
-                    recent_f.write(line + "\n")
-                else:
-                    older_f.write(line + "\n")
-            except json.JSONDecodeError:
-                older_f.write(line + "\n")
-
-    return recent_path, older_path
 
 
 def _deterministic_id(session_id: str, timestamp: str, role: str) -> str:

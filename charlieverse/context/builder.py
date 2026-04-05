@@ -6,9 +6,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
-from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
-from charlieverse.models import ContextMessage, Entity, EntityType, Knowledge, Session
-from charlieverse.models.story import Story, StoryTier
+from charlieverse.db.stores import KnowledgeStore, MemoryStore
+from charlieverse.memory.sessions import Session
+from charlieverse.memory.sessions.store import SessionStore
+from charlieverse.memory.stories import Story, StoryStore, StoryTier
+from charlieverse.models import ContextMessage, Entity, EntityType, Knowledge
 
 
 @dataclass
@@ -72,10 +74,10 @@ class ActivationBuilder:
     async def build(self, session: Session, workspace: str | None) -> ContextBundle:
         """Build the full context bundle for the given session."""
         # Fetch sessions from the last 2 days (raw data, no story layer dependency)
-        recent_sessions = await self.sessions.recent(limit=10)
+        recent_sessions = await self.sessions.recent(limit=3)
 
         # Fetch moments — personality entities, always global
-        moments = await self.memories.list(entity_type=EntityType.moment, limit=1000)
+        moments = await self.memories.list(entity_type=EntityType.moment, limit=50)
 
         # Fetch pinned entities
         pinned_entities = await self.memories.pinned()
@@ -86,17 +88,6 @@ class ActivationBuilder:
 
         # Fetch related entities via vector search if we have a session description
         related_entities: list[Entity] = []
-        if session.what_happened or session.for_next_session:
-            from charlieverse.embeddings import encode_one, prepare_session_text
-
-            text = prepare_session_text(session.what_happened, session.for_next_session)
-            if text:
-                try:
-                    embedding = await encode_one(text)
-                    related_entities = await self.memories.search_by_vector(embedding, limit=10)
-                except Exception:
-                    # Embeddings are best-effort — never block activation
-                    pass
 
         # Fetch stories — weekly for compressed history, all-time for the arc
         weekly_stories: list[Story] = []
@@ -109,7 +100,6 @@ class ActivationBuilder:
                 limit=4,
             )
             weekly_stories = [s for s in weekly_stories if s.period_start and s.period_start < today]
-
             all_time_story = await self.stories.get_all_time()
 
         # Fetch recent messages for context seeding (last 3 turns)

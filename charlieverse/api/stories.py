@@ -1,18 +1,24 @@
-"""REST endpoints for story CRUD and story-data generation."""
+"""REST endpoints for story CRUD and story-data generation.
+
+All queries flow through stores — no raw SQL in this module.
+"""
 
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from charlieverse.db.stores import SessionStore, StoryStore
+from charlieverse.db.stores import KnowledgeStore, MemoryStore
 from charlieverse.db.stores.context import StoreContext
 from charlieverse.helpers.uuid import uuid_from_str
-from charlieverse.models import Session, StoryTier
+from charlieverse.memory.sessions import NewSession, Session, SessionId
+from charlieverse.memory.sessions.store import SessionStore
+from charlieverse.memory.stories import DeleteStory, NewStory, Story, StoryId, StoryStore, StoryTier
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -21,12 +27,7 @@ from charlieverse.models import Session, StoryTier
 _BAD_UUID = JSONResponse({"error": "Invalid UUID format"}, status_code=400)
 
 
-# ---------------------------------------------------------------------------
-# Serializer
-# ---------------------------------------------------------------------------
-
-
-def _serialize_story(story) -> dict:
+def _serialize_story(story: Story) -> dict[str, Any]:
     """Convert a Story model to a JSON-safe dict."""
     return {
         "id": str(story.id),
@@ -44,7 +45,7 @@ def _serialize_story(story) -> dict:
     }
 
 
-def _serialize_session(session) -> dict:
+def _serialize_session(session: Session) -> dict[str, Any]:
     """Convert a Session model to a JSON-safe dict for story-data responses."""
     return {
         "id": str(session.id),
@@ -52,7 +53,6 @@ def _serialize_session(session) -> dict:
         "for_next_session": session.for_next_session,
         "tags": session.tags,
         "workspace": session.workspace,
-        "transcript_path": session.transcript_path,
         "created_at": session.created_at.isoformat(),
         "updated_at": session.updated_at.isoformat(),
     }
@@ -86,7 +86,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if not uid:
             return _BAD_UUID
 
-        story = await stories.get(uid)
+        story = await stories.get(StoryId(uid))
         if not story:
             return JSONResponse({"error": "Story not found"}, status_code=404)
 
@@ -95,21 +95,20 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     @mcp.custom_route("/api/stories", methods=["PUT"])
     async def api_upsert_story(request: Request) -> JSONResponse:
         """Upsert a story. For session stories, matches on session_id."""
-        from charlieverse.models.story import Story
-
         body = await request.json()
         story_store: StoryStore = rest_stores["stories"]
 
-        session_id = uuid_from_str(body["session_id"]) if body.get("session_id") else None
+        session_uuid = uuid_from_str(body["session_id"]) if body.get("session_id") else None
+        session_id = SessionId(session_uuid) if session_uuid else None
 
         if session_id:
             sessions_store: SessionStore = rest_stores["sessions"]
             existing = await sessions_store.get(session_id)
             if not existing:
                 await sessions_store.create(
-                    Session(
+                    NewSession(
                         id=session_id,
-                        workspace=body.get("workspace"),
+                        workspace=body.get("workspace") or "unknown",
                     )
                 )
 
@@ -117,6 +116,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         summary = body.get("summary")
         content = body.get("content", "")
 
+        # Tolerate legacy callers that stuffed JSON into title/content.
         if isinstance(title, str) and title.strip().startswith("{"):
             try:
                 parsed = json.loads(title)
@@ -143,7 +143,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                 status_code=400,
             )
 
-        story = Story(
+        story = NewStory(
             title=title,
             summary=summary,
             content=content,
@@ -156,7 +156,6 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         )
 
         result = await story_store.upsert(story)
-
         return JSONResponse(_serialize_story(result))
 
     @mcp.custom_route("/api/stories/{id}", methods=["DELETE"])
@@ -167,34 +166,19 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if not uid:
             return _BAD_UUID
 
-        story = await story_store.get(uid)
+        story_id = StoryId(uid)
+        story = await story_store.get(story_id)
         if not story:
             return JSONResponse({"error": "Story not found"}, status_code=404)
 
-        await story_store.delete(uid)
+        await story_store.delete(DeleteStory(id=story_id))
         return JSONResponse({"deleted": True})
 
     @mcp.custom_route("/api/stories/cleanup", methods=["POST"])
     async def api_cleanup_stories(request: Request) -> JSONResponse:
-        """Delete all stories with empty or 'test' titles."""
+        """Delete all stories with empty or stub titles."""
         story_store: StoryStore = rest_stores["stories"]
-        db = rest_stores["db"]
-
-        cursor = await db.execute(
-            """SELECT id FROM stories
-               WHERE deleted_at IS NULL
-               AND (title IS NULL OR title = '' OR LOWER(title) = 'test' OR LOWER(title) = 'test title'
-                    OR LENGTH(TRIM(title)) < 5)"""
-        )
-        rows = await cursor.fetchall()
-        deleted = 0
-
-        for row in rows:
-            uuid = uuid_from_str(row["id"])
-            if uuid:
-                await story_store.delete(uuid)
-                deleted += 1
-
+        deleted = await story_store.delete_stub_stories()
         return JSONResponse({"deleted": deleted})
 
     @mcp.custom_route("/api/story-data/{session_id}", methods=["GET"])
@@ -207,142 +191,91 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         uid = uuid_from_str(raw_session_id)
         if not uid:
             return _BAD_UUID
-        session_id = raw_session_id
-        db = rest_stores["db"]
+        session_id = SessionId(uid)
+
         sessions_store: SessionStore = rest_stores["sessions"]
         story_store: StoryStore = rest_stores["stories"]
+        memories_store: MemoryStore = rest_stores["memories"]
+        knowledge_store: KnowledgeStore = rest_stores["knowledge"]
 
-        session = await sessions_store.get(uid)
+        session = await sessions_store.get(session_id)
         session_data = {
-            "id": session_id,
+            "id": raw_session_id,
             "workspace": session.workspace if session else None,
-            "transcript_path": session.transcript_path if session else None,
             "created_at": session.created_at.isoformat() if session else None,
         }
 
-        existing_story = await story_store.find_by_session(uid)
+        existing_story = await story_store.find_by_session(session_id)
         existing_story_data = _serialize_story(existing_story) if existing_story else None
+        since = existing_story.updated_at if existing_story else None
 
-        last_update = existing_story.updated_at.isoformat() if existing_story else None
+        session_messages = await sessions_store.messages_for_session(session_id, since=since)
 
-        if last_update:
-            cursor = await db.execute(
-                """SELECT id, session_id, role, content, created_at
-                   FROM messages
-                   WHERE session_id = ? AND created_at > ?
-                   ORDER BY created_at ASC""",
-                (session_id, last_update),
-            )
-        else:
-            cursor = await db.execute(
-                """SELECT id, session_id, role, content, created_at
-                   FROM messages
-                   WHERE session_id = ?
-                   ORDER BY created_at ASC""",
-                (session_id,),
-            )
-        msg_rows = await cursor.fetchall()
-
-        messages = []
-        prev_time = None
-        for row in msg_rows:
-            created = datetime.fromisoformat(row["created_at"])
+        messages: list[dict[str, Any]] = []
+        prev_time: datetime | None = None
+        for msg in session_messages:
             seconds_between = None
-            if prev_time:
-                seconds_between = str(int((created - prev_time).total_seconds()))
-            prev_time = created
-
+            if prev_time is not None:
+                seconds_between = str(int((msg.created_at - prev_time).total_seconds()))
+            prev_time = msg.created_at
             messages.append(
                 {
-                    "content": row["content"],
-                    "from": "charlie" if row["role"] == "assistant" else "user",
-                    "date_time": created.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
+                    "content": msg.content,
+                    "from": "charlie" if msg.role == "assistant" else "user",
+                    "date_time": msg.created_at.astimezone().strftime("%Y-%m-%d %H:%M:%S"),
                     "seconds_between_messages": seconds_between,
                 }
             )
 
-        cursor = await db.execute(
-            """SELECT id, type, content, tags, created_at FROM entities
-               WHERE created_session_id = ? AND deleted_at IS NULL
-               ORDER BY created_at ASC""",
-            (session_id,),
-        )
-        memory_rows = await cursor.fetchall()
-        memories_data = [{"type": row["type"], "content": row["content"][:300], "tags": row["tags"]} for row in memory_rows]
-
-        cursor = await db.execute(
-            """SELECT id, topic, content, tags, created_at FROM knowledge
-               WHERE created_session_id = ? AND deleted_at IS NULL
-               ORDER BY created_at ASC""",
-            (session_id,),
-        )
-        knowledge_rows = await cursor.fetchall()
-        knowledge_data = [{"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]} for row in knowledge_rows]
+        entities = await memories_store.for_session(session_id)
+        knowledge = await knowledge_store.for_session(session_id)
 
         return JSONResponse(
             {
                 "session": session_data,
                 "existing_story": existing_story_data,
                 "messages": messages,
-                "memories": memories_data,
-                "knowledge": knowledge_data,
+                "memories": [
+                    {"type": e.type.value, "content": (e.content or "")[:300], "tags": e.tags}
+                    for e in entities
+                ],
+                "knowledge": [
+                    {"topic": k.topic, "content": (k.content or "")[:300], "tags": k.tags}
+                    for k in knowledge
+                ],
             }
         )
 
     @mcp.custom_route("/api/story-data/{tier}/{date}", methods=["GET"])
     async def api_story_data_tier(request: Request) -> JSONResponse:
-        """Get lower-tier stories for rollup generation.
-
-        E.g., /api/story-data/weekly/2026-03-16 returns daily stories for that week.
-        """
+        """Get lower-tier stories (or raw data for daily) for rollup generation."""
         tier = request.path_params["tier"]
         date_str = request.path_params["date"]
         story_store: StoryStore = rest_stores["stories"]
+        sessions_store: SessionStore = rest_stores["sessions"]
+        memories_store: MemoryStore = rest_stores["memories"]
+        knowledge_store: KnowledgeStore = rest_stores["knowledge"]
 
         target_date = date.fromisoformat(date_str)
 
-        source_tier = None
-        range_start = None
-        range_end = None
-
         if tier == "daily":
-            sessions_store: SessionStore = rest_stores["sessions"]
-            db = rest_stores["db"]
             sessions = await sessions_store.recent_within_days(days=1)
-            session_ids = [str(s.id) for s in sessions]
 
-            messages = []
-            for sid in session_ids:
-                cursor = await db.execute(
-                    """SELECT role, content, created_at FROM messages
-                       WHERE session_id = ? ORDER BY created_at ASC""",
-                    (sid,),
-                )
-                for row in await cursor.fetchall():
+            messages: list[dict[str, Any]] = []
+            for s in sessions:
+                session_messages = await sessions_store.messages_for_session(s.id)
+                for msg in session_messages:
                     messages.append(
                         {
-                            "from": "charlie" if row["role"] == "assistant" else "user",
-                            "content": row["content"][:500],
-                            "created_at": row["created_at"],
+                            "from": "charlie" if msg.role == "assistant" else "user",
+                            "content": (msg.content or "")[:500],
+                            "created_at": msg.created_at.isoformat(),
                         }
                     )
 
-            day_start = f"{target_date.isoformat()}T00:00:00"
-            cursor = await db.execute(
-                """SELECT type, content, tags FROM entities
-                   WHERE deleted_at IS NULL AND created_at >= ?
-                   ORDER BY created_at ASC""",
-                (day_start,),
-            )
-            memories = [{"type": row["type"], "content": row["content"][:300], "tags": row["tags"]} for row in await cursor.fetchall()]
-
-            cursor = await db.execute(
-                """SELECT topic, content, tags FROM knowledge
-                   WHERE deleted_at IS NULL AND created_at >= ?
-                   ORDER BY created_at ASC""",
-                (day_start,),
-            )
-            knowledge = [{"topic": row["topic"], "content": row["content"][:300], "tags": row["tags"]} for row in await cursor.fetchall()]
+            day_start = datetime(target_date.year, target_date.month, target_date.day, tzinfo=UTC)
+            entities = await memories_store.created_since(day_start)
+            knowledge = await knowledge_store.created_since(day_start)
 
             return JSONResponse(
                 {
@@ -352,11 +285,22 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                     "range_end": target_date.isoformat(),
                     "sessions": [_serialize_session(s) for s in sessions],
                     "messages": messages,
-                    "memories": memories,
-                    "knowledge": knowledge,
+                    "memories": [
+                        {"type": e.type.value, "content": (e.content or "")[:300], "tags": e.tags}
+                        for e in entities
+                    ],
+                    "knowledge": [
+                        {"topic": k.topic, "content": (k.content or "")[:300], "tags": k.tags}
+                        for k in knowledge
+                    ],
                 }
             )
-        elif tier == "weekly":
+
+        source_tier: StoryTier | None = None
+        range_start: str | None = None
+        range_end: str | None = None
+
+        if tier == "weekly":
             source_tier = StoryTier.daily
             monday = target_date - timedelta(days=target_date.weekday())
             sunday = monday + timedelta(days=6)
@@ -385,7 +329,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         else:
             return JSONResponse({"error": f"Unknown tier: {tier}"}, status_code=400)
 
-        stories = await story_store.find_by_period(range_start, range_end, limit=50)
+        stories = await story_store.find_by_period(range_start or "", range_end or "", limit=50)
         if source_tier:
             stories = [s for s in stories if s.tier == source_tier]
 
@@ -399,11 +343,3 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                 "stories": [_serialize_story(s) for s in stories],
             }
         )
-
-    @mcp.custom_route("/api/rebuild", methods=["POST"])
-    async def api_rebuild(request: Request) -> JSONResponse:
-        """Rebuild all FTS and vector indexes across entities, knowledge, and stories."""
-        from charlieverse.db.stores.context import rebuild_all
-
-        await rebuild_all(rest_stores)
-        return JSONResponse({"success": True})

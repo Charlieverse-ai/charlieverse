@@ -9,6 +9,7 @@ from uuid import UUID
 import aiosqlite
 
 from charlieverse.db.stores._utils import _tags_json, _tags_list
+from charlieverse.memory.sessions import SessionId
 from charlieverse.models import Knowledge
 
 
@@ -83,7 +84,7 @@ class KnowledgeStore:
         embeddings = await encode(texts)
 
         rows: list[tuple[int, bytes]] = []
-        for article, embedding in zip(articles, embeddings):
+        for article, embedding in zip(articles, embeddings, strict=True):
             try:
                 cursor = await self.db.execute("SELECT rowid FROM knowledge WHERE id = ?", (str(article.id),))
                 row = await cursor.fetchone()
@@ -182,6 +183,26 @@ class KnowledgeStore:
         """Fetch all pinned, active knowledge articles."""
         cursor = await self.db.execute(
             "SELECT * FROM knowledge WHERE pinned = 1 AND deleted_at IS NULL ORDER BY topic",
+        )
+        return [_row_to_knowledge(row) for row in await cursor.fetchall()]
+
+    async def for_session(self, session_id: SessionId) -> builtins.list[Knowledge]:
+        """Fetch active knowledge articles created within a single session."""
+        cursor = await self.db.execute(
+            """SELECT * FROM knowledge
+               WHERE created_session_id = ? AND deleted_at IS NULL
+               ORDER BY created_at ASC""",
+            (str(session_id),),
+        )
+        return [_row_to_knowledge(row) for row in await cursor.fetchall()]
+
+    async def created_since(self, since: datetime) -> builtins.list[Knowledge]:
+        """Fetch active knowledge articles created at or after the given timestamp."""
+        cursor = await self.db.execute(
+            """SELECT * FROM knowledge
+               WHERE deleted_at IS NULL AND created_at >= ?
+               ORDER BY created_at ASC""",
+            (since.isoformat(),),
         )
         return [_row_to_knowledge(row) for row in await cursor.fetchall()]
 

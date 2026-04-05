@@ -188,7 +188,7 @@ def process_claude_file(jsonl_path: Path) -> list[dict]:
 # ============================================================
 
 
-def _epoch_ms_to_iso(ms: int | float) -> str:
+def _epoch_ms_to_iso(ms: float) -> str:
     """Convert epoch milliseconds to ISO timestamp."""
     return datetime.fromtimestamp(ms / 1000, tz=UTC).isoformat()
 

@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Annotated
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field
 
-NonEmptyString = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+from charlieverse.types.strings import NonEmptyString
 
 
 class EntityType(StrEnum):

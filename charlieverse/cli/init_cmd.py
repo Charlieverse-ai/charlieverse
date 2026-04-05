@@ -115,8 +115,8 @@ def _start_server() -> None:
 
     charlie_cmd = ["uv", "run", "charlie", "server"]
 
-    status_cmd = charlie_cmd + ["status"]
-    start_cmd = charlie_cmd + ["start"]
+    status_cmd = [*charlie_cmd, "status"]
+    start_cmd = [*charlie_cmd, "start"]
 
     # Check if already running
     try:
@@ -223,12 +223,13 @@ def _import_history() -> None:
 
     # Check for existing extracted data
     if existing_jsonl.exists() and existing_jsonl.stat().st_size > 0:
-        line_count = sum(1 for _ in open(existing_jsonl))
-        _ok(f"Found existing import file ({line_count} entries)")
+        with open(existing_jsonl) as file:
+            line_count = sum(1 for _ in file)
+            _ok(f"Found existing import file ({line_count} entries)")
 
-        if _ask_yes_no("Import from this file?"):
-            _run_import(["--from-file", str(existing_jsonl), "--messages"])
-            return
+            if _ask_yes_no("Import from this file?"):
+                _run_import(["--from-file", str(existing_jsonl), "--messages"])
+                return
 
     if not _ask_yes_no("Import conversation history?"):
         _info("Skipped — you can run this later: charlie import --messages")
@@ -247,14 +248,14 @@ def _import_history() -> None:
     elif choice == 3:
         provider_flags = ["--provider", "codex"]
 
-    _run_import(["--messages"] + provider_flags)
+    _run_import(["--messages", *provider_flags])
 
 
 def _run_import(flags: list[str]) -> None:
     """Run the import command."""
     _info("Importing recent conversations...")
     try:
-        cmd = [sys.executable, "-m", "charlieverse.cli", "import"] + flags
+        cmd = [sys.executable, "-m", "charlieverse.cli", "import", *flags]
         result = subprocess.run(cmd, timeout=300)
         if result.returncode == 0:
             _ok("Recent history imported")

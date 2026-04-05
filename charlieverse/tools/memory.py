@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from datetime import UTC
 from uuid import UUID
 
 from charlieverse.db.stores import KnowledgeStore, MemoryStore
-from charlieverse.db.stores.story_store import StoryStore
 from charlieverse.embeddings import encode_one, prepare_entity_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
+from charlieverse.memory.stories import StoryStore
 from charlieverse.models import Entity, EntityType
 from charlieverse.tasks import track_task
 from charlieverse.tools.responses import (
@@ -287,10 +288,7 @@ def _rank_by_relevance_and_recency(
         # Relevance: both sources = 1.0, one source = 0.5
         in_fts = e.id in fts_ids
         in_vec = e.id in vec_ids
-        if in_fts and in_vec:
-            relevance = 1.0
-        else:
-            relevance = 0.5
+        relevance = 1.0 if in_fts and in_vec else 0.5
 
         # Recency: half-life of 14 days (2 weeks old = 0.5, 4 weeks = 0.25)
         days_old = max((now - e.updated_at.replace(tzinfo=UTC if e.updated_at.tzinfo is None else e.updated_at.tzinfo)).total_seconds() / 86400, 0)
@@ -352,14 +350,12 @@ async def recall(
     )
 
     # Search stories
-    from charlieverse.models import Story
+    from charlieverse.memory.stories import Story
 
     story_results: list[Story] = []
     if story_store:
-        try:
+        with suppress(Exception):
             story_results = await story_store.search(query, limit=min(limit, 5))
-        except Exception:
-            pass
 
     # Search messages if db is available
     from datetime import datetime

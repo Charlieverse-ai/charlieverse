@@ -3,54 +3,21 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from uuid import UUID, uuid4
+from uuid import uuid4
 
+from charlieverse.db import SessionStore
 from charlieverse.db.stores.session_store import _is_noise
-from charlieverse.models import Session
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _session(
-    what_happened: str | None = "Built some stuff",
-    for_next_session: str | None = "Keep building",
-    **kw,
-) -> Session:
-    return Session(
-        what_happened=what_happened,
-        for_next_session=for_next_session,
-        **kw,
-    )
-
+from charlieverse.models.session import NewSession, Session, SessionContent, UpdateSession, session_id
 
 # ---------------------------------------------------------------------------
 # Create
 # ---------------------------------------------------------------------------
 
 
-async def test_create_returns_session(session_store):
-    s = await session_store.create(_session())
-    assert s.id is not None
-    assert isinstance(s.id, UUID)
-
-
-async def test_create_stores_fields(session_store):
-    s = await session_store.create(
-        _session(
-            what_happened="fixed bugs",
-            for_next_session="write tests",
-            workspace="/some/path",
-            tags=["bugfix"],
-        )
-    )
-    fetched = await session_store.get(s.id)
-    assert fetched is not None
-    assert fetched.what_happened == "fixed bugs"
-    assert fetched.for_next_session == "write tests"
-    assert fetched.workspace == "/some/path"
-    assert fetched.tags == ["bugfix"]
+async def test_create_returns_session_id(session_store: SessionStore):
+    id = session_id()
+    s = await session_store.create(NewSession(id=id, workspace="/workspace"))
+    assert s == id
 
 
 # ---------------------------------------------------------------------------
@@ -58,8 +25,8 @@ async def test_create_stores_fields(session_store):
 # ---------------------------------------------------------------------------
 
 
-async def test_get_nonexistent_returns_none(session_store):
-    result = await session_store.get(uuid4())
+async def test_get_nonexistent_returns_none(session_store: SessionStore):
+    result = await session_store.get(session_id())
     assert result is None
 
 
@@ -68,16 +35,16 @@ async def test_get_nonexistent_returns_none(session_store):
 # ---------------------------------------------------------------------------
 
 
-async def test_update_changes_content(session_store):
-    s = await session_store.create(_session())
-    s.what_happened = "updated description"
-    await session_store.update(s)
-    fetched = await session_store.get(s.id)
-    assert fetched is not None
-    assert fetched.what_happened == "updated description"
+async def test_update_changes_content(session_store: SessionStore):
+    id = session_id()
+    await session_store.create(NewSession(id=id, workspace="/workspace"))
+
+    updated = await session_store.update(UpdateSession(id=id, workspace="/workspace", content=SessionContent(what_happened="what", for_next_session="next")))
+
+    assert updated.what_happened == "what"
 
 
-async def test_update_changes_tags(session_store):
+async def test_update_changes_tags(session_store: SessionStore):
     s = await session_store.create(_session(tags=["old"]))
     s.tags = ["new", "tags"]
     await session_store.update(s)
@@ -91,14 +58,14 @@ async def test_update_changes_tags(session_store):
 # ---------------------------------------------------------------------------
 
 
-async def test_upsert_creates_new(session_store):
+async def test_upsert_creates_new(session_store: SessionStore):
     s = _session()
     result = await session_store.upsert(s)
     fetched = await session_store.get(result.id)
     assert fetched is not None
 
 
-async def test_upsert_updates_existing(session_store):
+async def test_upsert_updates_existing(session_store: SessionStore):
     s = await session_store.create(_session(what_happened="v1"))
     s.what_happened = "v2"
     await session_store.upsert(s)
@@ -112,14 +79,14 @@ async def test_upsert_updates_existing(session_store):
 # ---------------------------------------------------------------------------
 
 
-async def test_recent_returns_sessions_with_content(session_store):
+async def test_recent_returns_sessions_with_content(session_store: SessionStore):
     await session_store.create(_session())
     await session_store.create(_session())
     results = await session_store.recent(limit=10)
     assert len(results) >= 2
 
 
-async def test_recent_excludes_empty_sessions(session_store):
+async def test_recent_excludes_empty_sessions(session_store: SessionStore):
     # Session with no what_happened should be excluded
     await session_store.create(Session())
     await session_store.create(_session())
@@ -127,7 +94,7 @@ async def test_recent_excludes_empty_sessions(session_store):
     assert all(s.what_happened is not None for s in results)
 
 
-async def test_recent_returns_all_workspaces(session_store):
+async def test_recent_returns_all_workspaces(session_store: SessionStore):
     """Workspace is metadata, not a filter — all sessions returned regardless."""
     await session_store.create(_session(workspace="/project/a"))
     await session_store.create(_session(workspace="/project/b"))
@@ -142,25 +109,18 @@ async def test_recent_returns_all_workspaces(session_store):
 # ---------------------------------------------------------------------------
 
 
-async def test_recent_within_range_returns_matching(session_store):
+async def test_recent_within_range_returns_matching(session_store: SessionStore):
     await session_store.create(_session())
     # Use a wide range that covers today
     results = await session_store.recent_within_range("2020-01-01", "2030-12-31")
     assert len(results) >= 1
 
 
-async def test_recent_within_range_excludes_outside(session_store):
+async def test_recent_within_range_excludes_outside(session_store: SessionStore):
     await session_store.create(_session())
     # Range in the far past — should find nothing
     results = await session_store.recent_within_range("2000-01-01", "2000-12-31")
     assert len(results) == 0
-
-
-async def test_recent_within_range_excludes_incomplete(session_store):
-    # Session with no for_next_session should be excluded
-    await session_store.create(Session(what_happened="partial save"))
-    results = await session_store.recent_within_range("2020-01-01", "2030-12-31")
-    assert all(s.for_next_session is not None for s in results)
 
 
 # ---------------------------------------------------------------------------
@@ -168,14 +128,14 @@ async def test_recent_within_range_excludes_incomplete(session_store):
 # ---------------------------------------------------------------------------
 
 
-async def test_soft_delete_hides_session(session_store):
+async def test_soft_delete_hides_session(session_store: SessionStore):
     s = await session_store.create(_session())
     await session_store.delete(s.id)
     result = await session_store.get(s.id)
     assert result is None
 
 
-async def test_soft_deleted_excluded_from_recent(session_store):
+async def test_soft_deleted_excluded_from_recent(session_store: SessionStore):
     s = await session_store.create(_session())
     count_before = len(await session_store.recent(limit=100))
     await session_store.delete(s.id)
@@ -245,12 +205,12 @@ async def _insert_message(db, role: str, content: str, created_at: datetime | No
     await db.commit()
 
 
-async def test_recent_messages_returns_empty_when_no_messages(session_store):
+async def test_recent_messages_returns_empty_when_no_messages(session_store: SessionStore):
     result = await session_store.recent_messages(turns=3)
     assert result == []
 
 
-async def test_recent_messages_returns_chronological_order(db, session_store):
+async def test_recent_messages_returns_chronological_order(db, session_store: SessionStore):
     base = datetime.now(UTC)
     await _insert_message(db, "user", "first message", base - timedelta(minutes=5))
     await _insert_message(db, "assistant", "first reply", base - timedelta(minutes=4))
@@ -264,7 +224,7 @@ async def test_recent_messages_returns_chronological_order(db, session_store):
         assert result[i].created_at <= result[i + 1].created_at
 
 
-async def test_recent_messages_filters_noise(db, session_store):
+async def test_recent_messages_filters_noise(db, session_store: SessionStore):
     base = datetime.now(UTC)
     await _insert_message(db, "user", "real question", base - timedelta(minutes=10))
     await _insert_message(db, "assistant", "real answer", base - timedelta(minutes=9))
@@ -276,7 +236,7 @@ async def test_recent_messages_filters_noise(db, session_store):
     assert "/session-save" not in contents
 
 
-async def test_recent_messages_filters_system_reminder(db, session_store):
+async def test_recent_messages_filters_system_reminder(db, session_store: SessionStore):
     base = datetime.now(UTC)
     await _insert_message(db, "user", "normal question", base - timedelta(minutes=5))
     await _insert_message(db, "user", "<system-reminder>injected</system-reminder>", base - timedelta(minutes=4))
@@ -287,7 +247,7 @@ async def test_recent_messages_filters_system_reminder(db, session_store):
     assert not any("<system-reminder>" in c for c in contents)
 
 
-async def test_recent_messages_respects_turn_limit(db, session_store):
+async def test_recent_messages_respects_turn_limit(db, session_store: SessionStore):
     base = datetime.now(UTC)
     # Insert 5 user+assistant turns
     for i in range(5):
@@ -301,7 +261,7 @@ async def test_recent_messages_respects_turn_limit(db, session_store):
     assert len(user_messages) <= 2
 
 
-async def test_recent_messages_returns_context_message_objects(db, session_store):
+async def test_recent_messages_returns_context_message_objects(db, session_store: SessionStore):
     from charlieverse.models import ContextMessage
 
     base = datetime.now(UTC)

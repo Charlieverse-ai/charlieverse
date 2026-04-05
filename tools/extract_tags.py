@@ -9,7 +9,7 @@ def extract():
 
     if not tags:
         print("No tags")
-        exit
+        return
 
     for tag in tags:
         subtags = extract_subtags(tag[1])

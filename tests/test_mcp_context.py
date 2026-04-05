@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from charlieverse.helpers.uuid import create_uuid
 from charlieverse.mcp.context import _permalink, _remember_with_url
 
 # ---------------------------------------------------------------------------
@@ -14,13 +15,13 @@ from charlieverse.mcp.context import _permalink, _remember_with_url
 
 
 def test_permalink_includes_kind_and_id():
-    result = _permalink("memories", "abc123")
+    result = _permalink("memories", create_uuid())
     assert "memories" in result
     assert "abc123" in result
 
 
 def test_permalink_returns_string():
-    result = _permalink("knowledge", "def456")
+    result = _permalink("knowledge", create_uuid())
     assert isinstance(result, str)
 
 

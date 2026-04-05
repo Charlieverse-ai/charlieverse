@@ -1,10 +1,14 @@
 from uuid import UUID
 
+# TODO Move this into id
 
-def uuid_from_str(value: str | None) -> UUID | None:
+
+def uuid_from_str(value: str | UUID | None) -> UUID | None:
     """Parse a UUID string, returning None on malformed input."""
     if not value:
         return None
+    if isinstance(value, UUID):
+        return value
     try:
         return UUID(value)
     except (ValueError, AttributeError):

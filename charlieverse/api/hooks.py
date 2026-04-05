@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from fastmcp import FastMCP
 from starlette.requests import Request
@@ -12,17 +12,19 @@ from starlette.responses import JSONResponse, PlainTextResponse
 from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
 from charlieverse.db.fts import sanitize_fts_query
-from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
+from charlieverse.db.stores import KnowledgeStore, MemoryStore
 from charlieverse.db.stores.context import StoreContext
 from charlieverse.embeddings import encode_one
 from charlieverse.helpers.uuid import uuid_from_str
-from charlieverse.models import Session
+from charlieverse.memory.sessions import Session, SessionId, UpdateSession
+from charlieverse.memory.sessions.store import SessionStore
+from charlieverse.memory.stories import StoryStore
 
 
 def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     """Register hook REST endpoints on the given FastMCP instance."""
     # Lazy import to avoid circular dependency (hooks → server → mcp → tools → server)
-    from charlieverse.server import get_seen_ids, set_seen_ids  # noqa: E402
+    from charlieverse.server import get_seen_ids, set_seen_ids
 
     @mcp.custom_route("/api/sessions/context", methods=["GET"])
     async def api_session_context(request: Request) -> PlainTextResponse:
@@ -39,7 +41,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             recent_sessions = await sessions_store.recent(limit=1, workspace=workspace)
             session = recent_sessions[0] if recent_sessions else None
         else:
-            session = await sessions_store.get(session_id=session_id)
+            session = await sessions_store.get(SessionId(session_id))
 
         if not session:
             return PlainTextResponse("Missing")
@@ -66,10 +68,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         memories_store: MemoryStore = rest_stores["memories"]
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
 
-        session = await sessions_store.get(UUID(session_id))
-        if not session:
-            session = Session(id=UUID(session_id), workspace=workspace)
-            await sessions_store.create(session)
+        session = await sessions_store.upsert(UpdateSession(id=session_id, workspace=workspace))
 
         builder = ActivationBuilder(
             memories_store,

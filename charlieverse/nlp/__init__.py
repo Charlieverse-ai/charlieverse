@@ -7,4 +7,4 @@ from charlieverse.nlp.extractor import (
 )
 from charlieverse.nlp.markdown import strip_markdown
 
-__all__ = ["extract_entities", "extract_temporal_refs", "strip_markdown", "TemporalRef"]
+__all__ = ["TemporalRef", "extract_entities", "extract_temporal_refs", "strip_markdown"]

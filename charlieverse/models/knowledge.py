@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
-from charlieverse.models.entity import NonEmptyString
+from charlieverse.types.strings import NonEmptyString
 
 
 class Knowledge(BaseModel):

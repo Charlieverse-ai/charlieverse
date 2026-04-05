@@ -278,7 +278,7 @@ def check_server() -> list[CheckResult]:
 
     if pid_running and port_open:
         results.append(_pass("Server process", f"Running (PID {pid})"))
-        results.append(_pass("Server port", f":{port} open"))
+        results.append(_pass("Server port", f"{port} open"))
     elif pid_running and not port_open:
         results.append(
             _warn(
@@ -292,7 +292,7 @@ def check_server() -> list[CheckResult]:
         results.append(
             _warn(
                 "Server",
-                f"Port :{port} is open but no PID file — may be an orphan process",
+                f"Port {port} is open but no PID file — may be an orphan process",
                 fix="charlie server restart",
             )
         )
@@ -305,7 +305,7 @@ def check_server() -> list[CheckResult]:
     try:
         with urllib.request.urlopen(health_url, timeout=3) as resp:
             if resp.status == 200:
-                results.append(_pass("Server health", f"{health_url} responded 200"))
+                results.append(_pass("Server health", "Good"))
             else:
                 results.append(
                     _warn(
@@ -494,30 +494,30 @@ def check_providers() -> list[CheckResult]:
                     )
                 )
 
-    # ── Cursor ───────────────────────────────────────────────────────────────
-    cursor_bin = shutil.which("cursor")
-    cursor_dir = Path.home() / ".cursor"
-    if cursor_bin or cursor_dir.exists():
-        location = cursor_bin or str(cursor_dir)
-        results.append(
-            _warn(
-                "Provider: Cursor",
-                f"Cursor detected ({location}) — no Charlieverse integration available yet",
-            )
-        )
-    # No result = not detected, which is fine — don't clutter output for uninstalled tools.
+    # # ── Cursor ───────────────────────────────────────────────────────────────
+    # cursor_bin = shutil.which("cursor")
+    # cursor_dir = Path.home() / ".cursor"
+    # if cursor_bin or cursor_dir.exists():
+    #     location = cursor_bin or str(cursor_dir)
+    #     results.append(
+    #         _warn(
+    #             "Provider: Cursor",
+    #             f"Cursor detected ({location}) — no Charlieverse integration available yet",
+    #         )
+    #     )
+    # # No result = not detected, which is fine — don't clutter output for uninstalled tools.
 
-    # ── Codex CLI ────────────────────────────────────────────────────────────
-    codex_bin = shutil.which("codex")
-    codex_dir = Path.home() / ".codex"
-    if codex_bin or codex_dir.exists():
-        location = codex_bin or str(codex_dir)
-        results.append(
-            _warn(
-                "Provider: Codex",
-                f"Codex detected ({location}) — no Charlieverse integration available yet",
-            )
-        )
+    # # ── Codex CLI ────────────────────────────────────────────────────────────
+    # codex_bin = shutil.which("codex")
+    # codex_dir = Path.home() / ".codex"
+    # if codex_bin or codex_dir.exists():
+    #     location = codex_bin or str(codex_dir)
+    #     results.append(
+    #         _warn(
+    #             "Provider: Codex",
+    #             f"Codex detected ({location}) — no Charlieverse integration available yet",
+    #         )
+    #     )
 
     return results
 
@@ -623,8 +623,9 @@ def _run_check(fn: Callable[[], CheckResult | list[CheckResult]]) -> list[CheckR
     """Run a check function and always return a list, catching unexpected exceptions."""
     try:
         result = fn()
-        checks: list[CheckResult] = result if isinstance(result, list) else [result]  # type: ignore[assignment]
-        return checks
+        if isinstance(result, CheckResult):
+            return [result]
+        return result
     except Exception as exc:
         name = getattr(fn, "__name__", "unknown")
         return [_fail(name, f"Unexpected error: {exc}")]
@@ -653,10 +654,6 @@ def doctor(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show all results, including passes"),
 ) -> None:
     """Verify the Charlieverse environment — checks Python, dependencies, database, server, providers, and more."""
-    console.print()
-    console.print("[bold]charlie doctor[/bold]  —  Charlieverse environment check")
-    console.print()
-
     all_results: list[CheckResult] = []
 
     checks: list[tuple[str, Callable]] = [
@@ -672,21 +669,22 @@ def doctor(
     ]
 
     for section_name, fn in checks:
-        results = _run_check(fn)
-        all_results.extend(results)
+        with console.status(f"Checking {section_name}"):
+            results = _run_check(fn)
+            all_results.extend(results)
 
         for r in results:
             if r.status == Status.PASS and not verbose:
                 # Print passes inline without a table row — they are low noise
-                console.print(f"  {_status_icon(r.status)} {r.name}: {r.detail}")
+                console.print(f"{_status_icon(r.status)} [bold]{r.name}[/bold]: {r.detail}")
             elif r.status == Status.WARN:
-                console.print(f"  {_status_icon(r.status)} [yellow]{r.name}[/yellow]: {r.detail}")
+                console.print(f"{_status_icon(r.status)} [yellow]{r.name}[/yellow]: {r.detail}")
                 if r.fix:
-                    console.print(f"     [dim]fix:[/dim] {r.fix}")
+                    console.print(f"    [dim]fix:[/dim] {r.fix}")
             elif r.status == Status.FAIL:
-                console.print(f"  {_status_icon(r.status)} [red bold]{r.name}[/red bold]: {r.detail}")
+                console.print(f"{_status_icon(r.status)} [red bold]{r.name}[/red bold]: {r.detail}")
                 if r.fix:
-                    console.print(f"     [dim]fix:[/dim] [cyan]{r.fix}[/cyan]")
+                    console.print(f"    [dim]fix:[/dim] [cyan]{r.fix}[/cyan]")
 
     # ── Summary ───────────────────────────────────────────────────────────────
     passed = sum(1 for r in all_results if r.status == Status.PASS)

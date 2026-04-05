@@ -7,8 +7,9 @@ from pathlib import Path
 
 from charlieverse import paths
 from charlieverse.context.builder import ContextBundle
-from charlieverse.models import ContextMessage, Entity, EntityType, Session
-from charlieverse.models.story import Story
+from charlieverse.memory.sessions import Session
+from charlieverse.memory.stories import Story
+from charlieverse.models import ContextMessage, Entity, EntityType
 
 PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "prompts"
 
@@ -148,7 +149,7 @@ def _render_first_run(bundle: ContextBundle) -> str:
 def _render_tricks(workspace: str | None) -> str:
     """Discover tricks and render them for the activation context."""
     try:
-        from charlieverse.skills import _discover_skills, _source_label
+        from charlieverse.skills import _discover_skills
 
         tricks = _discover_skills()
     except Exception:
@@ -161,9 +162,8 @@ def _render_tricks(workspace: str | None) -> str:
     lines.append("Available tricks (`/trick [name]` or `charlie trick list`):\n")
 
     for trick in tricks:
-        name = trick["name"]
-        desc = trick.get("description", "")
-        source, _ = _source_label(trick["path"])
+        name = trick.get("name")
+        desc = trick.get("description")
         if desc:
             lines.append(f"- **{name}**: {desc}")
         else:

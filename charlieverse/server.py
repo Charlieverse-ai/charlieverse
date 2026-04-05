@@ -10,17 +10,20 @@ import time
 from fastmcp import FastMCP
 from fastmcp.server.lifespan import lifespan
 
-from charlieverse.api import entities, hooks, spa, stories
+from charlieverse.api import entities, hooks, spa
+from charlieverse.api import stories as stories_api
 from charlieverse.config import config
 from charlieverse.db import database
-from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore, StoryStore
+from charlieverse.db.stores import KnowledgeStore, MemoryStore
 from charlieverse.db.stores.context import StoreContext, rebuild_all
 from charlieverse.mcp import (
     tools_knowledge,
     tools_memory,
-    tools_sessions,
-    tools_stories,
 )
+from charlieverse.memory.sessions.mcp import server as SessionMCP
+from charlieverse.memory.sessions.store import SessionStore
+from charlieverse.memory.stories import StoryStore
+from charlieverse.memory.stories.mcp import server as StoryMCP
 
 logger = logging.getLogger(__name__)
 
@@ -71,17 +74,17 @@ async def start_server(host: str, port: int):
         await stores["db"].close()
 
     mcp = FastMCP("Charlieverse", lifespan=app_lifespan)
+    mcp.mount(SessionMCP, namespace="session")
+    mcp.mount(StoryMCP, namespace="story")
 
     # MCP tools
     tools_memory.register(mcp)
     tools_knowledge.register(mcp)
-    tools_sessions.register(mcp)
-    tools_stories.register(mcp)
 
     # Custom Routes
     hooks.register_routes(mcp, stores)
     entities.register_routes(mcp, stores)
-    stories.register_routes(mcp, stores)
+    stories_api.register_routes(mcp, stores)
     spa.register_routes(mcp)
 
     await mcp.run_async("http", host=host, port=port, show_banner=False)

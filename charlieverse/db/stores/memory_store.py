@@ -9,6 +9,7 @@ from uuid import UUID
 import aiosqlite
 
 from charlieverse.db.stores._utils import _tags_json, _tags_list
+from charlieverse.memory.sessions import SessionId
 from charlieverse.models import Entity, EntityType
 
 
@@ -83,7 +84,7 @@ class MemoryStore:
         embeddings = await encode(texts)
 
         rows: list[tuple[int, bytes]] = []
-        for entity, embedding in zip(entities, embeddings):
+        for entity, embedding in zip(entities, embeddings, strict=True):
             try:
                 cursor = await self.db.execute("SELECT rowid FROM entities WHERE id = ?", (str(entity.id),))
                 row = await cursor.fetchone()
@@ -199,7 +200,7 @@ class MemoryStore:
         )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
 
-    async def for_sessions(self, session_ids: builtins.list[UUID]) -> builtins.list[Entity]:
+    async def for_sessions(self, session_ids: builtins.list[SessionId]) -> builtins.list[Entity]:
         """Fetch active entities linked to the given sessions."""
         if not session_ids:
             return []
@@ -210,6 +211,26 @@ class MemoryStore:
                 AND deleted_at IS NULL
                 ORDER BY created_at DESC""",
             [str(sid) for sid in session_ids],
+        )
+        return [_row_to_entity(row) for row in await cursor.fetchall()]
+
+    async def for_session(self, session_id: SessionId) -> builtins.list[Entity]:
+        """Fetch active entities created within a single session."""
+        cursor = await self.db.execute(
+            """SELECT * FROM entities
+               WHERE created_session_id = ? AND deleted_at IS NULL
+               ORDER BY created_at ASC""",
+            (str(session_id),),
+        )
+        return [_row_to_entity(row) for row in await cursor.fetchall()]
+
+    async def created_since(self, since: datetime) -> builtins.list[Entity]:
+        """Fetch active entities created at or after the given timestamp."""
+        cursor = await self.db.execute(
+            """SELECT * FROM entities
+               WHERE deleted_at IS NULL AND created_at >= ?
+               ORDER BY created_at ASC""",
+            (since.isoformat(),),
         )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
 

@@ -32,15 +32,11 @@ from charlieverse.models import (
 
 def _session(
     what_happened: str = "worked on things",
-    for_next_session: str | None = None,
-    workspace: str | None = None,
+    for_next_session: str = "continue fixing bugs",
+    workspace: str = "/workspace/path",
     updated_at: datetime | None = None,
 ) -> Session:
-    s = Session(
-        what_happened=what_happened,
-        for_next_session=for_next_session,
-        workspace=workspace,
-    )
+    s = Session(what_happened=what_happened, for_next_session=for_next_session, workspace=workspace, tags=["tag"])
     if updated_at:
         s = s.model_copy(update={"updated_at": updated_at})
     return s

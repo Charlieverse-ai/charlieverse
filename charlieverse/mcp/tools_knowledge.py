@@ -51,4 +51,4 @@ def register(mcp: FastMCP) -> None:
             pinned=pinned,
             knowledge_store=_stores(ctx)["knowledge"],
         )
-        return {"url": _permalink("knowledge", str(result.id))}
+        return {"url": _permalink("knowledge", result.id)}

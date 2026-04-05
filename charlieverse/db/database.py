@@ -31,7 +31,7 @@ async def connect(db_path: str | Path) -> aiosqlite.Connection:
             conn.enable_load_extension(False)
             return None
 
-        await db._execute(_do_load, db._conn)  # noqa: SLF001
+        await db._execute(_do_load, db._conn)
 
     await _load_vec()
 

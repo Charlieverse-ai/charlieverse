@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from datetime import UTC, datetime
 
 from attr import dataclass
@@ -9,10 +10,14 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from charlieverse.db.stores import KnowledgeStore, MemoryStore, SessionStore
+from charlieverse.api.responses import ExceptionResponse, ModelResponse, NotFoundResponse
+from charlieverse.api.responses.model import ModelListResponse
+from charlieverse.db.stores import KnowledgeStore, MemoryStore
 from charlieverse.db.stores.context import StoreContext
 from charlieverse.embeddings import encode_one
 from charlieverse.helpers.uuid import uuid_from_str
+from charlieverse.memory.sessions import Session, SessionId
+from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.models import Entity, EntityType, Knowledge
 
 # ---------------------------------------------------------------------------
@@ -35,7 +40,7 @@ class ErrorResponse:
 # ---------------------------------------------------------------------------
 
 
-def _serialize_entity(entity) -> dict:
+def _serialize_entity(entity: Entity) -> dict:
     """Convert an Entity model to a JSON-safe dict."""
     return {
         "id": str(entity.id),
@@ -49,21 +54,20 @@ def _serialize_entity(entity) -> dict:
     }
 
 
-def _serialize_session(session) -> dict:
+def _serialize_session(session: Session) -> dict:
     """Convert a Session model to a JSON-safe dict."""
     return {
-        "id": str(session.id),
+        "id": session.id,
         "what_happened": session.what_happened,
         "for_next_session": session.for_next_session,
         "tags": session.tags,
         "workspace": session.workspace,
-        "transcript_path": session.transcript_path,
         "created_at": session.created_at.isoformat(),
         "updated_at": session.updated_at.isoformat(),
     }
 
 
-def _serialize_knowledge(article) -> dict:
+def _serialize_knowledge(article: Knowledge) -> dict:
     """Convert a Knowledge model to a JSON-safe dict."""
     return {
         "id": str(article.id),
@@ -353,31 +357,32 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         return JSONResponse(_serialize_knowledge(article))
 
     @mcp.custom_route("/api/sessions/list", methods=["GET"])
-    async def api_list_sessions(request: Request) -> JSONResponse:
+    async def api_list_sessions(request: Request) -> ModelListResponse | ExceptionResponse:
         """List recent sessions."""
-        sessions: SessionStore = rest_stores["sessions"]
-        limit = int(request.query_params.get("limit", "50"))
+        try:
+            store: SessionStore = rest_stores["sessions"]
+            limit = int(request.query_params.get("limit", "50"))
 
-        session_list = await sessions.recent(limit=limit)
+            sessions = await store.recent(limit=limit)
 
-        return JSONResponse({"sessions": [_serialize_session(s) for s in session_list]})
+            return ModelListResponse(sessions)
+        except Exception as e:
+            return ExceptionResponse(e)
 
     @mcp.custom_route("/api/sessions/{id}", methods=["GET"])
-    async def api_get_session(request: Request) -> JSONResponse:
+    async def api_get_session(request: Request) -> ModelResponse | ExceptionResponse | NotFoundResponse:
         """Get a single session by ID."""
-        sessions: SessionStore = rest_stores["sessions"]
-        uuid_str = request.path_params.get("id")
-        if not uuid_str:
-            return ErrorResponse.missing_required("Entity ID")
-        uid = uuid_from_str(uuid_str)
-        if not uid:
-            return ErrorResponse.invalid_uuid
+        try:
+            sessions: SessionStore = rest_stores["sessions"]
+            uuid = SessionId(request.path_params["id"])
+            session = await sessions.get(uuid)
 
-        session = await sessions.get(uid)
-        if not session:
-            return JSONResponse({"error": "Session not found"}, status_code=404)
+            if not session:
+                return NotFoundResponse("Session")
 
-        return JSONResponse(_serialize_session(session))
+            return ModelResponse(session)
+        except Exception as e:
+            return ExceptionResponse(e)
 
     @mcp.custom_route("/api/search", methods=["POST"])
     async def api_search(request: Request) -> JSONResponse:
@@ -395,15 +400,9 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         entity_results = []
         knowledge_results = []
 
-        try:
+        with suppress(Exception):
             entity_results = await memories.search(query, limit=limit)
-        except Exception:
-            pass
-
-        try:
             knowledge_results = await knowledge.search(query, limit=limit)
-        except Exception:
-            pass
 
         if not entity_results and not knowledge_results:
             try:

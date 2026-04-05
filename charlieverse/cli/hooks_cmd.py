@@ -171,6 +171,7 @@ def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
             "hookSpecificOutput": {
                 "hookEventName": hook_event,
                 "additionalContext": f"{context}",
+                "suppressOutput": True,
             }
         }
     )
@@ -252,7 +253,7 @@ async def _session_start(host: str, port: int, source: str, context: IncomingHoo
             activation = data.get("activation", "")
     except Exception as e:
         print(f"Error connecting to Charlieverse at {host}:{port}: {e}", file=sys.stderr)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     result = _build_context_static(activation)
 
@@ -438,4 +439,4 @@ async def _session_end(host: str, port: int, source: str, session_id: str) -> No
             )
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e

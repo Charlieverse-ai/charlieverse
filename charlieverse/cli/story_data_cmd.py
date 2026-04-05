@@ -60,7 +60,7 @@ async def _story_data(target: str, date: str | None, host: str, port: int) -> No
             data = response.json()
     except httpx.HTTPError as e:
         typer.echo(f"Error fetching story data: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     # Output JSON to stdout for skill consumption
     typer.echo(json.dumps(data, indent=2))

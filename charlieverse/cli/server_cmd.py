@@ -6,6 +6,7 @@ import asyncio
 import os
 import signal
 import sys
+from contextlib import suppress
 
 import typer
 
@@ -170,7 +171,7 @@ def start(
             pid = os.fork()
         except OSError as e:
             typer.echo(f"Failed to fork: {e}", err=True)
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
 
         if pid > 0:
             # Parent — wait for child to write PID, then poll health
@@ -189,10 +190,8 @@ def start(
                 # Clean up the child process if it's still around
                 child_pid = _read_pid()
                 if child_pid:
-                    try:
+                    with suppress(OSError):
                         os.kill(child_pid, signal.SIGTERM)
-                    except OSError:
-                        pass
                     _clear_pid()
                 if LOG_FILE.exists():
                     lines = LOG_FILE.read_text().strip().splitlines()
