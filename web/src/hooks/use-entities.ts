@@ -5,7 +5,6 @@ export function useEntities(type?: string) {
   return useQuery({
     queryKey: ['entities', type],
     queryFn: () => api.listEntities(type),
-    select: (data) => data.entities,
   })
 }
 

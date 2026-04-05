@@ -5,7 +5,6 @@ export function useKnowledge(limit = 50) {
   return useQuery({
     queryKey: ['knowledge', limit],
     queryFn: () => api.listKnowledge(limit),
-    select: (data) => data.articles,
   })
 }
 

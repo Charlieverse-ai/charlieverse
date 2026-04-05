@@ -15,7 +15,7 @@ export const api = {
     const params = new URLSearchParams()
     if (type) params.set('type', type)
     params.set('limit', String(limit))
-    return request<{ entities: import('../types').Entity[] }>(`/entities?${params}`)
+    return request<import('../types').Entity[]>(`/entities?${params}`)
   },
 
   getEntity: (id: string) =>
@@ -30,7 +30,7 @@ export const api = {
 
   // Knowledge
   listKnowledge: (limit = 50) =>
-    request<{ articles: import('../types').Knowledge[] }>(`/knowledge?limit=${limit}`),
+    request<import('../types').Knowledge[]>(`/knowledge?limit=${limit}`),
 
   getKnowledge: (id: string) =>
     request<import('../types').Knowledge>(`/knowledge/${id}`),
