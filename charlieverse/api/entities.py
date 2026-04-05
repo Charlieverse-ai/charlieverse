@@ -11,13 +11,21 @@ from starlette.responses import JSONResponse
 
 from charlieverse.api.responses import ExceptionResponse, ModelResponse, NotFoundResponse
 from charlieverse.api.responses.model import ModelListResponse
-from charlieverse.db.stores import KnowledgeStore, MemoryStore
+from charlieverse.db.stores import MemoryStore
 from charlieverse.db.stores.context import StoreContext
 from charlieverse.embeddings import encode_one
 from charlieverse.helpers.uuid import uuid_from_str
+from charlieverse.memory.knowledge import (
+    DeleteKnowledge,
+    Knowledge,
+    KnowledgeId,
+    KnowledgeStore,
+    NewKnowledge,
+    UpdateKnowledge,
+)
 from charlieverse.memory.sessions import Session, SessionId
 from charlieverse.memory.sessions.store import SessionStore
-from charlieverse.models import Entity, EntityType, Knowledge
+from charlieverse.models import Entity, EntityType
 from charlieverse.types.dates import utc_now
 
 # ---------------------------------------------------------------------------
@@ -244,7 +252,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if not uid:
             return ErrorResponse.invalid_uuid
 
-        article = await knowledge.get(uid)
+        article = await knowledge.get(KnowledgeId(uid))
         if not article:
             return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
 
@@ -262,14 +270,14 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if not uid:
             return ErrorResponse.invalid_uuid
 
-        article = Knowledge(
+        new_article = NewKnowledge(
             topic=body["topic"],
             content=body["content"],
             tags=body.get("tags"),
             pinned=body.get("pinned", False),
-            created_session_id=uid,
+            created_session_id=SessionId(uid),
         )
-        created = await knowledge_store.create(article)
+        created = await knowledge_store.create(new_article)
 
         try:
             embedding = await encode_one(f"{created.topic} {created.content}")
@@ -289,23 +297,23 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         uid = uuid_from_str(uuid_str)
         if not uid:
             return ErrorResponse.invalid_uuid
+        knowledge_id = KnowledgeId(uid)
         body = await request.json()
 
-        article = await knowledge_store.get(uid)
+        article = await knowledge_store.get(knowledge_id)
         if not article:
             return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
 
-        if "topic" in body:
-            article.topic = body["topic"]
-        if "content" in body:
-            article.content = body["content"]
-        if "tags" in body:
-            article.tags = body["tags"]
-        if "pinned" in body:
-            article.pinned = body["pinned"]
-
-        article.updated_at = utc_now()
-        updated = await knowledge_store.upsert(article)
+        updated = await knowledge_store.update(
+            UpdateKnowledge(
+                id=knowledge_id,
+                topic=body.get("topic"),
+                content=body.get("content"),
+                tags=body.get("tags"),
+                pinned=body.get("pinned"),
+                updated_at=utc_now(),
+            )
+        )
 
         if "topic" in body or "content" in body:
             try:
@@ -326,12 +334,13 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         uid = uuid_from_str(uuid_str)
         if not uid:
             return ErrorResponse.invalid_uuid
+        knowledge_id = KnowledgeId(uid)
 
-        article = await knowledge_store.get(uid)
+        article = await knowledge_store.get(knowledge_id)
         if not article:
             return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
 
-        await knowledge_store.delete(uid)
+        await knowledge_store.delete(DeleteKnowledge(id=knowledge_id))
         return JSONResponse({"deleted": True})
 
     @mcp.custom_route("/api/knowledge/{id}/pin", methods=["POST"])
@@ -344,14 +353,15 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         uid = uuid_from_str(uuid_str)
         if not uid:
             return ErrorResponse.invalid_uuid
+        knowledge_id = KnowledgeId(uid)
         body = await request.json()
 
-        article = await knowledge_store.get(uid)
+        article = await knowledge_store.get(knowledge_id)
         if not article:
             return JSONResponse({"error": "Knowledge article not found"}, status_code=404)
 
         pinned = body.get("pinned", not article.pinned)
-        await knowledge_store.pin(uid, pinned)
+        await knowledge_store.pin(knowledge_id, pinned)
 
         article.pinned = pinned
         return JSONResponse(_serialize_knowledge(article))

@@ -13,9 +13,10 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from charlieverse.db.stores import KnowledgeStore, MemoryStore
+from charlieverse.db.stores import MemoryStore
 from charlieverse.db.stores.context import StoreContext
 from charlieverse.helpers.uuid import uuid_from_str
+from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.sessions import NewSession, Session, SessionId
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import DeleteStory, NewStory, Story, StoryId, StoryStore, StoryTier

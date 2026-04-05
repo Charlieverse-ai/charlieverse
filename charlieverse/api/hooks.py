@@ -11,10 +11,11 @@ from starlette.responses import JSONResponse, PlainTextResponse
 from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
 from charlieverse.db.fts import sanitize_fts_query
-from charlieverse.db.stores import KnowledgeStore, MemoryStore
+from charlieverse.db.stores import MemoryStore
 from charlieverse.db.stores.context import StoreContext
 from charlieverse.embeddings import encode_one
 from charlieverse.helpers.uuid import uuid_from_str
+from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.sessions import Session, SessionId, UpdateSession
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import StoryStore

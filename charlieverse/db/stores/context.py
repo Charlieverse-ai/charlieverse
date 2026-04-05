@@ -2,8 +2,8 @@ from typing import TypedDict
 
 import aiosqlite
 
-from charlieverse.db.stores.knowledge_store import KnowledgeStore
 from charlieverse.db.stores.memory_store import MemoryStore
+from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import StoryStore
 

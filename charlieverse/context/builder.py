@@ -5,11 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from charlieverse.db.stores import KnowledgeStore, MemoryStore
+from charlieverse.db.stores import MemoryStore
+from charlieverse.memory.knowledge import Knowledge, KnowledgeStore
 from charlieverse.memory.sessions import Session
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import Story, StoryStore, StoryTier
-from charlieverse.models import ContextMessage, Entity, EntityType, Knowledge
+from charlieverse.models import ContextMessage, Entity, EntityType
 from charlieverse.types.dates import local_now
 
 

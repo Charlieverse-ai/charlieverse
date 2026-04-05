@@ -6,9 +6,10 @@ import asyncio
 from contextlib import suppress
 from uuid import UUID
 
-from charlieverse.db.stores import KnowledgeStore, MemoryStore
+from charlieverse.db.stores import MemoryStore
 from charlieverse.embeddings import encode_one, prepare_entity_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
+from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.stories import StoryStore
 from charlieverse.models import Entity, EntityType
 from charlieverse.tasks import track_task
@@ -410,7 +411,7 @@ async def recall(
         content, truncated = _truncate(k.content, _MAX_KNOWLEDGE_CONTENT)
         knowledge_summaries.append(
             KnowledgeSummary(
-                id=k.id,
+                id=k.id.uuid,
                 content=content,
                 truncated=truncated,
             )
@@ -496,9 +497,12 @@ async def pin(
 
     # Try knowledge
     if knowledge_store:
-        article = await knowledge_store.get(uid)
+        from charlieverse.memory.knowledge import KnowledgeId
+
+        knowledge_id = KnowledgeId(uid)
+        article = await knowledge_store.get(knowledge_id)
         if article:
-            await knowledge_store.pin(uid, pinned)
+            await knowledge_store.pin(knowledge_id, pinned)
             return AckResponse()
 
     raise ValueError(f"No entity or knowledge article found with id {id}")

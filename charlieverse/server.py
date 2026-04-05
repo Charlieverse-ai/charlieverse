@@ -14,12 +14,11 @@ from charlieverse.api import entities, hooks, spa
 from charlieverse.api import stories as stories_api
 from charlieverse.config import config
 from charlieverse.db import database
-from charlieverse.db.stores import KnowledgeStore, MemoryStore
+from charlieverse.db.stores import MemoryStore
 from charlieverse.db.stores.context import StoreContext, rebuild_all
-from charlieverse.mcp import (
-    tools_knowledge,
-    tools_memory,
-)
+from charlieverse.mcp import tools_memory
+from charlieverse.memory.knowledge import KnowledgeStore
+from charlieverse.memory.knowledge.mcp import server as KnowledgeMCP
 from charlieverse.memory.sessions.mcp import server as SessionMCP
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import StoryStore
@@ -76,10 +75,10 @@ async def start_server(host: str, port: int):
     mcp = FastMCP("Charlieverse", lifespan=app_lifespan)
     mcp.mount(SessionMCP, namespace="session")
     mcp.mount(StoryMCP, namespace="story")
+    mcp.mount(KnowledgeMCP, namespace="knowledge")
 
     # MCP tools
     tools_memory.register(mcp)
-    tools_knowledge.register(mcp)
 
     # Custom Routes
     hooks.register_routes(mcp, stores)
