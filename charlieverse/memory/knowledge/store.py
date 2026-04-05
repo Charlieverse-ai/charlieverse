@@ -71,11 +71,7 @@ class KnowledgeStore:
         merged_content = update.content if update.content is not None else existing.content
         merged_tags = update.tags if update.tags is not None else existing.tags
         merged_pinned = update.pinned if update.pinned is not None else existing.pinned
-        merged_updated_session = (
-            update.updated_session_id
-            if update.updated_session_id is not None
-            else existing.updated_session_id
-        )
+        merged_updated_session = update.updated_session_id if update.updated_session_id is not None else existing.updated_session_id
 
         await self._sync_fts_delete(update.id)
         cursor = await self.db.execute(
@@ -193,7 +189,7 @@ class KnowledgeStore:
     # Search
     # ------------------------------------------------------------------
 
-    async def search(self, query: str, limit: int = 10) -> builtins.list[Knowledge]:
+    async def search(self, query: str, include_pinned: bool = True, limit: int = 10) -> builtins.list[Knowledge]:
         """Full-text search across knowledge using FTS5 + BM25 ranking."""
         from charlieverse.db.fts import sanitize_fts_query
 
@@ -202,10 +198,11 @@ class KnowledgeStore:
             return []
 
         cursor = await self.db.execute(
-            """SELECT k.* FROM knowledge k
+            f"""SELECT k.* FROM knowledge k
                JOIN knowledge_fts fts ON k.rowid = fts.rowid
                WHERE knowledge_fts MATCH ?
                AND k.deleted_at IS NULL
+               {"AND pinned = false" if not include_pinned else ""}
                ORDER BY bm25(knowledge_fts)
                LIMIT ?""",
             (fts_query, limit),

@@ -10,9 +10,11 @@ from pathlib import Path
 from spacy.language import Language
 
 from charlieverse.config import config
+from charlieverse.db.fts import clean_text
 from charlieverse.types.dates import UTCDatetime, utc_now
 
 logger = logging.getLogger(__name__)
+
 
 _nlp: Language | None = None
 
@@ -21,7 +23,7 @@ _MODEL_VERSION = "3.8.0"
 _MODEL_URL = f"https://github.com/explosion/spacy-models/releases/download/{_MODEL_NAME}-{_MODEL_VERSION}/{_MODEL_NAME}-{_MODEL_VERSION}-py3-none-any.whl"
 
 # Entity labels worth extracting for memory search
-_RELEVANT_LABELS = {"PERSON", "ORG", "PRODUCT", "GPE", "EVENT", "WORK_OF_ART", "FAC", "NORP"}
+_RELEVANT_LABELS = {"PERSON", "ORG", "PRODUCT", "GPE", "EVENT", "WORK_OF_ART", "FAC", "NORP", "DATE", "LOC", "TIME", "MISC", "PROD", "DRV", "PER"}
 
 # Temporal expressions that imply date ranges
 _RANGE_KEYWORDS = {
@@ -166,14 +168,15 @@ def extract_entities(text: str, max_length: int = 1000) -> list[str]:
     Returns:
         Deduplicated list of extracted terms, ordered by appearance.
     """
-    if not text or not text.strip():
+    content = clean_text(text)
+    if not content:
         return []
 
     nlp = _get_nlp()
     if nlp is None:
         return []
 
-    doc = nlp(text[:max_length])
+    doc = nlp(content)
 
     seen: set[str] = set()
     terms: list[str] = []
@@ -186,13 +189,6 @@ def extract_entities(text: str, max_length: int = 1000) -> list[str]:
             if lower not in seen and len(normalized) > 1:
                 seen.add(lower)
                 terms.append(normalized)
-
-    # Proper nouns that spaCy didn't catch as entities
-    for token in doc:
-        if token.pos_ == "PROPN" and token.text.lower() not in seen and len(token.text) > 1:
-            seen.add(token.text.lower())
-            terms.append(token.text)
-
     return terms
 
 
@@ -202,14 +198,15 @@ def extract_temporal_refs(text: str, max_length: int = 1000) -> list[TemporalRef
     Returns resolved date ranges for expressions like "last week",
     "yesterday", "in February", etc. Returns empty list if none found.
     """
-    if not text or not text.strip():
+    content = clean_text(text)
+    if not content:
         return []
 
     nlp = _get_nlp()
     if nlp is None:
         return []
 
-    doc = nlp(text[:max_length])
+    doc = nlp(content)
 
     refs: list[TemporalRef] = []
     now = utc_now()

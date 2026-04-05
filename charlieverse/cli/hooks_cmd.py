@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -180,6 +181,15 @@ def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
     sys.stdout.flush()
 
 
+def _output_block(hook_event: str, reason: str) -> None:
+    """Output context in the universal hookSpecificOutput JSON format."""
+    output = json.dumps({"hookSpecificOutput": {"hookEventName": hook_event, "decision": "block", "reason": reason}})
+
+    _log(f"{hook_event}.result", msg=output)
+    sys.stdout.write(output)
+    sys.stdout.flush()
+
+
 def _incoming_context() -> IncomingHookContext | None:
     stdin_data = _parse_stdin()
 
@@ -263,7 +273,12 @@ async def _session_start(host: str, port: int, source: str, context: IncomingHoo
     if user_hook_output:
         result += user_hook_output
 
-    _output_context(result, hook_event="SessionStart")
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8") as tmp:
+        # 2. Write data
+        tmp.write(result)
+
+        reminder = f"<very-important>Read the ENTIRE file: {tmp.name}</very-important>"
+        _output_context(reminder, hook_event="SessionStart")
     typer.Exit(0)
 
 
@@ -367,11 +382,28 @@ def stop(
 ) -> None:
     """Hook: Stop. Captures assistant response and logs stop event."""
     context = _incoming_context()
+    from charlieverse.helpers.banned_words import check_text, format_feedback
 
     if context:
-        last_message = context.stdin.get("last_assistant_message")
+        last_message = str(context.stdin.get("last_assistant_message"))
+
         if not last_message:
             _log(context.event, "ERROR: Skipping stop hook because it's missing the last assistant message", data=context.stdin)
+            typer.Exit(0)
+            return
+
+        violations = check_text(last_message)
+        if violations:
+            from rich.console import Console
+
+            feedback = format_feedback(violations)
+
+            _log(context.event, f"ERROR: {feedback}", data=context.stdin)
+
+            error_console = Console(stderr=True)
+            error_console.print(feedback)
+
+            raise typer.Exit(2)
             return
 
         # Save assistant message
@@ -388,7 +420,8 @@ def stop(
         # Run user hooks from ~/.charlieverse/hooks/stop/
         asyncio.run(_run_user_hooks("stop", session_id=context.session_id, last_assistant_message=last_message))
 
-    typer.Exit(0)
+    _log("Stop.result", msg="Finished")
+    raise typer.Exit(0)
 
 
 # ===== tool-use =====
@@ -438,5 +471,4 @@ async def _session_end(host: str, port: int, source: str, session_id: str) -> No
                 json={"session_id": session_id, "source": source},
             )
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        raise typer.Exit(1) from e
+        _log("session-end", f"ERROR: {e}")

@@ -234,7 +234,7 @@ class MemoryStore:
         )
         return [_row_to_entity(row) for row in await cursor.fetchall()]
 
-    async def search(self, query: str, limit: int = 10) -> builtins.list[Entity]:
+    async def search(self, query: str, include_pinned: bool = True, limit: int = 10) -> builtins.list[Entity]:
         """Full-text search across entities using FTS5 + BM25 ranking."""
         from charlieverse.db.fts import sanitize_fts_query
 
@@ -243,11 +243,12 @@ class MemoryStore:
             return []
 
         cursor = await self.db.execute(
-            """SELECT e.* FROM entities e
+            f"""SELECT e.* FROM entities e
                JOIN entities_fts fts ON e.rowid = fts.rowid
                WHERE entities_fts MATCH ?
                AND e.deleted_at IS NULL
-               ORDER BY bm25(entities_fts)
+               {"AND pinned = false" if not include_pinned else ""}
+               ORDER BY RANK
                LIMIT ?""",
             (fts_query, limit),
         )

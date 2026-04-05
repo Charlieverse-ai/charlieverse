@@ -42,10 +42,9 @@ class SearchMemoriesRule(ReminderRule):
             return None
 
         found = data.get("found", [])
-        not_found = data.get("not_found", [])
         stories = data.get("stories", [])
 
-        if not found and not not_found and not stories:
+        if not found and not stories:
             return None
 
         parts: list[str] = []
@@ -63,10 +62,6 @@ class SearchMemoriesRule(ReminderRule):
             for story in stories:
                 period = f"{story['period_start']} to {story['period_end']}"
                 parts.append(f"[story: {story['title']}] ({story['tier']}, {period}) {story['content']}")
-
-        # Hint about entities not found in memories
-        if not_found:
-            parts.append(f"No memories found for: {', '.join(not_found)}")
 
         if not parts:
             return None

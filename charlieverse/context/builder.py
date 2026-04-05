@@ -75,7 +75,7 @@ class ActivationBuilder:
     async def build(self, session: Session, workspace: str | None) -> ContextBundle:
         """Build the full context bundle for the given session."""
         # Fetch sessions from the last 2 days (raw data, no story layer dependency)
-        recent_sessions = await self.sessions.recent(limit=3)
+        recent_sessions = await self.sessions.recent(limit=1)
 
         # Fetch moments — personality entities, always global
         moments = await self.memories.list(entity_type=EntityType.moment, limit=50)
@@ -104,7 +104,7 @@ class ActivationBuilder:
             all_time_story = await self.stories.get_all_time()
 
         # Fetch recent messages for context seeding (last 3 turns)
-        recent_messages = await self.sessions.recent_messages(turns=6)
+        recent_messages = await self.sessions.recent_messages(turns=3)
 
         # Fetch pinned knowledge
         pinned_knowledge = await self.knowledge.pinned()

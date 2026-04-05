@@ -23,7 +23,7 @@ export const api = {
 
   // Sessions
   listSessions: (limit = 50) =>
-    request<{ sessions: import('../types').Session[] }>(`/sessions/list?limit=${limit}`),
+    request<import('../types').Session[]>(`/sessions/list?limit=${limit}`),
 
   getSession: (id: string) =>
     request<import('../types').Session>(`/sessions/${id}`),

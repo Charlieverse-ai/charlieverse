@@ -10,7 +10,7 @@ from starlette.responses import JSONResponse, PlainTextResponse
 
 from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
-from charlieverse.db.fts import sanitize_fts_query
+from charlieverse.db.fts import clean_text, sanitize_fts_query
 from charlieverse.db.stores import MemoryStore
 from charlieverse.db.stores.context import StoreContext
 from charlieverse.embeddings import encode_one
@@ -182,15 +182,16 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         Returns found memories grouped by entity, plus entities with no matches.
         """
         body = await request.json()
-        text = body.get("text", "")
+        text = clean_text(body.get("text", ""))
+
+        if not text:
+            return JSONResponse({"entities": [], "found": [], "not_found": [], "stories": []})
+
         seen_ids = set(body.get("seen_ids", []))
         session_id = body.get("session_id")
 
         if session_id:
             seen_ids |= get_seen_ids(session_id)
-
-        if not text:
-            return JSONResponse({"entities": [], "found": [], "not_found": [], "stories": []})
 
         from charlieverse.nlp import extract_entities, extract_temporal_refs
 
@@ -204,8 +205,8 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         not_found: list[str] = []
 
         for entity in entities:
-            memory_results = await memories.search(entity, limit=3)
-            knowledge_results = await knowledge.search(entity, limit=2)
+            memory_results = await memories.search(entity, limit=3, include_pinned=False)
+            knowledge_results = await knowledge.search(entity, limit=1, include_pinned=False)
 
             new_memories = [m for m in memory_results if str(m.id) not in seen_ids and (not session_id or str(m.created_session_id) != session_id)]
             new_knowledge = [k for k in knowledge_results if str(k.id) not in seen_ids and (not session_id or str(k.created_session_id) != session_id)]
@@ -311,6 +312,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         limit = body.get("limit", 20)
         session_id = body.get("session_id")
         safe_query = sanitize_fts_query(query)
+
         if not safe_query:
             return JSONResponse({"messages": []})
 

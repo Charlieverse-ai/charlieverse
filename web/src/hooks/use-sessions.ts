@@ -5,7 +5,7 @@ export function useSessions(limit = 50) {
   return useQuery({
     queryKey: ['sessions', limit],
     queryFn: () => api.listSessions(limit),
-    select: (data) => data.sessions,
+    select: (data) => data,
   })
 }
 
