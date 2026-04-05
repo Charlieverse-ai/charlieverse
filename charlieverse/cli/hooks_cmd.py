@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from charlieverse.helpers.uuid import uuid_str_from_str
+from charlieverse.memory.sessions import SessionId
 from charlieverse.types.dates import local_now, utc_now
 
 if TYPE_CHECKING:
@@ -43,7 +43,7 @@ LOG_FILE = config.logs / "hooks.log"
 @dataclass
 class IncomingHookContext:
     event: str
-    session_id: str
+    session_id: SessionId
     workspace: str
     stdin: dict = field(default_factory=dict)
 
@@ -192,41 +192,43 @@ def _output_block(hook_event: str, reason: str) -> None:
 
 def _incoming_context() -> IncomingHookContext | None:
     stdin_data = _parse_stdin()
+    try:
+        _log("stdin", "Incoming Hook Data", data=stdin_data)
 
-    _log("stdin", "Incoming Hook Data", data=stdin_data)
+        if not stdin_data:
+            _log("missing-context", "ERROR: Skipped because of missing hook data in stdin")
+            return None
 
-    if not stdin_data:
-        _log("missing-context", "ERROR: Skipped because of missing hook data in stdin")
-        return None
+        hook_name = stdin_data.get("hook_event_name")
 
-    hook_name = stdin_data.get("hook_event_name")
+        if not hook_name:
+            _log("missing-hook-name", "ERROR: Skipped because of missing hook name", data=stdin_data)
+            return None
 
-    if not hook_name:
-        _log("missing-hook-name", "ERROR: Skipped because of missing hook name", data=stdin_data)
-        return None
+        hook_name = str(hook_name)
 
-    hook_name = str(hook_name)
+        # Skip activation context for subagents — they don't need the full boot sequence
+        if _is_subagent(stdin_data):
+            _log(f"{hook_name}.skipped", "Skipping hook for subagent", data=stdin_data)
+            return None
 
-    # Skip activation context for subagents — they don't need the full boot sequence
-    if _is_subagent(stdin_data):
-        _log(f"{hook_name}.skipped", "Skipping hook for subagent", data=stdin_data)
-        return None
+        # Claude provides the name of the agent in the input, so we'll restrict the hooks to just Charlieverse:Charlie
+        agent_type = str(stdin_data.get("agent_type", "")).strip()
+        if agent_type and agent_type != "Charlieverse:Charlie":
+            _log(f"{hook_name}.skipped", "Skipping hook because the agent is not Charlie", data=stdin_data)
+            return None
 
-    # Claude provides the name of the agent in the input, so we'll restrict the hooks to just Charlieverse:Charlie
-    agent_type = str(stdin_data.get("agent_type", "")).strip()
-    if agent_type and agent_type != "Charlieverse:Charlie":
-        _log(f"{hook_name}.skipped", "Skipping hook because the agent is not Charlie", data=stdin_data)
-        return None
+        # Providers send cwd in stdin JSON, fallback to cwd
+        workspace = str(stdin_data.get("cwd")) or os.getcwd()
+        session_id = SessionId(stdin_data.get("session_id"))
 
-    # Providers send cwd in stdin JSON, fallback to cwd
-    workspace = str(stdin_data.get("cwd")) or os.getcwd()
-    session_id = uuid_str_from_str(stdin_data.get("session_id"))
+        if not session_id:
+            _log(f"{hook_name}.skipped", "ERROR: Missing or invalid session_id", data=stdin_data)
+            return None
 
-    if not session_id:
-        _log(f"{hook_name}.skipped", "ERROR: Missing or invalid session_id", data=stdin_data)
-        return None
-
-    return IncomingHookContext(hook_name, session_id=str(session_id), workspace=workspace, stdin=stdin_data)
+        return IncomingHookContext(hook_name, session_id=session_id, workspace=workspace, stdin=stdin_data)
+    except Exception:
+        _log("error", "Got exception while parsing", data=stdin_data)
 
 
 # ===== session-start =====
@@ -236,9 +238,7 @@ def _incoming_context() -> IncomingHookContext | None:
 def session_start(
     host: str = typer.Option(DEFAULT_HOST, help="Server host"),
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
-    source: str = typer.Option(..., help="Provider identifier"),
-    workspace: str | None = typer.Option(None, help="Workspace identifier"),
-    session_id: str | None = typer.Option(None, help="Session ID to resume"),
+    source: str = typer.Option(..., help="Source"),
 ) -> None:
     """Hook: SessionStart. Prints activation context to stdout."""
     context = _incoming_context()
@@ -246,7 +246,7 @@ def session_start(
     if context:
         asyncio.run(_session_start(host, port, source, context))
 
-    typer.Exit(0)
+    raise typer.Exit(0)
 
 
 async def _session_start(host: str, port: int, source: str, context: IncomingHookContext) -> None:
@@ -268,7 +268,7 @@ async def _session_start(host: str, port: int, source: str, context: IncomingHoo
     result = _build_context_static(activation)
 
     # Run user hooks from ~/.charlieverse/hooks/session-start/
-    user_hook_output = await _run_user_hooks("session-start", session_id=context.session_id, workspace=context.workspace)
+    user_hook_output = await _run_user_hooks("session-start", session_id=str(context.session_id), workspace=context.workspace)
 
     if user_hook_output:
         result += user_hook_output
@@ -323,7 +323,7 @@ async def _prompt_submit(host: str, port: int, context: IncomingHookContext) -> 
                 client.get(f"http://{host}:{port}/api/sessions/{session_id}"),
                 client.get(
                     f"http://{host}:{port}/api/messages/latest",
-                    params={"session_id": session_id, "role": "assistant"},
+                    params={"session_id": str(session_id), "role": "assistant"},
                 ),
                 return_exceptions=True,
             )
@@ -355,7 +355,7 @@ async def _prompt_submit(host: str, port: int, context: IncomingHookContext) -> 
     reminders_output = await _build_reminders(ctx)
 
     # Run user hooks from ~/.charlieverse/hooks/prompt-submit/
-    user_hook_output = await _run_user_hooks("prompt-submit", session_id=session_id, message=user_prompt)
+    user_hook_output = await _run_user_hooks("prompt-submit", session_id=str(session_id), message=user_prompt)
     if user_hook_output:
         reminders_output += user_hook_output
 
@@ -418,7 +418,7 @@ def stop(
         )
 
         # Run user hooks from ~/.charlieverse/hooks/stop/
-        asyncio.run(_run_user_hooks("stop", session_id=context.session_id, last_assistant_message=last_message))
+        asyncio.run(_run_user_hooks("stop", session_id=str(context.session_id), last_assistant_message=last_message))
 
     _log("Stop.result", msg="Finished")
     raise typer.Exit(0)
@@ -461,14 +461,14 @@ def session_end(
     typer.Exit(0)
 
 
-async def _session_end(host: str, port: int, source: str, session_id: str) -> None:
+async def _session_end(host: str, port: int, source: str, session_id: SessionId) -> None:
     import httpx
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
                 f"http://{host}:{port}/api/sessions/end",
-                json={"session_id": session_id, "source": source},
+                json={"session_id": str(session_id), "source": source},
             )
     except Exception as e:
         _log("session-end", f"ERROR: {e}")

@@ -13,9 +13,9 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from charlieverse.db.stores import MemoryStore
-from charlieverse.db.stores.context import StoreContext
 from charlieverse.helpers.uuid import uuid_from_str
+from charlieverse.memory.context import StoreContext
+from charlieverse.memory.entities import EntityStore
 from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.sessions import NewSession, Session, SessionId
 from charlieverse.memory.sessions.store import SessionStore
@@ -197,7 +197,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
 
         sessions_store: SessionStore = rest_stores["sessions"]
         story_store: StoryStore = rest_stores["stories"]
-        memories_store: MemoryStore = rest_stores["memories"]
+        memories_store: EntityStore = rest_stores["memories"]
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
 
         session = await sessions_store.get(session_id)
@@ -237,14 +237,8 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                 "session": session_data,
                 "existing_story": existing_story_data,
                 "messages": messages,
-                "memories": [
-                    {"type": e.type.value, "content": (e.content or "")[:300], "tags": e.tags}
-                    for e in entities
-                ],
-                "knowledge": [
-                    {"topic": k.topic, "content": (k.content or "")[:300], "tags": k.tags}
-                    for k in knowledge
-                ],
+                "memories": [{"type": e.type.value, "content": (e.content or "")[:300], "tags": e.tags} for e in entities],
+                "knowledge": [{"topic": k.topic, "content": (k.content or "")[:300], "tags": k.tags} for k in knowledge],
             }
         )
 
@@ -255,7 +249,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         date_str = request.path_params["date"]
         story_store: StoryStore = rest_stores["stories"]
         sessions_store: SessionStore = rest_stores["sessions"]
-        memories_store: MemoryStore = rest_stores["memories"]
+        memories_store: EntityStore = rest_stores["memories"]
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
 
         target_date = date.fromisoformat(date_str)
@@ -287,14 +281,8 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                     "range_end": target_date.isoformat(),
                     "sessions": [_serialize_session(s) for s in sessions],
                     "messages": messages,
-                    "memories": [
-                        {"type": e.type.value, "content": (e.content or "")[:300], "tags": e.tags}
-                        for e in entities
-                    ],
-                    "knowledge": [
-                        {"topic": k.topic, "content": (k.content or "")[:300], "tags": k.tags}
-                        for k in knowledge
-                    ],
+                    "memories": [{"type": e.type.value, "content": (e.content or "")[:300], "tags": e.tags} for e in entities],
+                    "knowledge": [{"topic": k.topic, "content": (k.content or "")[:300], "tags": k.tags} for k in knowledge],
                 }
             )
 

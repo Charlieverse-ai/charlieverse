@@ -5,9 +5,13 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from charlieverse.db import SessionStore
-from charlieverse.db.stores.session_store import _is_noise
-from charlieverse.models.session import NewSession, Session, SessionContent, UpdateSession, session_id
+from charlieverse.memory.sessions import NewSession, Session, SessionContent, SessionId, UpdateSession
+from charlieverse.memory.sessions.store import SessionStore, _is_noise
+
+
+def session_id() -> SessionId:
+    return SessionId()
+
 
 # ---------------------------------------------------------------------------
 # Create
@@ -262,7 +266,7 @@ async def test_recent_messages_respects_turn_limit(db, session_store: SessionSto
 
 
 async def test_recent_messages_returns_context_message_objects(db, session_store: SessionStore):
-    from charlieverse.models import ContextMessage
+    from charlieverse.models.context_message import ContextMessage  # noqa: F401
 
     base = datetime.now(UTC)
     await _insert_message(db, "user", "hello charlie", base - timedelta(minutes=2))

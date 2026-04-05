@@ -8,13 +8,15 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
+from charlieverse.api.responses import ModelListResponse
 from charlieverse.embeddings import encode_one, prepare_knowledge_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.mcp.context import _stores
 from charlieverse.mcp.responses import PermalinkResponse
+from charlieverse.memory.knowledge import KnowledgeId
 from charlieverse.memory.sessions import SessionId
 from charlieverse.tasks import track_task
-from charlieverse.tools.responses import ExpertResponse, KnowledgeSummary
+from charlieverse.tools.responses import KnowledgeSummary
 from charlieverse.types.lists import TagList
 from charlieverse.types.strings import NonEmptyString
 
@@ -25,11 +27,11 @@ server = FastMCP(name="Knowledge")
 
 
 @server.tool
-async def search_knowledge(
+async def search(
     query: NonEmptyString,
     limit: int = 5,
     ctx: Context = CurrentContext(),
-) -> ExpertResponse:
+) -> ModelListResponse:
     """Search the knowledge base. Semantic + full-text search across knowledge articles."""
     knowledge_store: KnowledgeStore = _stores(ctx)["knowledge"]
 
@@ -42,24 +44,19 @@ async def search_knowledge(
     except Exception:
         pass
 
-    seen: set[str] = set()
+    seen: set[KnowledgeId] = set()
     merged: list[Knowledge] = []
     for k in fts_results + vector_results:
-        key = str(k.id)
+        key = k.id
         if key not in seen:
             seen.add(key)
             merged.append(k)
 
-    return ExpertResponse(
-        articles=[
-            KnowledgeSummary(id=k.id.uuid, content=k.content)
-            for k in merged[:limit]
-        ],
-    )
+    return ModelListResponse([KnowledgeSummary(id=k.id, content=k.content) for k in merged[:limit]])
 
 
 @server.tool
-async def update_knowledge(
+async def update(
     topic: NonEmptyString,
     content: NonEmptyString,
     session_id: SessionId,
@@ -81,9 +78,7 @@ async def update_knowledge(
 
     async def _embed() -> None:
         text = prepare_knowledge_text(result.topic, result.content, result.tags)
-        await fire_and_forget_embedding(
-            text, lambda emb: knowledge_store.upsert_embedding(result.id, emb)
-        )
+        await fire_and_forget_embedding(text, lambda emb: knowledge_store.upsert_embedding(result.id, emb))
 
     track_task(asyncio.create_task(_embed()))
 

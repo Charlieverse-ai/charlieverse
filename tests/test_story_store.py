@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from charlieverse.models.story import Story, StoryTier
+from charlieverse.memory.stories import Story, StoryTier
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -40,7 +40,7 @@ def _mock_vec():
     """Patch encode_one globally so _sync_vec never loads the model."""
     with (
         patch(
-            "charlieverse.db.stores.story_store.encode_one",
+            "charlieverse.memory.stories.store.encode_one",
             new=AsyncMock(return_value=_ZERO_VEC),
             create=True,
         ),

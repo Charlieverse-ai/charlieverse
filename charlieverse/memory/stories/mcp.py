@@ -9,9 +9,10 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
-from charlieverse.db.stores.context import StoreContext
+from charlieverse.api.responses import ModelListResponse
 from charlieverse.mcp.context import _stores
 from charlieverse.mcp.responses import PermalinkResponse
+from charlieverse.memory.context import StoreContext
 from charlieverse.memory.sessions import NewSession, SessionId
 from charlieverse.types.dates import UTCDatetime, at_utc_midnight, to_local
 from charlieverse.types.lists import TagList
@@ -24,7 +25,7 @@ server = FastMCP(name="Stories")
 
 
 @server.tool
-async def upsert_story(
+async def upsert(
     title: ShortString,
     content: MediumDescription,
     tier: StoryTier,
@@ -61,34 +62,22 @@ async def upsert_story(
 
 
 @server.tool
-async def list_stories(
+async def list(
     tier: StoryTier | None = None,
     limit: int = 20,
     ctx: Context = CurrentContext(),
-) -> dict[str, Any]:
+) -> ModelListResponse:
     """List stories, optionally filtered by tier (session, daily, weekly, monthly, all-time)."""
     stores = _stores(ctx)
     story_store: StoryStore = stores["stories"]
 
     stories = await story_store.list(tier=tier, limit=limit)
-    return {
-        "stories": [
-            {
-                "id": str(s.id),
-                "title": s.title,
-                "tier": s.tier.value,
-                "period_start": s.period_start,
-                "period_end": s.period_end,
-                "summary": s.summary,
-            }
-            for s in stories
-        ]
-    }
+    return ModelListResponse(stories)
 
 
 @server.tool
-async def get_story(id: StoryId, ctx: Context = CurrentContext()) -> dict[str, Any]:
-    """Get a story by ID. Returns full content."""
+async def read(id: StoryId, ctx: Context = CurrentContext()) -> dict[str, Any]:
+    """Read the full content of a story."""
     stores = _stores(ctx)
     story_store: StoryStore = stores["stories"]
 
@@ -110,8 +99,11 @@ async def get_story(id: StoryId, ctx: Context = CurrentContext()) -> dict[str, A
 
 
 @server.tool
-async def delete_story(id: StoryId, ctx: Context = CurrentContext()) -> dict[str, Any]:
-    """Soft-delete a story."""
+async def forget(
+    id: StoryId,
+    ctx: Context = CurrentContext(),
+) -> None:
+    """Forget a story."""
     stores = _stores(ctx)
     story_store: StoryStore = stores["stories"]
 
@@ -120,11 +112,10 @@ async def delete_story(id: StoryId, ctx: Context = CurrentContext()) -> dict[str
         raise ToolError(f"Story {id!s} not found")
 
     await story_store.delete(DeleteStory(id=id))
-    return {"deleted": True, "id": str(id)}
 
 
 @server.tool
-async def get_story_data(
+async def get_rollup(
     target: str,
     ctx: Context = CurrentContext(),
 ) -> dict[str, Any]:
@@ -224,7 +215,7 @@ async def _daily_rollup_data(stores: StoreContext, today: date) -> dict[str, Any
 
     sessions = await sessions_store.recent_within_days(days=1)
 
-    messages: list[dict[str, Any]] = []
+    messages = []
     for s in sessions:
         session_messages = await sessions_store.messages_for_session(s.id)
         for msg in session_messages:
@@ -274,7 +265,7 @@ async def _session_story_data(stores: StoreContext, session_id: SessionId) -> di
 
     session_messages = await sessions_store.messages_for_session(session_id, since=since)
 
-    messages: list[dict[str, Any]] = []
+    messages = []
     prev_time: UTCDatetime | None = None
     for msg in session_messages:
         seconds_between = None

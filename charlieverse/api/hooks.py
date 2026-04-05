@@ -11,15 +11,16 @@ from starlette.responses import JSONResponse, PlainTextResponse
 from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
 from charlieverse.db.fts import clean_text, sanitize_fts_query
-from charlieverse.db.stores import MemoryStore
-from charlieverse.db.stores.context import StoreContext
 from charlieverse.embeddings import encode_one
 from charlieverse.helpers.uuid import uuid_from_str
+from charlieverse.memory.context import StoreContext
+from charlieverse.memory.entities import EntityStore
 from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.sessions import Session, SessionId, UpdateSession
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import StoryStore
 from charlieverse.types.dates import utc_now
+from charlieverse.types.id import ModelId
 
 
 def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
@@ -31,7 +32,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     async def api_session_context(request: Request) -> PlainTextResponse:
         """Preview activation context for debugging. Returns rendered context as plain text."""
         sessions_store: SessionStore = rest_stores["sessions"]
-        memories_store: MemoryStore = rest_stores["memories"]
+        memories_store: EntityStore = rest_stores["memories"]
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
 
         session_id = uuid_from_str(request.query_params.get("session_id"))
@@ -66,7 +67,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         workspace = body.get("workspace")
 
         sessions_store: SessionStore = rest_stores["sessions"]
-        memories_store: MemoryStore = rest_stores["memories"]
+        memories_store: EntityStore = rest_stores["memories"]
         knowledge_store: KnowledgeStore = rest_stores["knowledge"]
 
         session = await sessions_store.upsert(UpdateSession(id=session_id, workspace=workspace))
@@ -80,7 +81,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         bundle = await builder.build(session, workspace)
         activation = context_renderer.render(bundle)
 
-        set_seen_ids(str(session.id), bundle.seen_ids)
+        set_seen_ids(session.id, bundle.seen_ids)
 
         return JSONResponse(
             {
@@ -187,7 +188,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if not text:
             return JSONResponse({"entities": [], "found": [], "not_found": [], "stories": []})
 
-        seen_ids = set(body.get("seen_ids", []))
+        seen_ids: set[ModelId] = set(body.get("seen_ids", []))
         session_id = body.get("session_id")
 
         if session_id:
@@ -198,7 +199,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         entities = extract_entities(text)
         temporal_refs = extract_temporal_refs(text)
 
-        memories: MemoryStore = rest_stores["memories"]
+        memories: EntityStore = rest_stores["memories"]
         knowledge: KnowledgeStore = rest_stores["knowledge"]
 
         found: list[dict] = []
@@ -208,8 +209,8 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             memory_results = await memories.search(entity, limit=3, include_pinned=False)
             knowledge_results = await knowledge.search(entity, limit=1, include_pinned=False)
 
-            new_memories = [m for m in memory_results if str(m.id) not in seen_ids and (not session_id or str(m.created_session_id) != session_id)]
-            new_knowledge = [k for k in knowledge_results if str(k.id) not in seen_ids and (not session_id or str(k.created_session_id) != session_id)]
+            new_memories = [m for m in memory_results if m.id not in seen_ids and (not session_id or m.created_session_id != session_id)]
+            new_knowledge = [k for k in knowledge_results if k.id not in seen_ids and (not session_id or k.created_session_id != session_id)]
 
             if new_memories or new_knowledge:
                 found.append(
@@ -270,7 +271,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                         )
                         for story in matching:
                             if str(story.id) not in seen_ids:
-                                seen_ids.add(str(story.id))
+                                seen_ids.add(story.id)
                                 stories_result.append(_story_entry(story, query_embedding, ref.text))
                 else:
                     matching = await story_store.search_by_vector(
@@ -284,7 +285,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                 pass
 
         if session_id:
-            prompt_ids: set[str] = set()
+            prompt_ids: set[ModelId] = set()
             for entry in found:
                 prompt_ids.update(m["id"] for m in entry.get("memories", []))
                 prompt_ids.update(k["id"] for k in entry.get("knowledge", []))

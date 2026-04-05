@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
-from charlieverse.db.stores import KnowledgeStore
-from charlieverse.models import Knowledge
+from charlieverse.memory.knowledge import Knowledge, KnowledgeStore
 
 # ---------------------------------------------------------------------------
 # Helpers

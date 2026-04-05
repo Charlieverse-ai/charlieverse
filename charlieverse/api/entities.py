@@ -11,10 +11,18 @@ from starlette.responses import JSONResponse
 
 from charlieverse.api.responses import ExceptionResponse, ModelResponse, NotFoundResponse
 from charlieverse.api.responses.model import ModelListResponse
-from charlieverse.db.stores import MemoryStore
-from charlieverse.db.stores.context import StoreContext
 from charlieverse.embeddings import encode_one
 from charlieverse.helpers.uuid import uuid_from_str
+from charlieverse.memory.context import StoreContext
+from charlieverse.memory.entities import (
+    DeleteEntity,
+    Entity,
+    EntityId,
+    EntityStore,
+    EntityType,
+    NewEntity,
+    UpdateEntity,
+)
 from charlieverse.memory.knowledge import (
     DeleteKnowledge,
     Knowledge,
@@ -25,7 +33,6 @@ from charlieverse.memory.knowledge import (
 )
 from charlieverse.memory.sessions import Session, SessionId
 from charlieverse.memory.sessions.store import SessionStore
-from charlieverse.models import Entity, EntityType
 from charlieverse.types.dates import utc_now
 
 # ---------------------------------------------------------------------------
@@ -99,7 +106,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     @mcp.custom_route("/api/entities", methods=["GET"])
     async def api_list_entities(request: Request) -> JSONResponse:
         """List entities, optionally filtered by type."""
-        memories: MemoryStore = rest_stores["memories"]
+        memories: EntityStore = rest_stores["memories"]
         type_param = request.query_params.get("type")
         limit = int(request.query_params.get("limit", "100"))
 
@@ -111,7 +118,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     @mcp.custom_route("/api/entities/{id}", methods=["GET"])
     async def api_get_entity(request: Request) -> JSONResponse:
         """Get a single entity by ID."""
-        memories: MemoryStore = rest_stores["memories"]
+        memories: EntityStore = rest_stores["memories"]
         uuid_str = request.path_params.get("id")
         if not uuid_str:
             return ErrorResponse.missing_required("Entity ID")
@@ -119,7 +126,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if not uid:
             return ErrorResponse.invalid_uuid
 
-        entity = await memories.get(uid)
+        entity = await memories.get(EntityId(uid))
         if not entity:
             return ErrorResponse.not_found
 
@@ -129,7 +136,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     async def api_create_entity(request: Request) -> JSONResponse:
         """Create a new entity."""
         body = await request.json()
-        memories: MemoryStore = rest_stores["memories"]
+        memories: EntityStore = rest_stores["memories"]
         session_id = body.get("session_id")
         if not session_id:
             return ErrorResponse.missing_required("session_id")
@@ -138,14 +145,15 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if not uuid:
             return ErrorResponse.invalid_uuid
 
-        entity = Entity(
-            type=EntityType(body["type"]),
-            content=body["content"],
-            tags=body.get("tags"),
-            pinned=body.get("pinned", False),
-            created_session_id=uuid,
+        created = await memories.create(
+            NewEntity(
+                type=EntityType(body["type"]),
+                content=body["content"],
+                tags=body.get("tags"),
+                pinned=body.get("pinned", False),
+                created_session_id=SessionId(uuid),
+            )
         )
-        created = await memories.create(entity)
 
         try:
             embedding = await encode_one(created.content)
@@ -158,7 +166,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     @mcp.custom_route("/api/entities/{id}", methods=["PATCH"])
     async def api_update_entity(request: Request) -> JSONResponse:
         """Update an entity's content, tags, or pinned status."""
-        memories: MemoryStore = rest_stores["memories"]
+        memories: EntityStore = rest_stores["memories"]
         uuid_str = request.path_params.get("id")
         if not uuid_str:
             return ErrorResponse.missing_required("Entity ID")
@@ -167,20 +175,21 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             return ErrorResponse.invalid_uuid
 
         body = await request.json()
+        entity_id = EntityId(uid)
 
-        entity = await memories.get(uid)
+        entity = await memories.get(entity_id)
         if not entity:
             return ErrorResponse.not_found
 
-        if "content" in body:
-            entity.content = body["content"]
-        if "tags" in body:
-            entity.tags = body["tags"]
-        if "pinned" in body:
-            entity.pinned = body["pinned"]
-
-        entity.updated_at = utc_now()
-        updated = await memories.update(entity)
+        updated = await memories.update(
+            UpdateEntity(
+                id=entity_id,
+                content=body.get("content"),
+                tags=body.get("tags"),
+                pinned=body.get("pinned"),
+                updated_at=utc_now(),
+            )
+        )
 
         if "content" in body:
             try:
@@ -194,39 +203,41 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     @mcp.custom_route("/api/entities/{id}", methods=["DELETE"])
     async def api_delete_entity(request: Request) -> JSONResponse:
         """Soft-delete an entity."""
-        memories: MemoryStore = rest_stores["memories"]
+        memories: EntityStore = rest_stores["memories"]
         uuid_str = request.path_params.get("id")
         if not uuid_str:
             return ErrorResponse.missing_required("Entity ID")
         uid = uuid_from_str(uuid_str)
         if not uid:
             return ErrorResponse.invalid_uuid
+        entity_id = EntityId(uid)
 
-        entity = await memories.get(uid)
+        entity = await memories.get(entity_id)
         if not entity:
             return ErrorResponse.not_found
 
-        await memories.delete(uid)
+        await memories.delete(DeleteEntity(id=entity_id))
         return JSONResponse({"deleted": True})
 
     @mcp.custom_route("/api/entities/{id}/pin", methods=["POST"])
     async def api_pin_entity(request: Request) -> JSONResponse:
         """Toggle pin status on an entity."""
-        memories: MemoryStore = rest_stores["memories"]
+        memories: EntityStore = rest_stores["memories"]
         uuid_str = request.path_params.get("id")
         if not uuid_str:
             return ErrorResponse.missing_required("Entity ID")
         uid = uuid_from_str(uuid_str)
         if not uid:
             return ErrorResponse.invalid_uuid
+        entity_id = EntityId(uid)
         body = await request.json()
 
-        entity = await memories.get(uid)
+        entity = await memories.get(entity_id)
         if not entity:
             return ErrorResponse.not_found
 
         pinned = body.get("pinned", not entity.pinned)
-        await memories.pin(uid, pinned)
+        await memories.pin(entity_id, pinned)
 
         entity.pinned = pinned
         return JSONResponse(_serialize_entity(entity))
@@ -404,7 +415,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if not query:
             return JSONResponse({"entities": [], "knowledge": []})
 
-        memories: MemoryStore = rest_stores["memories"]
+        memories: EntityStore = rest_stores["memories"]
         knowledge: KnowledgeStore = rest_stores["knowledge"]
 
         entity_results = []

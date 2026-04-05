@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from charlieverse.memory.sessions import SessionId
 from charlieverse.types.dates import UTCDatetime, utc_now
 
 
@@ -35,7 +36,7 @@ class HookContext:
 
     event: str  # "UserPromptSubmit", "PreToolUse", "PostToolUse", etc.
     timestamp: UTCDatetime = field(default_factory=utc_now)
-    session_id: str | None = None
+    session_id: SessionId | None = None
     message: str | None = None
     tool_name: str | None = None
     tool_input: dict | None = None

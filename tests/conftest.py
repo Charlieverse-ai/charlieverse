@@ -8,13 +8,11 @@ import pytest
 import pytest_asyncio
 
 from charlieverse.db import database
-from charlieverse.db.stores import (
-    KnowledgeStore,
-    MemoryStore,
-    SessionStore,
-    StoryStore,
-)
 from charlieverse.embeddings import EMBEDDING_DIM
+from charlieverse.memory.entities import EntityStore
+from charlieverse.memory.knowledge import KnowledgeStore
+from charlieverse.memory.sessions.store import SessionStore
+from charlieverse.memory.stories import StoryStore
 
 
 @pytest_asyncio.fixture
@@ -27,8 +25,8 @@ async def db():
 
 @pytest_asyncio.fixture
 async def memory_store(db):
-    """MemoryStore backed by the shared in-memory database."""
-    return MemoryStore(db)
+    """EntityStore backed by the shared in-memory database."""
+    return EntityStore(db)
 
 
 @pytest_asyncio.fixture

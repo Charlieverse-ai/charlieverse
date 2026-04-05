@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from uuid import UUID
 
-from charlieverse.db.stores import MemoryStore
+from charlieverse.memory.entities import Entity, EntityStore, EntityType
 from charlieverse.memory.knowledge import Knowledge, KnowledgeStore
 from charlieverse.memory.sessions import Session
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import Story, StoryStore, StoryTier
-from charlieverse.models import ContextMessage, Entity, EntityType
+from charlieverse.models import ContextMessage
 from charlieverse.types.dates import local_now
+from charlieverse.types.id import ModelId
 
 
 @dataclass
@@ -36,17 +36,17 @@ class ContextBundle:
         return not self.recent_sessions and not self.weekly_stories and not self.pinned_entities and not self.moments and not self.all_time_story
 
     @property
-    def seen_ids(self) -> set[str]:
+    def seen_ids(self) -> set[ModelId]:
         """All IDs delivered in this activation — used for downstream dedup."""
-        ids: set[str] = set()
+        ids: set[ModelId] = set()
         for group in (self.moments, self.pinned_entities, self.session_entities, self.related_entities):
-            ids.update(str(e.id) for e in group)
+            ids.update(e.id for e in group)
         for k in self.pinned_knowledge:
-            ids.add(str(k.id))
+            ids.add(k.id)
         for s in self.weekly_stories:
-            ids.add(str(s.id))
+            ids.add(s.id)
         if self.all_time_story:
-            ids.add(str(self.all_time_story.id))
+            ids.add(self.all_time_story.id)
         return ids
 
 
@@ -62,7 +62,7 @@ class ActivationBuilder:
 
     def __init__(
         self,
-        memories: MemoryStore,
+        memories: EntityStore,
         sessions: SessionStore,
         knowledge: KnowledgeStore,
         stories: StoryStore | None = None,
@@ -110,7 +110,7 @@ class ActivationBuilder:
         pinned_knowledge = await self.knowledge.pinned()
 
         # Deduplicate entities: moments → pinned → session → related
-        seen_ids: set[UUID] = set()
+        seen_ids: set[ModelId] = set()
 
         def _dedup(entities: list[Entity]) -> list[Entity]:
             result = []

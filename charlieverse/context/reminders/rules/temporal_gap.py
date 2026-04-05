@@ -22,9 +22,7 @@ class TemporalGapRule(ReminderRule):
         if not last_response_at_raw:
             return None
 
-        last_response_at = (
-            from_iso(last_response_at_raw) if isinstance(last_response_at_raw, str) else last_response_at_raw
-        )
+        last_response_at = from_iso(last_response_at_raw) if isinstance(last_response_at_raw, str) else last_response_at_raw
 
         gap_seconds = (ctx.timestamp - last_response_at).total_seconds()
         if gap_seconds < GAP_THRESHOLD_SECONDS:

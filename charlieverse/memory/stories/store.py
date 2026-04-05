@@ -139,9 +139,7 @@ class StoryStore:
 
     async def get_all_time(self) -> Story | None:
         """Fetch the all-time story."""
-        cursor = await self.db.execute(
-            "SELECT * FROM stories WHERE tier = 'all-time' AND deleted_at IS NULL LIMIT 1"
-        )
+        cursor = await self.db.execute("SELECT * FROM stories WHERE tier = 'all-time' AND deleted_at IS NULL LIMIT 1")
         row = await cursor.fetchone()
         return Story.from_row(row) if row else None
 

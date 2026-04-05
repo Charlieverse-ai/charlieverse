@@ -7,7 +7,7 @@ from uuid import UUID
 from fastmcp import Context
 
 from charlieverse.config import config
-from charlieverse.db.stores.context import StoreContext
+from charlieverse.memory.context import StoreContext
 
 
 def _stores(ctx: Context) -> StoreContext:

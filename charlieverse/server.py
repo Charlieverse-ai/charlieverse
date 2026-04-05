@@ -14,15 +14,18 @@ from charlieverse.api import entities, hooks, spa
 from charlieverse.api import stories as stories_api
 from charlieverse.config import config
 from charlieverse.db import database
-from charlieverse.db.stores import MemoryStore
-from charlieverse.db.stores.context import StoreContext, rebuild_all
-from charlieverse.mcp import tools_memory
+from charlieverse.memory.context import StoreContext, rebuild_all
+from charlieverse.memory.entities import EntityStore
+from charlieverse.memory.entities.mcp import server as EntityMCP
 from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.knowledge.mcp import server as KnowledgeMCP
+from charlieverse.memory.messages.store import MessageStore
+from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.sessions.mcp import server as SessionMCP
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import StoryStore
 from charlieverse.memory.stories.mcp import server as StoryMCP
+from charlieverse.types.id import ModelId
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +37,11 @@ async def setup_stores() -> StoreContext:
 
     context: StoreContext = {
         "db": db,
-        "memories": MemoryStore(db),
+        "memories": EntityStore(db),
         "sessions": SessionStore(db),
         "knowledge": KnowledgeStore(db),
         "stories": StoryStore(db),
+        "messages": MessageStore(db),
     }
 
     try:
@@ -76,9 +80,7 @@ async def start_server(host: str, port: int):
     mcp.mount(SessionMCP, namespace="session")
     mcp.mount(StoryMCP, namespace="story")
     mcp.mount(KnowledgeMCP, namespace="knowledge")
-
-    # MCP tools
-    tools_memory.register(mcp)
+    mcp.mount(EntityMCP)
 
     # Custom Routes
     hooks.register_routes(mcp, stores)
@@ -96,17 +98,17 @@ _rest_stores: dict = {}
 # session_id -> (IDs delivered at activation, timestamp).
 # Entries older than 24h are evicted on access to prevent unbounded growth (C-02).
 _SEEN_IDS_TTL = 86400  # 24 hours
-_activation_seen_ids: dict[str, tuple[set[str], float]] = {}
+_activation_seen_ids: dict[ModelId, tuple[set[ModelId], float]] = {}
 
 
-def get_seen_ids(session_id: str) -> set[str]:
+def get_seen_ids(session_id: SessionId) -> set[ModelId]:
     """Get the set of activation IDs for a session, with TTL eviction."""
     _evict_stale_seen_ids()
     entry = _activation_seen_ids.get(session_id)
     return entry[0] if entry else set()
 
 
-def set_seen_ids(session_id: str, ids: set[str]) -> None:
+def set_seen_ids(session_id: SessionId, ids: set[ModelId]) -> None:
     """Store activation IDs for a session."""
     _activation_seen_ids[session_id] = (ids, time.monotonic())
 
@@ -117,18 +119,3 @@ def _evict_stale_seen_ids() -> None:
     stale = [k for k, (_, ts) in _activation_seen_ids.items() if now - ts > _SEEN_IDS_TTL]
     for k in stale:
         del _activation_seen_ids[k]
-
-
-# # Patch lifespan to also populate REST store refs
-# _original_lifespan = app_lifespan
-
-
-# @lifespan
-# async def _patched_lifespan(server):
-#     async with _original_lifespan(server) as stores:
-#         _rest_stores.update(stores)
-#         yield stores
-
-
-# # Re-create mcp with patched lifespan
-# mcp._lifespan = _patched_lifespan

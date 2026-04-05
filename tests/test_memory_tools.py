@@ -210,7 +210,7 @@ async def test_remember_project_with_tags(memory_store, mock_embed):
 
 
 async def test_remember_project_type(memory_store, mock_embed):
-    from charlieverse.models import EntityType
+    from charlieverse.memory.entities import EntityType
 
     result = await remember_project(name="test project", memories=memory_store)
     stored = await memory_store.get(result.id)
@@ -287,7 +287,7 @@ async def test_remember_event_with_tags(memory_store, mock_embed):
 
 
 async def test_remember_event_is_global(memory_store, mock_embed):
-    from charlieverse.models import EntityType
+    from charlieverse.memory.entities import EntityType
 
     result = await remember_event(
         what="some event",
@@ -378,7 +378,7 @@ async def test_unpin_entity(memory_store, mock_embed):
 async def test_pin_knowledge_article(knowledge_store, memory_store, mock_embed):
     from uuid import UUID
 
-    from charlieverse.models import Knowledge
+    from charlieverse.memory.knowledge import Knowledge
 
     article = Knowledge(
         topic="pinnable topic",
@@ -400,7 +400,7 @@ async def test_pin_knowledge_article(knowledge_store, memory_store, mock_embed):
 async def test_unpin_knowledge_article(knowledge_store, memory_store, mock_embed):
     from uuid import UUID
 
-    from charlieverse.models import Knowledge
+    from charlieverse.memory.knowledge import Knowledge
 
     article = Knowledge(
         topic="unpinnable topic",
@@ -554,7 +554,7 @@ async def test_recall_ranks_recent_entities_higher(memory_store, knowledge_store
 
 
 async def test_recall_searches_stories(memory_store, knowledge_store, story_store, mock_embed):
-    from charlieverse.models import Story, StoryTier
+    from charlieverse.memory.stories import Story, StoryTier
 
     story = Story(
         title="The Great Refactor",
@@ -585,7 +585,7 @@ async def test_recall_without_story_store_returns_empty_stories(memory_store, kn
 
 
 async def test_recall_stories_capped_at_five(memory_store, knowledge_store, story_store, mock_embed):
-    from charlieverse.models import Story, StoryTier
+    from charlieverse.memory.stories import Story, StoryTier
 
     for i in range(10):
         story = Story(
@@ -627,7 +627,7 @@ async def test_recall_truncates_long_entity_content(memory_store, knowledge_stor
 async def test_recall_truncates_long_knowledge_content(memory_store, knowledge_store, mock_embed):
     from uuid import UUID
 
-    from charlieverse.models import Knowledge
+    from charlieverse.memory.knowledge import Knowledge
 
     article = Knowledge(
         topic="long topic",

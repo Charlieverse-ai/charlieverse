@@ -7,9 +7,10 @@ from pathlib import Path
 
 from charlieverse import paths
 from charlieverse.context.builder import ContextBundle
+from charlieverse.memory.entities import Entity, EntityType
 from charlieverse.memory.sessions import Session
 from charlieverse.memory.stories import Story
-from charlieverse.models import ContextMessage, Entity, EntityType
+from charlieverse.models import ContextMessage
 from charlieverse.types.dates import LocalDatetime, UTCDatetime, from_iso_or_none, local_now, to_local
 
 PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "prompts"
