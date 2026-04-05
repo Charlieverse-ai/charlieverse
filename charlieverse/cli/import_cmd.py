@@ -21,10 +21,11 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
-import aiosqlite
 import typer
 
 from charlieverse.config import config
+from charlieverse.memory.messages import MessageStore
+from charlieverse.memory.stories import StoryStore, StoryTier
 from charlieverse.types.dates import UTCDatetime
 
 DEFAULT_OUTPUT = config.path / "import" / "conversations.jsonl"
@@ -291,6 +292,7 @@ async def _import_messages_to_db(
 
     db = await connect(db_path)
     try:
+        messages = MessageStore(db)
         with open(jsonl_path) as f:
             for line_num, line in enumerate(f, 1):
                 try:
@@ -310,7 +312,7 @@ async def _import_messages_to_db(
                 batch.append((msg_id, session_id, role, content, timestamp))
 
                 if len(batch) >= batch_size:
-                    result = await _flush_batch(db, batch)
+                    result = await messages.bulk_insert(batch)
                     imported += result
                     skipped += len(batch) - result
                     batch = []
@@ -320,40 +322,17 @@ async def _import_messages_to_db(
 
         # Flush remaining
         if batch:
-            result = await _flush_batch(db, batch)
+            result = await messages.bulk_insert(batch)
             imported += result
             skipped += len(batch) - result
 
         # Single FTS rebuild at the end
         typer.echo("  Rebuilding FTS index...")
-        await db.execute("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')")
-        await db.commit()
+        await messages.rebuild()
     finally:
         await db.close()
 
     return imported, skipped
-
-
-async def total_messages(db: aiosqlite.Connection) -> int:
-    cursor = await db.execute("SELECT COUNT(*) as total FROM messages LIMIT 1")
-    row: aiosqlite.Row | None = await cursor.fetchone()
-    return row[0] if row else 0
-
-
-async def _flush_batch(db: aiosqlite.Connection, batch: list[tuple]) -> int:
-    """Insert a batch of messages, returns count of rows inserted."""
-    before = await total_messages(db)
-
-    await db.executemany(
-        """INSERT OR IGNORE INTO messages (id, session_id, role, content, created_at)
-           VALUES (?, ?, ?, ?, ?)""",
-        batch,
-    )
-    await db.commit()
-
-    after = await total_messages(db)
-
-    return after - before
 
 
 # ── Weekly split + story gap detection ─────────────────────────
@@ -428,15 +407,12 @@ async def _get_existing_weekly_stories() -> set[str]:
     """
     from charlieverse.db.database import connect
 
-    db_path = config.database
     existing: set[str] = set()
 
-    db = await connect(db_path)
+    db = await connect(config.database)
     try:
-        cursor = await db.execute("SELECT period_start, period_end FROM stories WHERE tier = 'weekly'")
-        rows = await cursor.fetchall()
-
-        for period_start, _period_end in rows:
+        stories = StoryStore(db)
+        for period_start, _period_end in await stories.periods_by_tier(StoryTier.weekly):
             dt = _parse_timestamp(period_start)
             if dt:
                 existing.add(_week_key(dt))
@@ -453,33 +429,24 @@ async def _get_months_needing_stories() -> list[dict]:
     """
     from charlieverse.db.database import connect
 
-    db_path = config.database
     results: list[dict] = []
 
-    db = await connect(db_path)
+    db = await connect(config.database)
     try:
-        # Get all months that have weekly stories
-        cursor = await db.execute("SELECT period_start FROM stories WHERE tier = 'weekly'")
-        weekly_rows = await cursor.fetchall()
+        stories = StoryStore(db)
 
         months_with_weeklies: dict[str, int] = defaultdict(int)
-        for (period_start,) in weekly_rows:
+        for period_start, _ in await stories.periods_by_tier(StoryTier.weekly):
             dt = _parse_timestamp(period_start)
             if dt:
-                month_key = dt.strftime("%Y/%m")
-                months_with_weeklies[month_key] += 1
-
-        # Get all months that have monthly stories
-        cursor = await db.execute("SELECT period_start FROM stories WHERE tier = 'monthly'")
-        monthly_rows = await cursor.fetchall()
+                months_with_weeklies[dt.strftime("%Y/%m")] += 1
 
         months_with_monthlies: set[str] = set()
-        for (period_start,) in monthly_rows:
+        for period_start, _ in await stories.periods_by_tier(StoryTier.monthly):
             dt = _parse_timestamp(period_start)
             if dt:
                 months_with_monthlies.add(dt.strftime("%Y/%m"))
 
-        # Diff
         for month_key in sorted(months_with_weeklies):
             if month_key not in months_with_monthlies:
                 results.append(
@@ -501,21 +468,15 @@ async def _is_alltime_stale() -> dict | None:
     """
     from charlieverse.db.database import connect
 
-    db_path = config.database
-
-    db = await connect(db_path)
+    db = await connect(config.database)
     try:
-        # Get earliest weekly story date
-        cursor = await db.execute("SELECT MIN(period_start) FROM stories WHERE tier = 'weekly'")
-        row = await cursor.fetchone()
-        earliest_weekly = row[0] if row else None
+        stories = StoryStore(db)
+        earliest_weekly = await stories.min_period_start(StoryTier.weekly)
 
         if not earliest_weekly:
             return {"covers": "none"}
 
-        # Get all-time story
-        cursor = await db.execute("SELECT period_start, period_end FROM stories WHERE tier = 'all-time' LIMIT 1")
-        alltime = await cursor.fetchone()
+        alltime = await stories.get_all_time()
 
         if not alltime:
             return {
@@ -523,12 +484,16 @@ async def _is_alltime_stale() -> dict | None:
                 "data_extends_to": earliest_weekly[:7],
             }
 
-        alltime_start = alltime[0]
+        alltime_start = alltime.period_start
+        alltime_end = alltime.period_end
+
+        if not alltime_start or not alltime_end:
+            return {"covers": "none", "data_extends_to": earliest_weekly[:7]}
 
         # If all-time starts later than earliest weekly, it's stale
         if alltime_start > earliest_weekly:
             return {
-                "covers": f"{alltime_start[:7]} to {alltime[1][:7]}",
+                "covers": f"{alltime_start[:7]} to {alltime_end[:7]}",
                 "data_extends_to": earliest_weekly[:7],
             }
     finally:

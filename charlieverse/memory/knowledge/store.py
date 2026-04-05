@@ -290,6 +290,16 @@ class KnowledgeStore:
         )
 
     # ------------------------------------------------------------------
+    # Stats
+    # ------------------------------------------------------------------
+
+    async def count(self) -> int:
+        """Total non-deleted knowledge articles."""
+        cursor = await self.db.execute("SELECT COUNT(*) FROM knowledge WHERE deleted_at IS NULL")
+        row = await cursor.fetchone()
+        return row[0] if row else 0
+
+    # ------------------------------------------------------------------
     # Maintenance
     # ------------------------------------------------------------------
 

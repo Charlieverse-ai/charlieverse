@@ -279,6 +279,16 @@ class EntityStore:
         )
 
     # ------------------------------------------------------------------
+    # Stats
+    # ------------------------------------------------------------------
+
+    async def count_by_type(self) -> dict[str, int]:
+        """Return {entity_type: count} for all non-deleted entities."""
+        cursor = await self.db.execute("SELECT type, COUNT(*) as count FROM entities WHERE deleted_at IS NULL GROUP BY type")
+        rows = await cursor.fetchall()
+        return {row["type"]: row["count"] for row in rows}
+
+    # ------------------------------------------------------------------
     # Maintenance
     # ------------------------------------------------------------------
 

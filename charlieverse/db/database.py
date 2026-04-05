@@ -13,6 +13,23 @@ MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 logger = logging.getLogger(__name__)
 
 
+def check_health(db_path: str | Path, timeout: float = 3.0) -> tuple[str, int]:
+    """Sync health check — returns (integrity_result, schema_version).
+
+    Used by `charlie doctor` to probe the database without opening an async
+    connection. integrity_result is 'ok' on a healthy database.
+    """
+    conn = sqlite3.connect(str(db_path), timeout=timeout)
+    try:
+        integrity_row = conn.execute("PRAGMA integrity_check").fetchone()
+        integrity = integrity_row[0] if integrity_row else "unknown"
+        schema_row = conn.execute("PRAGMA user_version").fetchone()
+        schema_version = schema_row[0] if schema_row else 0
+        return integrity, schema_version
+    finally:
+        conn.close()
+
+
 async def connect(db_path: str | Path) -> aiosqlite.Connection:
     """Open a connection to the Charlieverse database.
 

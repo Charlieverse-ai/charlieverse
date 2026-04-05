@@ -209,6 +209,12 @@ class SessionStore:
         )
         await self.db.commit()
 
+    async def count_with_summary(self) -> int:
+        """Count of non-deleted sessions that have a what_happened summary."""
+        cursor = await self.db.execute("SELECT COUNT(*) FROM sessions WHERE deleted_at IS NULL AND what_happened IS NOT NULL")
+        row = await cursor.fetchone()
+        return row[0] if row else 0
+
     async def messages_for_session(
         self,
         session_id: SessionId,

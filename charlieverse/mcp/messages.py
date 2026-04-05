@@ -4,7 +4,6 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
-from charlieverse.db.fts import sanitize_fts_query
 from charlieverse.mcp.context import _stores
 from charlieverse.memory.sessions import SessionId
 from charlieverse.types.strings import ShortString
@@ -23,26 +22,16 @@ def register(mcp: FastMCP) -> None:
         """Search past messages in conversations. Returns matching messages with role and date."""
         if not query.strip():
             raise ToolError("query cannot be empty")
-        db = _stores(ctx)["db"]
-        safe_query = sanitize_fts_query(query)
-        if not safe_query:
-            return {"messages": []}
-        if session_id:
-            cursor = await db.execute(
-                """SELECT m.* FROM messages m
-                   JOIN messages_fts fts ON m.rowid = fts.rowid
-                   WHERE messages_fts MATCH ? AND m.session_id = ?
-                   ORDER BY bm25(messages_fts) LIMIT ?""",
-                (safe_query, session_id, limit),
-            )
-        else:
-            cursor = await db.execute(
-                """SELECT m.* FROM messages m
-                   JOIN messages_fts fts ON m.rowid = fts.rowid
-                   WHERE messages_fts MATCH ?
-                   ORDER BY bm25(messages_fts) LIMIT ?""",
-                (safe_query, limit),
-            )
-
-        rows = await cursor.fetchall()
-        return {"messages": [{"id": row["id"], "role": row["role"], "content": row["content"][:500], "created_at": row["created_at"]} for row in rows]}
+        messages = _stores(ctx)["messages"]
+        results = await messages.search(query, limit=limit, session_id=session_id)
+        return {
+            "messages": [
+                {
+                    "id": str(m.id),
+                    "role": m.role.value,
+                    "content": m.content[:500],
+                    "created_at": m.created_at.isoformat(),
+                }
+                for m in results
+            ]
+        }

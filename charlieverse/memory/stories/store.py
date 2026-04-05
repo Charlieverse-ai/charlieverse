@@ -152,6 +152,26 @@ class StoryStore:
         row = await cursor.fetchone()
         return Story.from_row(row) if row else None
 
+    async def periods_by_tier(
+        self,
+        tier: StoryTier,
+    ) -> builtins.list[tuple[str, str]]:
+        """Return (period_start, period_end) pairs for all non-deleted stories at a tier."""
+        cursor = await self.db.execute(
+            "SELECT period_start, period_end FROM stories WHERE tier = ? AND deleted_at IS NULL",
+            (tier.value,),
+        )
+        return [(row["period_start"], row["period_end"]) for row in await cursor.fetchall()]
+
+    async def min_period_start(self, tier: StoryTier) -> str | None:
+        """Earliest period_start across all non-deleted stories at a tier."""
+        cursor = await self.db.execute(
+            "SELECT MIN(period_start) FROM stories WHERE tier = ? AND deleted_at IS NULL",
+            (tier.value,),
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else None
+
     async def find_by_tier_and_period(
         self,
         tier: StoryTier,

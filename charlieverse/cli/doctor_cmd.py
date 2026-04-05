@@ -211,12 +211,9 @@ def check_database() -> list[CheckResult]:
 
     # Try a simple read query
     try:
-        conn = sqlite3.connect(str(db_path), timeout=3)
-        cur = conn.execute("PRAGMA integrity_check")
-        integrity = cur.fetchone()[0]
-        schema_ver_row = conn.execute("PRAGMA user_version").fetchone()
-        schema_ver = schema_ver_row[0] if schema_ver_row else 0
-        conn.close()
+        from charlieverse.db.database import check_health
+
+        integrity, schema_ver = check_health(db_path)
         if integrity == "ok":
             results.append(_pass("Database integrity", f"ok (schema v{schema_ver})"))
         else:

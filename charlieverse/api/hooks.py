@@ -10,12 +10,13 @@ from starlette.responses import JSONResponse, PlainTextResponse
 
 from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
-from charlieverse.db.fts import clean_text, sanitize_fts_query
+from charlieverse.db.fts import clean_text
 from charlieverse.embeddings import encode_one
 from charlieverse.helpers.uuid import uuid_from_str
 from charlieverse.memory.context import StoreContext
 from charlieverse.memory.entities import EntityStore
 from charlieverse.memory.knowledge import KnowledgeStore
+from charlieverse.memory.messages import MessageId, MessageRole, MessageStore
 from charlieverse.memory.sessions import Session, SessionId, UpdateSession
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stories import StoryStore
@@ -109,7 +110,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     async def api_save_message(request: Request) -> JSONResponse:
         """Save a message captured from hooks."""
         body = await request.json()
-        db = rest_stores["db"]
+        messages: MessageStore = rest_stores["messages"]
 
         msg_id = body.get("id", str(uuid4()))
         session_id = body.get("session_id")
@@ -123,55 +124,36 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         if "<task-notification>" in content and "</task-notification>" in content:
             return JSONResponse({"saved": False, "reason": "Not saved because the user message is not valid"})
 
-        cursor = await db.execute(
-            """INSERT OR IGNORE INTO messages (id, session_id, role, content, created_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (msg_id, session_id, role, content, utc_now().isoformat()),
+        await messages.save(
+            msg_id=MessageId(msg_id),
+            session_id=SessionId(session_id),
+            role=MessageRole(role),
+            content=content,
+            created_at=utc_now().isoformat(),
         )
-        # Only sync FTS if the row was actually inserted (not a duplicate)
-        if cursor.rowcount > 0:
-            row_cursor = await db.execute("SELECT rowid FROM messages WHERE id = ?", (msg_id,))
-            msg_row = await row_cursor.fetchone()
-            if msg_row:
-                await db.execute(
-                    "INSERT INTO messages_fts(rowid, content) VALUES(?, ?)",
-                    (msg_row[0], content),
-                )
-        await db.commit()
         return JSONResponse({"saved": True})
 
     @mcp.custom_route("/api/messages/latest", methods=["GET"])
     async def api_latest_message(request: Request) -> JSONResponse:
         """Get the most recent message for a session, optionally filtered by role."""
-        db = rest_stores["db"]
-        session_id = request.query_params.get("session_id")
-        role = request.query_params.get("role")
+        messages: MessageStore = rest_stores["messages"]
+        session_id_param = request.query_params.get("session_id")
+        role_param = request.query_params.get("role")
 
-        query = "SELECT id, session_id, role, content, created_at FROM messages WHERE 1=1"
-        params: list = []
-
-        if session_id:
-            query += " AND session_id = ?"
-            params.append(session_id)
-        if role:
-            query += " AND role = ?"
-            params.append(role)
-
-        query += " ORDER BY created_at DESC LIMIT 1"
-
-        async with db.execute(query, params) as cursor:
-            row = await cursor.fetchone()
-
-        if not row:
+        msg = await messages.latest(
+            session_id=SessionId(session_id_param) if session_id_param else None,
+            role=role_param,
+        )
+        if not msg:
             return JSONResponse({})
 
         return JSONResponse(
             {
-                "id": row[0],
-                "session_id": row[1],
-                "role": row[2],
-                "content": row[3][:200],
-                "created_at": row[4],
+                "id": str(msg.id),
+                "session_id": str(msg.session_id),
+                "role": msg.role.value,
+                "content": msg.content[:200],
+                "created_at": msg.created_at.isoformat(),
             }
         )
 
@@ -308,44 +290,27 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     async def api_search_messages(request: Request) -> JSONResponse:
         """Search messages via FTS."""
         body = await request.json()
-        db = rest_stores["db"]
+        messages: MessageStore = rest_stores["messages"]
         query = body.get("query", "")
         limit = body.get("limit", 20)
         session_id = body.get("session_id")
-        safe_query = sanitize_fts_query(query)
 
-        if not safe_query:
-            return JSONResponse({"messages": []})
-
-        if session_id:
-            cursor = await db.execute(
-                """SELECT m.* FROM messages m
-                   JOIN messages_fts fts ON m.rowid = fts.rowid
-                   WHERE messages_fts MATCH ? AND m.session_id = ?
-                   ORDER BY bm25(messages_fts) LIMIT ?""",
-                (safe_query, session_id, limit),
-            )
-        else:
-            cursor = await db.execute(
-                """SELECT m.* FROM messages m
-                   JOIN messages_fts fts ON m.rowid = fts.rowid
-                   WHERE messages_fts MATCH ?
-                   ORDER BY bm25(messages_fts) LIMIT ?""",
-                (safe_query, limit),
-            )
-
-        rows = await cursor.fetchall()
+        results = await messages.search(
+            query,
+            limit=limit,
+            session_id=SessionId(session_id) if session_id else None,
+        )
         return JSONResponse(
             {
                 "messages": [
                     {
-                        "id": row["id"],
-                        "session_id": row["session_id"],
-                        "role": row["role"],
-                        "content": row["content"][:500],
-                        "created_at": row["created_at"],
+                        "id": str(m.id),
+                        "session_id": str(m.session_id),
+                        "role": m.role.value,
+                        "content": m.content[:500],
+                        "created_at": m.created_at.isoformat(),
                     }
-                    for row in rows
+                    for m in results
                 ]
             }
         )
