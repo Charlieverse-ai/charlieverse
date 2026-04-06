@@ -214,7 +214,7 @@ async def _daily_rollup_data(stores: Stores, today: date) -> dict[str, Any]:
 
     messages = []
     for s in sessions:
-        session_messages = await sessions_store.messages_for_session(s.id)
+        session_messages = await stores.messages.messages_for_session(s.id)
         for msg in session_messages:
             messages.append(
                 {
@@ -260,7 +260,7 @@ async def _session_story_data(stores: Stores, session_id: SessionId) -> dict[str
     existing_story = await story_store.find_by_session(session_id)
     since: UTCDatetime | None = existing_story.updated_at if existing_story else None
 
-    session_messages = await sessions_store.messages_for_session(session_id, since=since)
+    session_messages = await stores.messages.messages_for_session(session_id, since=since)
 
     messages = []
     prev_time: UTCDatetime | None = None

@@ -48,12 +48,8 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
         if not session:
             return PlainTextResponse("Missing")
 
-        builder = ActivationBuilder(
-            rest_stores.memories,
-            sessions_store,
-            rest_stores.knowledge,
-            rest_stores.stories,
-        )
+        builder = ActivationBuilder(rest_stores)
+
         bundle = await builder.build(session, workspace)
         activation = context_renderer.render(bundle)
 
@@ -70,12 +66,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
 
         session = await sessions_store.upsert(UpdateSession(id=session_id, workspace=workspace))
 
-        builder = ActivationBuilder(
-            rest_stores.memories,
-            sessions_store,
-            rest_stores.knowledge,
-            rest_stores.stories,
-        )
+        builder = ActivationBuilder(rest_stores)
         bundle = await builder.build(session, workspace)
         activation = context_renderer.render(bundle)
 

@@ -17,7 +17,7 @@ def is_ignored(text: str) -> bool:
 
 
 def strip_noise(content: str) -> str:
-    """Remove file paths, URLs, code blocks, and multiple  spaces"""
+    """Remove file paths, URLs, code blocks, and multiple spaces"""
     # Strip URLs
     content = re.sub(r"https?://\S+", " ", content, flags=re.MULTILINE)
     # snake_case

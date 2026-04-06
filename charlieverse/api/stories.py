@@ -193,7 +193,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
             existing_story = await story_store.find_by_session(session_id)
             since = existing_story.updated_at if existing_story else None
 
-            session_messages = await sessions_store.messages_for_session(session_id, since=since)
+            session_messages = await rest_stores.messages.messages_for_session(session_id, since=since)
 
             messages: list[SessionStoryMessage] = []
             prev_time: UTCDatetime | None = None
@@ -243,7 +243,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
 
                 messages: list[DailyRollupMessage] = []
                 for s in sessions:
-                    session_messages = await sessions_store.messages_for_session(s.id)
+                    session_messages = await rest_stores.messages.messages_for_session(s.id)
                     for msg in session_messages:
                         messages.append(
                             DailyRollupMessage(

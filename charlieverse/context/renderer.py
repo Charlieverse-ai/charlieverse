@@ -7,10 +7,11 @@ from pathlib import Path
 
 from charlieverse import paths
 from charlieverse.context.builder import ContextBundle
+from charlieverse.helpers.time_utils import relative_date
 from charlieverse.memory.entities import Entity, EntityType
+from charlieverse.memory.messages import Message
 from charlieverse.memory.sessions import Session
 from charlieverse.memory.stories import Story
-from charlieverse.models import ContextMessage
 from charlieverse.types.dates import LocalDatetime, UTCDatetime, from_iso_or_none, local_now, to_local
 
 PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "prompts"
@@ -105,7 +106,7 @@ def render(bundle: ContextBundle) -> str:
     return "\n".join(parts)
 
 
-def _render_recent_messages(messages: list[ContextMessage]) -> str:
+def _render_recent_messages(messages: list[Message]) -> str:
     """Render recent messages for context seeding."""
     lines: list[str] = []
     lines.append("<recent_messages>")
@@ -115,7 +116,7 @@ def _render_recent_messages(messages: list[ContextMessage]) -> str:
         content = msg.content.strip()
         if len(content) > 200:
             content = content[:200] + "…"
-        age = _relative_date(msg.created_at)
+        age = relative_date(msg.created_at)
         lines.append(f'<{label} date="{age}">{content}</{label}>')
 
     lines.append("</recent_messages>")
@@ -200,10 +201,10 @@ def _render_entity(entity: Entity) -> str:
     lines: list[str] = []
 
     if entity.type is EntityType.moment:
-        lines.append(f"- {_relative_date(entity.updated_at)}")
+        lines.append(f"- {relative_date(entity.updated_at)}")
     else:
         lines.append(f"## {entity.type.value.capitalize()}")
-        lines.append(f"### {_relative_date(entity.updated_at)}")
+        lines.append(f"### {relative_date(entity.updated_at)}")
 
     lines.append(entity.content + "\n")
 
@@ -257,9 +258,3 @@ def _parse_period_date(period: str | None) -> UTCDatetime | None:
         return from_iso_or_none(period)
     except (ValueError, TypeError):
         return None
-
-
-def _relative_date(date: UTCDatetime) -> str:
-    from charlieverse.context.time_utils import relative_date
-
-    return relative_date(date)

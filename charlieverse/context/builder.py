@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from charlieverse.memory.entities import Entity, EntityStore, EntityType
-from charlieverse.memory.knowledge import Knowledge, KnowledgeStore
+from charlieverse.memory.entities import Entity, EntityType
+from charlieverse.memory.knowledge import Knowledge
+from charlieverse.memory.messages import Message
 from charlieverse.memory.sessions import Session
-from charlieverse.memory.sessions.store import SessionStore
-from charlieverse.memory.stories import Story, StoryStore, StoryTier
-from charlieverse.models import ContextMessage
+from charlieverse.memory.stores import Stores
+from charlieverse.memory.stories import Story, StoryTier
 from charlieverse.types.dates import local_now
 from charlieverse.types.id import ModelId
 
@@ -27,7 +27,7 @@ class ContextBundle:
     session_entities: list[Entity] = field(default_factory=list)
     related_entities: list[Entity] = field(default_factory=list)
     pinned_knowledge: list[Knowledge] = field(default_factory=list)
-    recent_messages: list[ContextMessage] = field(default_factory=list)
+    recent_messages: list[Message] = field(default_factory=list)
     all_time_story: Story | None = field(default=None)
 
     @property
@@ -60,32 +60,25 @@ class ActivationBuilder:
     4. Related entities via embeddings (skip if already above)
     """
 
-    def __init__(
-        self,
-        memories: EntityStore,
-        sessions: SessionStore,
-        knowledge: KnowledgeStore,
-        stories: StoryStore | None = None,
-    ) -> None:
-        self.memories = memories
-        self.sessions = sessions
-        self.knowledge = knowledge
-        self.stories = stories
+    stores: Stores
+
+    def __init__(self, stores: Stores) -> None:
+        self.stores = stores
 
     async def build(self, session: Session, workspace: str | None) -> ContextBundle:
         """Build the full context bundle for the given session."""
         # Fetch sessions from the last 2 days (raw data, no story layer dependency)
-        recent_sessions = await self.sessions.recent(limit=1)
+        recent_sessions = await self.stores.sessions.recent(limit=1)
 
         # Fetch moments — personality entities, always global
-        moments = await self.memories.list(entity_type=EntityType.moment, limit=50)
+        moments = await self.stores.memories.list(entity_type=EntityType.moment, limit=50)
 
         # Fetch pinned entities
-        pinned_entities = await self.memories.pinned()
+        pinned_entities = await self.stores.memories.pinned()
 
         # Fetch entities linked to recent sessions
         recent_ids = [s.id for s in recent_sessions]
-        session_entities = await self.memories.for_sessions(recent_ids) if recent_ids else []
+        session_entities = await self.stores.memories.for_sessions(recent_ids) if recent_ids else []
 
         # Fetch related entities via vector search if we have a session description
         related_entities: list[Entity] = []
@@ -93,21 +86,21 @@ class ActivationBuilder:
         # Fetch stories — weekly for compressed history, all-time for the arc
         weekly_stories: list[Story] = []
         all_time_story: Story | None = None
-        if self.stories:
-            today = local_now().strftime("%Y-%m-%d")
 
-            weekly_stories = await self.stories.list(
-                tier=StoryTier.weekly,
-                limit=4,
-            )
-            weekly_stories = [s for s in weekly_stories if s.period_start and s.period_start < today]
-            all_time_story = await self.stories.get_all_time()
+        today = local_now().strftime("%Y-%m-%d")
+
+        weekly_stories = await self.stores.stories.list(
+            tier=StoryTier.weekly,
+            limit=4,
+        )
+        weekly_stories = [s for s in weekly_stories if s.period_start and s.period_start < today]
+        all_time_story = await self.stores.stories.get_all_time()
 
         # Fetch recent messages for context seeding (last 3 turns)
-        recent_messages = await self.sessions.recent_messages(turns=3)
+        recent_messages = await self.stores.messages.recent_messages(turns=3)
 
         # Fetch pinned knowledge
-        pinned_knowledge = await self.knowledge.pinned()
+        pinned_knowledge = await self.stores.knowledge.pinned()
 
         # Deduplicate entities: moments → pinned → session → related
         seen_ids: set[ModelId] = set()

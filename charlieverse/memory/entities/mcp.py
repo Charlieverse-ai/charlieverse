@@ -28,10 +28,10 @@ server = FastMCP(name="Memories")
 
 
 # Max characters per item in recall results to prevent overwhelming responses.
-_MAX_ENTITY_CONTENT = 500
-_MAX_KNOWLEDGE_CONTENT = 1000
-_MAX_STORY_CONTENT = 500
-_MAX_MESSAGE_CONTENT = 500
+_MAX_ENTITY_CONTENT = 300
+_MAX_KNOWLEDGE_CONTENT = 500
+_MAX_STORY_CONTENT = 300
+_MAX_MESSAGE_CONTENT = 300
 
 
 def _truncate(text: str, max_len: int, *, plaintext: bool = True) -> tuple[str, bool]:
@@ -79,7 +79,7 @@ def _rank_by_relevance_and_recency(
 
 
 def _to_summary(e: Entity) -> EntitySummary:
-    from charlieverse.context.time_utils import relative_date
+    from charlieverse.helpers.time_utils import relative_date
 
     content, truncated = _truncate(e.content, _MAX_ENTITY_CONTENT)
     return EntitySummary(
@@ -362,51 +362,8 @@ async def recall(
         with suppress(Exception):
             story_results = await stories.search(query, limit=min(limit, 5))
 
-    # Search messages if db is available
-
-    # Junk patterns to filter out of message search results
-    _junk_prefixes = (
-        "<task-notification>",
-        "<command-name>",
-        "<local-command",
-        "<system-reminder>",
-    )
-
-    # TODO Move this out of here.
-    # message_results: list[MessageSummary] = []
-    # if db:
-    #     try:
-    #         fts_query = sanitize_fts_query(query)
-    #         if fts_query:
-    #             # Fetch extra to account for junk filtering
-    #             cursor = await db.execute(
-    #                 """SELECT m.id, m.role, m.content, m.created_at FROM messages m
-    #                    JOIN messages_fts fts ON m.rowid = fts.rowid
-    #                    WHERE messages_fts MATCH ?
-    #                    ORDER BY bm25(messages_fts) LIMIT ?""",
-    #                 (fts_query, min(limit, 5) * 3),
-    #             )
-    #             rows = await cursor.fetchall()
-    #             for row in rows:
-    #                 if len(message_results) >= min(limit, 5):
-    #                     break
-    #                 content = row["content"].strip()
-    #                 if any(content.startswith(p) for p in _junk_prefixes):
-    #                     continue
-    #                 try:
-    #                     age = relative_date(from_iso(row["created_at"]))
-    #                 except (ValueError, TypeError):
-    #                     age = row["created_at"]
-    #                 message_results.append(
-    #                     MessageSummary(
-    #                         id=row["id"],
-    #                         role=row["role"],
-    #                         content=_truncate(content, _MAX_MESSAGE_CONTENT)[0],
-    #                         age=age,
-    #                     )
-    #                 )
-    #     except Exception:
-    #         pass
+    # Search messages
+    messages = await stores.messages.search(query=query, limit=3)
 
     # Build knowledge summaries with truncation tracking
     knowledge_summaries = []
@@ -441,6 +398,7 @@ async def recall(
         *[_to_summary(e) for e in merged_entities[:limit]],
         *knowledge_summaries,
         *story_summaries,
+        *messages,
     ]
 
     return ModelListResponse(result)
