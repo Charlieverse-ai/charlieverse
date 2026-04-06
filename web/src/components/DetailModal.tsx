@@ -19,9 +19,10 @@ interface DetailModalProps {
   onDismiss?: () => void
   onTagClick?: (tag: string) => void
   showBack?: boolean
+  onItemUpdated?: (item: DetailItem) => void
 }
 
-export function DetailModal({ item, onClose, onDismiss, onTagClick, showBack = false }: DetailModalProps) {
+export function DetailModal({ item, onClose, onDismiss, onTagClick, showBack = false, onItemUpdated }: DetailModalProps) {
   const isOpen = item !== null
 
   return (
@@ -72,8 +73,8 @@ export function DetailModal({ item, onClose, onDismiss, onTagClick, showBack = f
           </button>
         </div>
         <div className="detail-content">
-          {item.kind === 'entity' && <EntityDetail entity={item.data} onTagClick={onTagClick} onClose={onDismiss || onClose} />}
-          {item.kind === 'knowledge' && <KnowledgeDetail article={item.data} onTagClick={onTagClick} onClose={onDismiss || onClose} />}
+          {item.kind === 'entity' && <EntityDetail entity={item.data} onTagClick={onTagClick} onClose={onDismiss || onClose} onUpdated={(data) => onItemUpdated?.({ kind: 'entity', data })} />}
+          {item.kind === 'knowledge' && <KnowledgeDetail article={item.data} onTagClick={onTagClick} onClose={onDismiss || onClose} onUpdated={(data) => onItemUpdated?.({ kind: 'knowledge', data })} />}
           {item.kind === 'session' && <SessionDetail session={item.data} onTagClick={onTagClick} />}
           {item.kind === 'story' && <StoryDetail story={item.data} onTagClick={onTagClick} />}
         </div>
@@ -261,7 +262,7 @@ function EditTextarea({ value, onSave, onCancel }: { value: string; onSave: (v: 
   )
 }
 
-function EntityDetail({ entity, onTagClick, onClose }: { entity: Entity; onTagClick?: (tag: string) => void; onClose: () => void }) {
+function EntityDetail({ entity, onTagClick, onClose, onUpdated }: { entity: Entity; onTagClick?: (tag: string) => void; onClose: () => void; onUpdated?: (entity: Entity) => void }) {
   const [editing, setEditing] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const updateEntity = useUpdateEntity()
@@ -270,7 +271,10 @@ function EntityDetail({ entity, onTagClick, onClose }: { entity: Entity; onTagCl
 
   const handleSave = (content: string) => {
     updateEntity.mutate({ id: entity.id, content }, {
-      onSuccess: () => setEditing(false),
+      onSuccess: (updated) => {
+        onUpdated?.(updated)
+        setEditing(false)
+      },
     })
   }
 
@@ -281,7 +285,9 @@ function EntityDetail({ entity, onTagClick, onClose }: { entity: Entity; onTagCl
   }
 
   const handlePin = () => {
-    pinEntity.mutate({ id: entity.id, pinned: !entity.pinned })
+    pinEntity.mutate({ id: entity.id, pinned: !entity.pinned }, {
+      onSuccess: (updated) => onUpdated?.(updated),
+    })
   }
 
   return (
@@ -334,7 +340,7 @@ function EntityDetail({ entity, onTagClick, onClose }: { entity: Entity; onTagCl
   )
 }
 
-function KnowledgeDetail({ article, onTagClick, onClose }: { article: Knowledge; onTagClick?: (tag: string) => void; onClose: () => void }) {
+function KnowledgeDetail({ article, onTagClick, onClose, onUpdated }: { article: Knowledge; onTagClick?: (tag: string) => void; onClose: () => void; onUpdated?: (article: Knowledge) => void }) {
   const [editing, setEditing] = useState(false)
   const [editingTopic, setEditingTopic] = useState(false)
   const [topicValue, setTopicValue] = useState(article.topic)
@@ -345,13 +351,19 @@ function KnowledgeDetail({ article, onTagClick, onClose }: { article: Knowledge;
 
   const handleSaveContent = (content: string) => {
     updateKnowledge.mutate({ id: article.id, content }, {
-      onSuccess: () => setEditing(false),
+      onSuccess: (updated) => {
+        onUpdated?.(updated)
+        setEditing(false)
+      },
     })
   }
 
   const handleSaveTopic = () => {
     updateKnowledge.mutate({ id: article.id, topic: topicValue }, {
-      onSuccess: () => setEditingTopic(false),
+      onSuccess: (updated) => {
+        onUpdated?.(updated)
+        setEditingTopic(false)
+      },
     })
   }
 
@@ -362,7 +374,9 @@ function KnowledgeDetail({ article, onTagClick, onClose }: { article: Knowledge;
   }
 
   const handlePin = () => {
-    pinKnowledge.mutate({ id: article.id, pinned: !article.pinned })
+    pinKnowledge.mutate({ id: article.id, pinned: !article.pinned }, {
+      onSuccess: (updated) => onUpdated?.(updated),
+    })
   }
 
   return (
