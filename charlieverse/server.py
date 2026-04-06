@@ -24,7 +24,7 @@ from charlieverse.memory.messages.store import MessageStore
 from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.sessions.mcp import server as sessions
 from charlieverse.memory.sessions.store import SessionStore
-from charlieverse.memory.stores import StoreContext, Stores
+from charlieverse.memory.stores import Stores, _StoreContext
 from charlieverse.memory.stories import StoryStore
 from charlieverse.memory.stories.mcp import server as stories
 from charlieverse.types.id import ModelId
@@ -39,8 +39,8 @@ async def connect_to_db() -> Connection:
     return await database.connect(db_path)
 
 
-async def setup_stores(db: Connection) -> StoreContext:
-    context: StoreContext = {
+async def setup_stores(db: Connection) -> _StoreContext:
+    context: _StoreContext = {
         "memories": EntityStore(db),
         "sessions": SessionStore(db),
         "knowledge": KnowledgeStore(db),
@@ -48,7 +48,7 @@ async def setup_stores(db: Connection) -> StoreContext:
         "messages": MessageStore(db),
     }
 
-    async def rebuild(stores: StoreContext) -> None:
+    async def rebuild(stores: _StoreContext) -> None:
         """Rebuild FTS + vector indexes for all tables."""
         from asyncio import gather
 

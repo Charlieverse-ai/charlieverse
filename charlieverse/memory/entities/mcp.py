@@ -15,9 +15,9 @@ from charlieverse.api.responses.permalink import PermalinkResponse
 from charlieverse.api.responses.summaries import EntitySummary, KnowledgeSummary, StorySummary
 from charlieverse.embeddings import encode_one, prepare_entity_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
-from charlieverse.mcp.context import _stores
 from charlieverse.memory.entities import DeleteEntity, Entity, EntityId, EntityStore, EntityType, NewEntity, UpdateEntity
 from charlieverse.memory.sessions import SessionId
+from charlieverse.memory.stores import Stores
 from charlieverse.tasks import track_task
 from charlieverse.types.dates import utc_now
 from charlieverse.types.id import ModelId
@@ -107,7 +107,7 @@ async def _remember(
     pinned: bool,
 ) -> PermalinkResponse:
     """Shared create-and-embed flow for all remember_* helpers."""
-    memories = _stores(ctx).memories
+    memories = Stores.from_context(ctx).memories
 
     entity = await memories.create(
         NewEntity(
@@ -309,7 +309,7 @@ async def recall(
     ctx: Context = CurrentContext(),
 ) -> ModelListResponse:
     """Search across entities, knowledge, stories, and messages. Results are relevance-ordered."""
-    stores = _stores(ctx)
+    stores = Stores.from_context(ctx)
     memories = stores.memories
     knowledge = stores.knowledge
     stories = stores.stories
@@ -413,7 +413,7 @@ async def update_memory(
     ctx: Context = CurrentContext(),
 ) -> None:
     """Update an existing memory's content and/or tags. Preserves creation date and provenance."""
-    memories = _stores(ctx).memories
+    memories = Stores.from_context(ctx).memories
     existing = await memories.get(id)
     if not existing:
         raise ToolError(f"Entity {id} not found")
@@ -435,7 +435,7 @@ async def forget_memory(
     ctx: Context = CurrentContext(),
 ) -> None:
     """Forget a memory."""
-    memories = _stores(ctx).memories
+    memories = Stores.from_context(ctx).memories
     await memories.delete(DeleteEntity(id=id))
 
 
@@ -446,7 +446,7 @@ async def pin(
     ctx: Context = CurrentContext(),
 ) -> None:
     """Pin or unpin an entity or knowledge article."""
-    stores = _stores(ctx)
+    stores = Stores.from_context(ctx)
     memories = stores.memories
     knowledge = stores.knowledge
 

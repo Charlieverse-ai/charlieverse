@@ -5,8 +5,8 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
 from charlieverse.api.responses import ModelListResponse
-from charlieverse.mcp.context import _stores
 from charlieverse.memory.sessions import SessionId
+from charlieverse.memory.stores import Stores
 from charlieverse.types.strings import ShortString
 
 server = FastMCP(name="Messages")
@@ -22,7 +22,7 @@ async def search_messages(
     """Search past messages in conversations. Returns matching messages with role and date."""
     if not query.strip():
         raise ToolError("query cannot be empty")
-    store = _stores(ctx).messages
+    store = Stores.from_context(ctx).messages
 
     results = await store.search(query, limit=limit, session_id=session_id)
 

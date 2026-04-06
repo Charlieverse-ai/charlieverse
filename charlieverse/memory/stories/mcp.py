@@ -11,7 +11,6 @@ from fastmcp.server.dependencies import CurrentContext
 
 from charlieverse.api.responses import ModelListResponse
 from charlieverse.api.responses.permalink import PermalinkResponse
-from charlieverse.mcp.context import _stores
 from charlieverse.memory.sessions import NewSession, SessionId
 from charlieverse.memory.stores import Stores
 from charlieverse.types.dates import UTCDatetime, at_utc_midnight, to_local
@@ -38,7 +37,7 @@ async def upsert(
     ctx: Context = CurrentContext(),
 ) -> PermalinkResponse:
     """Create or update a story. For session stories, matches on session_id."""
-    stores = _stores(ctx)
+    stores = Stores.from_context(ctx)
     story_store: StoryStore = stores.stories
     sessions_store = stores.sessions
 
@@ -68,7 +67,7 @@ async def list(
     ctx: Context = CurrentContext(),
 ) -> ModelListResponse:
     """List stories, optionally filtered by tier (session, daily, weekly, monthly, all-time)."""
-    story_store = _stores(ctx).stories
+    story_store = Stores.from_context(ctx).stories
 
     stories = await story_store.list(tier=tier, limit=limit)
     return ModelListResponse(stories)
@@ -77,7 +76,7 @@ async def list(
 @server.tool
 async def read(id: StoryId, ctx: Context = CurrentContext()) -> dict[str, Any]:
     """Read the full content of a story."""
-    story_store = _stores(ctx).stories
+    story_store = Stores.from_context(ctx).stories
 
     story = await story_store.get(id)
     if not story:
@@ -102,7 +101,7 @@ async def forget(
     ctx: Context = CurrentContext(),
 ) -> None:
     """Forget a story."""
-    story_store = _stores(ctx).stories
+    story_store = Stores.from_context(ctx).stories
 
     story = await story_store.get(id)
     if not story:
@@ -126,7 +125,7 @@ async def get_rollup(
     if not target.strip():
         raise ToolError("target cannot be empty")
 
-    stores = _stores(ctx)
+    stores = Stores.from_context(ctx)
     tier_names = {"daily", "weekly", "monthly", "quarterly", "yearly"}
 
     if target in tier_names:

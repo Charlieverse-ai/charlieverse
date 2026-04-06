@@ -6,7 +6,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.server.dependencies import CurrentContext
 
 from charlieverse.api.responses.permalink import PermalinkResponse
-from charlieverse.mcp.context import _stores
+from charlieverse.memory.stores import Stores
 from charlieverse.types.lists import TagList
 from charlieverse.types.strings import NonEmptyString
 
@@ -26,7 +26,7 @@ async def update(
     """Update the session with the provided fields. Omit a field to keep the existing value"""
     from .models import UpdateSession
 
-    session_store = _stores(ctx).sessions
+    session_store = Stores.from_context(ctx).sessions
 
     session = UpdateSession(
         id=session_id,

@@ -13,9 +13,9 @@ from charlieverse.api.responses.knowledge_summary import KnowledgeSummary
 from charlieverse.api.responses.permalink import PermalinkResponse
 from charlieverse.embeddings import encode_one, prepare_knowledge_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
-from charlieverse.mcp.context import _stores
 from charlieverse.memory.knowledge import KnowledgeId
 from charlieverse.memory.sessions import SessionId
+from charlieverse.memory.stores import Stores
 from charlieverse.tasks import track_task
 from charlieverse.types.lists import TagList
 from charlieverse.types.strings import NonEmptyString
@@ -33,7 +33,7 @@ async def search(
     ctx: Context = CurrentContext(),
 ) -> ModelListResponse:
     """Search the knowledge base. Semantic + full-text search across knowledge articles."""
-    knowledge_store: KnowledgeStore = _stores(ctx).knowledge
+    knowledge_store: KnowledgeStore = Stores.from_context(ctx).knowledge
 
     fts_results = await knowledge_store.search(query, limit=limit)
 
@@ -65,7 +65,7 @@ async def update(
     ctx: Context = CurrentContext(),
 ) -> PermalinkResponse:
     """Create or update a knowledge article."""
-    knowledge_store: KnowledgeStore = _stores(ctx).knowledge
+    knowledge_store: KnowledgeStore = Stores.from_context(ctx).knowledge
 
     knowledge = NewKnowledge(
         topic=topic,
