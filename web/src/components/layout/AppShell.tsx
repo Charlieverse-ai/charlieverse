@@ -271,6 +271,7 @@ export function AppShell() {
         onDismiss={() => setDetailItem(null)}
         onTagClick={searchTag}
         showBack={detailSource === 'search'}
+        onItemUpdated={(updated) => setDetailItem(updated)}
       />
     </div>
   )
