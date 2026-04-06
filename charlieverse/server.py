@@ -3,40 +3,44 @@
 from __future__ import annotations
 
 import asyncio
-import logging
-import os
 import time
+from pathlib import Path
 
+from aiosqlite import Connection
 from fastmcp import FastMCP
 from fastmcp.server.lifespan import lifespan
+from rich.console import Console
 
 from charlieverse.api import entities, hooks, spa
 from charlieverse.api import stories as stories_api
 from charlieverse.config import config
 from charlieverse.db import database
-from charlieverse.memory.context import StoreContext, rebuild_all
 from charlieverse.memory.entities import EntityStore
-from charlieverse.memory.entities.mcp import server as EntityMCP
+from charlieverse.memory.entities.mcp import server as memories
 from charlieverse.memory.knowledge import KnowledgeStore
-from charlieverse.memory.knowledge.mcp import server as KnowledgeMCP
+from charlieverse.memory.knowledge.mcp import server as knowledge
+from charlieverse.memory.messages.mcp import server as messages
 from charlieverse.memory.messages.store import MessageStore
 from charlieverse.memory.sessions import SessionId
-from charlieverse.memory.sessions.mcp import server as SessionMCP
+from charlieverse.memory.sessions.mcp import server as sessions
 from charlieverse.memory.sessions.store import SessionStore
+from charlieverse.memory.stores import StoreContext, Stores
 from charlieverse.memory.stories import StoryStore
-from charlieverse.memory.stories.mcp import server as StoryMCP
+from charlieverse.memory.stories.mcp import server as stories
 from charlieverse.types.id import ModelId
 
-logger = logging.getLogger(__name__)
+console = Console()
 
 
-async def setup_stores() -> StoreContext:
-    db_path = config.database
+async def connect_to_db() -> Connection:
+    console.log("Connecting to Database")
+    db_path: Path = config.database
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    db = await database.connect(db_path)
+    return await database.connect(db_path)
 
+
+async def setup_stores(db: Connection) -> StoreContext:
     context: StoreContext = {
-        "db": db,
         "memories": EntityStore(db),
         "sessions": SessionStore(db),
         "knowledge": KnowledgeStore(db),
@@ -44,45 +48,64 @@ async def setup_stores() -> StoreContext:
         "messages": MessageStore(db),
     }
 
+    async def rebuild(stores: StoreContext) -> None:
+        """Rebuild FTS + vector indexes for all tables."""
+        from asyncio import gather
+
+        console.log("Performing Database Maintenance")
+        await stores["stories"].dedupe()
+
+        await gather(
+            stores["memories"].rebuild(),
+            stores["knowledge"].rebuild(),
+            stores["stories"].rebuild(),
+            stores["messages"].rebuild(),
+        )
+
     try:
-        await rebuild_all(context)
+        await rebuild(context)
     except Exception as e:
-        logger.exception(f"Store Cleanup Failed {e}")
+        console.log(f"Store Cleanup Failed {e}")
 
     return context
 
 
 async def prewarm():
-    os.environ["HF_HUB_VERBOSITY"] = "error"
-    os.environ["TRANSFORMERS_VERBOSITY"] = "error"  # Only show errors
-    os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+    # os.environ["HF_HUB_VERBOSITY"] = "error"
+    # os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+    # os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
+    console.log("Prewarming NLP and Embedding Models")
     from charlieverse.embeddings.service import prewarm_embeddings
     from charlieverse.nlp.extractor import prewarm_nlp
 
     try:
         await asyncio.gather(asyncio.to_thread(prewarm_embeddings), asyncio.to_thread(prewarm_nlp))
     except Exception as e:
-        logger.exception(f"Prewarm Error: {e}")
+        console.log(f"Prewarm Error: {e}")
 
 
 async def start_server(host: str, port: int):
     await prewarm()
-    stores = await setup_stores()
+    db = await connect_to_db()
+    store_context = await setup_stores(db)
+    stores = Stores.from_context(store_context)
 
     @lifespan
     async def app_lifespan(server: FastMCP):
         """Initialize database and stores on server start."""
-        yield stores
-        await stores["db"].close()
+        yield store_context
+        await db.close()
 
     mcp = FastMCP("Charlieverse", lifespan=app_lifespan)
-    mcp.mount(SessionMCP, namespace="session")
-    mcp.mount(StoryMCP, namespace="story")
-    mcp.mount(KnowledgeMCP, namespace="knowledge")
-    mcp.mount(EntityMCP)
 
-    # Custom Routes
+    mcp.mount(sessions, namespace="session")
+    mcp.mount(stories, namespace="story")
+    mcp.mount(knowledge, namespace="knowledge")
+    mcp.mount(knowledge, namespace="knowledge")
+    mcp.mount(messages, namespace="messages")
+    mcp.mount(memories)
+
     hooks.register_routes(mcp, stores)
     entities.register_routes(mcp, stores)
     stories_api.register_routes(mcp, stores)

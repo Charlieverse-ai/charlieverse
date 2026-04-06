@@ -22,7 +22,7 @@ def register(mcp: FastMCP) -> None:
         """Search past messages in conversations. Returns matching messages with role and date."""
         if not query.strip():
             raise ToolError("query cannot be empty")
-        messages = _stores(ctx)["messages"]
+        messages = _stores(ctx).messages
         results = await messages.search(query, limit=limit, session_id=session_id)
         return {
             "messages": [

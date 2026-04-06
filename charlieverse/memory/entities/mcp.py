@@ -11,20 +11,20 @@ from fastmcp.server.dependencies import CurrentContext
 from pydantic import BaseModel
 
 from charlieverse.api.responses import ModelListResponse
+from charlieverse.api.responses.permalink import PermalinkResponse
+from charlieverse.api.responses.summaries import EntitySummary, KnowledgeSummary, StorySummary
 from charlieverse.embeddings import encode_one, prepare_entity_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.mcp.context import _stores
-from charlieverse.mcp.responses import PermalinkResponse
 from charlieverse.memory.entities import DeleteEntity, Entity, EntityId, EntityStore, EntityType, NewEntity, UpdateEntity
 from charlieverse.memory.sessions import SessionId
 from charlieverse.tasks import track_task
-from charlieverse.tools.responses import EntitySummary, KnowledgeSummary, StorySummary
 from charlieverse.types.dates import utc_now
 from charlieverse.types.id import ModelId
 from charlieverse.types.lists import TagList
 from charlieverse.types.strings import ShortDescription, ShortString, VeryShortString
 
-server = FastMCP(name="memories")
+server = FastMCP(name="Memories")
 
 
 # Max characters per item in recall results to prevent overwhelming responses.
@@ -107,7 +107,7 @@ async def _remember(
     pinned: bool,
 ) -> PermalinkResponse:
     """Shared create-and-embed flow for all remember_* helpers."""
-    memories = _stores(ctx)["memories"]
+    memories = _stores(ctx).memories
 
     entity = await memories.create(
         NewEntity(
@@ -310,9 +310,9 @@ async def recall(
 ) -> ModelListResponse:
     """Search across entities, knowledge, stories, and messages. Results are relevance-ordered."""
     stores = _stores(ctx)
-    memories = stores["memories"]
-    knowledge = stores["knowledge"]
-    stories = stores["stories"]
+    memories = stores.memories
+    knowledge = stores.knowledge
+    stories = stores.stories
 
     entity_type = EntityType(type) if type else None
 
@@ -455,7 +455,7 @@ async def update_memory(
     ctx: Context = CurrentContext(),
 ) -> None:
     """Update an existing memory's content and/or tags. Preserves creation date and provenance."""
-    memories = _stores(ctx)["memories"]
+    memories = _stores(ctx).memories
     existing = await memories.get(id)
     if not existing:
         raise ToolError(f"Entity {id} not found")
@@ -477,7 +477,7 @@ async def forget_memory(
     ctx: Context = CurrentContext(),
 ) -> None:
     """Forget a memory."""
-    memories = _stores(ctx)["memories"]
+    memories = _stores(ctx).memories
     await memories.delete(DeleteEntity(id=id))
 
 
@@ -489,8 +489,8 @@ async def pin(
 ) -> None:
     """Pin or unpin an entity or knowledge article."""
     stores = _stores(ctx)
-    memories = stores["memories"]
-    knowledge = stores["knowledge"]
+    memories = stores.memories
+    knowledge = stores.knowledge
 
     # Try entity first
     entity_id = EntityId(id)

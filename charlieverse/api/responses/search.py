@@ -7,5 +7,5 @@ from charlieverse.memory.knowledge import Knowledge
 class SearchResults(BaseModel):
     """Unified search results across entities and knowledge."""
 
-    entities: list[Entity]
+    memories: list[Entity]
     knowledge: list[Knowledge]

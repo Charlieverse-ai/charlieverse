@@ -9,8 +9,11 @@ import sys
 from contextlib import suppress
 
 import typer
+from rich.console import Console
 
 from charlieverse.config import config
+
+console = Console()
 
 app = typer.Typer(
     name="server",
@@ -154,15 +157,14 @@ def start(
     foreground: bool = typer.Option(False, "-f", "--foreground", help="Run in foreground"),
 ) -> None:
     """Start the Charlieverse server."""
+    console.log("Starting server...")
     if _is_running():
-        typer.echo(f"Charlieverse is already running (PID {_read_pid()})")
+        console.log(f"Charlieverse is already running (PID {_read_pid()})")
         return
-
-    typer.echo(f"Starting Charlieverse on {host}:{port}")
 
     # Kill any orphan process holding the port (stale PID file scenarios)
     if _kill_port_holder(port):
-        typer.echo(f"Killed orphan process on port {port}")
+        console.log(f"Killed orphan process on port {port}")
         _wait_for_port_free(port)
 
     if not foreground:
@@ -170,7 +172,7 @@ def start(
         try:
             pid = os.fork()
         except OSError as e:
-            typer.echo(f"Failed to fork: {e}", err=True)
+            console.log(f"Failed to fork: {e}")
             raise typer.Exit(1) from e
 
         if pid > 0:
@@ -183,10 +185,10 @@ def start(
                 time.sleep(0.2)
 
             if _wait_for_health():
-                typer.echo(f"Charlieverse started (PID {_read_pid()})")
-                typer.echo(f"Listening on {config.server.base_url()}")
+                console.log(f"Charlieverse started (PID {_read_pid()})")
+                console.log(f"Listening on {config.server.base_url()}")
             else:
-                typer.echo("Failed to start Charlieverse", err=True)
+                console.log("Failed to start Charlieverse")
                 # Clean up the child process if it's still around
                 child_pid = _read_pid()
                 if child_pid:

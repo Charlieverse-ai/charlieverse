@@ -71,4 +71,6 @@ def sanitize_fts_query(raw: str) -> str | None:
         return None
 
     query = " OR ".join(f'"{t}"*' for t in text.split(" "))
+
+    print("🦄 FTS", query)
     return query

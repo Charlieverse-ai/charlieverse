@@ -10,10 +10,10 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
 from charlieverse.api.responses import ModelListResponse
+from charlieverse.api.responses.permalink import PermalinkResponse
 from charlieverse.mcp.context import _stores
-from charlieverse.mcp.responses import PermalinkResponse
-from charlieverse.memory.context import StoreContext
 from charlieverse.memory.sessions import NewSession, SessionId
+from charlieverse.memory.stores import Stores
 from charlieverse.types.dates import UTCDatetime, at_utc_midnight, to_local
 from charlieverse.types.lists import TagList
 from charlieverse.types.strings import MediumDescription, NonEmptyString, ShortDescription, ShortString
@@ -39,8 +39,8 @@ async def upsert(
 ) -> PermalinkResponse:
     """Create or update a story. For session stories, matches on session_id."""
     stores = _stores(ctx)
-    story_store: StoryStore = stores["stories"]
-    sessions_store = stores["sessions"]
+    story_store: StoryStore = stores.stories
+    sessions_store = stores.sessions
 
     existing_session = await sessions_store.get(session_id)
     if not existing_session:
@@ -68,8 +68,7 @@ async def list(
     ctx: Context = CurrentContext(),
 ) -> ModelListResponse:
     """List stories, optionally filtered by tier (session, daily, weekly, monthly, all-time)."""
-    stores = _stores(ctx)
-    story_store: StoryStore = stores["stories"]
+    story_store = _stores(ctx).stories
 
     stories = await story_store.list(tier=tier, limit=limit)
     return ModelListResponse(stories)
@@ -78,8 +77,7 @@ async def list(
 @server.tool
 async def read(id: StoryId, ctx: Context = CurrentContext()) -> dict[str, Any]:
     """Read the full content of a story."""
-    stores = _stores(ctx)
-    story_store: StoryStore = stores["stories"]
+    story_store = _stores(ctx).stories
 
     story = await story_store.get(id)
     if not story:
@@ -104,8 +102,7 @@ async def forget(
     ctx: Context = CurrentContext(),
 ) -> None:
     """Forget a story."""
-    stores = _stores(ctx)
-    story_store: StoryStore = stores["stories"]
+    story_store = _stores(ctx).stories
 
     story = await story_store.get(id)
     if not story:
@@ -137,9 +134,9 @@ async def get_rollup(
     return await _session_story_data(stores, SessionId(target))
 
 
-async def _rollup_story_data(stores: StoreContext, target: str) -> dict[str, Any]:
+async def _rollup_story_data(stores: Stores, target: str) -> dict[str, Any]:
     """Build the story-data payload for a rollup tier (daily/weekly/monthly/...)."""
-    story_store: StoryStore = stores["stories"]
+    story_store: StoryStore = stores.stories
     today = date.today()
 
     if target == "daily":
@@ -188,7 +185,7 @@ async def _rollup_story_data(stores: StoreContext, target: str) -> dict[str, Any
 
     # Fallback: no lower-tier stories exist for the period → send raw sessions.
     if not stories and range_start and range_end:
-        sessions_store = stores["sessions"]
+        sessions_store = stores.sessions
         sessions = await sessions_store.recent_within_range(range_start, range_end)
         if sessions:
             result["fallback"] = "sessions"
@@ -207,11 +204,11 @@ async def _rollup_story_data(stores: StoreContext, target: str) -> dict[str, Any
     return result
 
 
-async def _daily_rollup_data(stores: StoreContext, today: date) -> dict[str, Any]:
+async def _daily_rollup_data(stores: Stores, today: date) -> dict[str, Any]:
     """Build the daily story-data payload — sessions + messages + memories + knowledge."""
-    sessions_store = stores["sessions"]
-    memories_store = stores["memories"]
-    knowledge_store = stores["knowledge"]
+    sessions_store = stores.sessions
+    memories_store = stores.memories
+    knowledge_store = stores.knowledge
 
     sessions = await sessions_store.recent_within_days(days=1)
 
@@ -253,11 +250,11 @@ async def _daily_rollup_data(stores: StoreContext, today: date) -> dict[str, Any
     }
 
 
-async def _session_story_data(stores: StoreContext, session_id: SessionId) -> dict[str, Any]:
+async def _session_story_data(stores: Stores, session_id: SessionId) -> dict[str, Any]:
     """Build the session story-data payload — messages + memories since last save."""
-    story_store: StoryStore = stores["stories"]
-    sessions_store = stores["sessions"]
-    memories_store = stores["memories"]
+    story_store: StoryStore = stores.stories
+    sessions_store = stores.sessions
+    memories_store = stores.memories
 
     session = await sessions_store.get(session_id)
     existing_story = await story_store.find_by_session(session_id)

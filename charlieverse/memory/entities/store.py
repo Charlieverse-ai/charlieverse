@@ -189,6 +189,7 @@ class EntityStore:
         from charlieverse.db.fts import sanitize_fts_query
 
         fts_query = sanitize_fts_query(query)
+        print("🦄→", fts_query)
         if not fts_query:
             return []
 

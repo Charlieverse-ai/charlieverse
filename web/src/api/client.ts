@@ -47,7 +47,7 @@ export const api = {
     const params = new URLSearchParams()
     if (tier) params.set('tier', tier)
     params.set('limit', String(limit))
-    return request<{ stories: import('../types').Story[] }>(`/stories?${params}`)
+    return request<import('../types').Story[]>(`/stories?${params}`)
   },
 
   getStory: (id: string) =>

@@ -22,7 +22,7 @@ async def search_messages(
     """Search past messages in conversations. Returns matching messages with role and date."""
     if not query.strip():
         raise ToolError("query cannot be empty")
-    store = _stores(ctx)["messages"]
+    store = _stores(ctx).messages
 
     results = await store.search(query, limit=limit, session_id=session_id)
 

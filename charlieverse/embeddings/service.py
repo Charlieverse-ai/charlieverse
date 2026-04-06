@@ -27,7 +27,7 @@ def _get_model() -> SentenceTransformer:
     if _model is None:
         from sentence_transformers import SentenceTransformer
 
-        _model = SentenceTransformer(MODEL_NAME, device="cpu")
+        _model = SentenceTransformer(MODEL_NAME, device="cpu", local_files_only=True)
 
     return _model
 

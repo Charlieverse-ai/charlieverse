@@ -6,13 +6,22 @@ from pydantic import BaseModel
 
 from charlieverse.memory.entities import EntityId
 from charlieverse.memory.knowledge import KnowledgeId
+from charlieverse.memory.messages import MessageId
 from charlieverse.memory.stories import StoryId
+
+
+class KnowledgeSummary(BaseModel):
+    """Compact knowledge representation for become_expert and recall results."""
+
+    id: KnowledgeId
+    content: str
+    truncated: bool = False
 
 
 class MessageSummary(BaseModel):
     """A message search result."""
 
-    id: str
+    id: MessageId
     role: str
     content: str
     age: str = ""
@@ -25,23 +34,6 @@ class EntitySummary(BaseModel):
     type: str
     content: str
     age: str
-    truncated: bool = False
-
-
-class RecallResponse(BaseModel):
-    """Returned by recall. Merged entity + knowledge + story + message search results."""
-
-    entities: list[EntitySummary]
-    knowledge: list[KnowledgeSummary]
-    stories: list[StorySummary] = []
-    messages: list[MessageSummary] = []
-
-
-class KnowledgeSummary(BaseModel):
-    """Compact knowledge representation for become_expert and recall results."""
-
-    id: KnowledgeId
-    content: str
     truncated: bool = False
 
 

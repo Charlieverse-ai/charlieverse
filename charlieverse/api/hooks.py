@@ -8,23 +8,24 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 
+from charlieverse.api.responses import ModelListResponse
 from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
 from charlieverse.db.fts import clean_text
 from charlieverse.embeddings import encode_one
-from charlieverse.helpers.uuid import uuid_from_str
-from charlieverse.memory.context import StoreContext
+from charlieverse.helpers.uuid import create_uuid, uuid_from_str
 from charlieverse.memory.entities import EntityStore
 from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.messages import MessageId, MessageRole, MessageStore
 from charlieverse.memory.sessions import Session, SessionId, UpdateSession
 from charlieverse.memory.sessions.store import SessionStore
+from charlieverse.memory.stores import Stores
 from charlieverse.memory.stories import StoryStore
 from charlieverse.types.dates import utc_now
 from charlieverse.types.id import ModelId
 
 
-def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
+def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
     """Register hook REST endpoints on the given FastMCP instance."""
     # Lazy import to avoid circular dependency (hooks → server → mcp → tools → server)
     from charlieverse.server import get_seen_ids, set_seen_ids
@@ -32,9 +33,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     @mcp.custom_route("/api/sessions/context", methods=["GET"])
     async def api_session_context(request: Request) -> PlainTextResponse:
         """Preview activation context for debugging. Returns rendered context as plain text."""
-        sessions_store: SessionStore = rest_stores["sessions"]
-        memories_store: EntityStore = rest_stores["memories"]
-        knowledge_store: KnowledgeStore = rest_stores["knowledge"]
+        sessions_store: SessionStore = rest_stores.sessions
 
         session_id = uuid_from_str(request.query_params.get("session_id"))
         workspace = request.query_params.get("workspace")
@@ -50,10 +49,10 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             return PlainTextResponse("Missing")
 
         builder = ActivationBuilder(
-            memories_store,
+            rest_stores.memories,
             sessions_store,
-            knowledge_store,
-            stories=rest_stores.get("stories"),
+            rest_stores.knowledge,
+            rest_stores.stories,
         )
         bundle = await builder.build(session, workspace)
         activation = context_renderer.render(bundle)
@@ -64,20 +63,18 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     async def api_session_start(request: Request) -> JSONResponse:
         """Start or resume a session. Returns activation XML."""
         body = await request.json()
-        session_id = body.get("session_id", str(uuid4()))
+        session_id = body.get("session_id", str(create_uuid()))
         workspace = body.get("workspace")
 
-        sessions_store: SessionStore = rest_stores["sessions"]
-        memories_store: EntityStore = rest_stores["memories"]
-        knowledge_store: KnowledgeStore = rest_stores["knowledge"]
+        sessions_store: SessionStore = rest_stores.sessions
 
         session = await sessions_store.upsert(UpdateSession(id=session_id, workspace=workspace))
 
         builder = ActivationBuilder(
-            memories_store,
+            rest_stores.memories,
             sessions_store,
-            knowledge_store,
-            stories=rest_stores.get("stories"),
+            rest_stores.knowledge,
+            rest_stores.stories,
         )
         bundle = await builder.build(session, workspace)
         activation = context_renderer.render(bundle)
@@ -110,7 +107,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     async def api_save_message(request: Request) -> JSONResponse:
         """Save a message captured from hooks."""
         body = await request.json()
-        messages: MessageStore = rest_stores["messages"]
+        messages: MessageStore = rest_stores.messages
 
         msg_id = body.get("id", str(uuid4()))
         session_id = body.get("session_id")
@@ -136,7 +133,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
     @mcp.custom_route("/api/messages/latest", methods=["GET"])
     async def api_latest_message(request: Request) -> JSONResponse:
         """Get the most recent message for a session, optionally filtered by role."""
-        messages: MessageStore = rest_stores["messages"]
+        messages: MessageStore = rest_stores.messages
         session_id_param = request.query_params.get("session_id")
         role_param = request.query_params.get("role")
 
@@ -181,8 +178,8 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         entities = extract_entities(text)
         temporal_refs = extract_temporal_refs(text)
 
-        memories: EntityStore = rest_stores["memories"]
-        knowledge: KnowledgeStore = rest_stores["knowledge"]
+        memories: EntityStore = rest_stores.memories
+        knowledge: KnowledgeStore = rest_stores.knowledge
 
         found: list[dict] = []
         not_found: list[str] = []
@@ -221,7 +218,7 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
                 not_found.append(entity)
 
         stories_result: list[dict] = []
-        story_store: StoryStore = rest_stores["stories"]
+        story_store: StoryStore = rest_stores.stories
 
         if text and len(text.strip()) > 5:
             from charlieverse.nlp.snippets import extract_snippet
@@ -287,10 +284,10 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
         )
 
     @mcp.custom_route("/api/messages/search", methods=["POST"])
-    async def api_search_messages(request: Request) -> JSONResponse:
+    async def api_search_messages(request: Request) -> ModelListResponse:
         """Search messages via FTS."""
         body = await request.json()
-        messages: MessageStore = rest_stores["messages"]
+        messages: MessageStore = rest_stores.messages
         query = body.get("query", "")
         limit = body.get("limit", 20)
         session_id = body.get("session_id")
@@ -300,17 +297,5 @@ def register_routes(mcp: FastMCP, rest_stores: StoreContext) -> None:
             limit=limit,
             session_id=SessionId(session_id) if session_id else None,
         )
-        return JSONResponse(
-            {
-                "messages": [
-                    {
-                        "id": str(m.id),
-                        "session_id": str(m.session_id),
-                        "role": m.role.value,
-                        "content": m.content[:500],
-                        "created_at": m.created_at.isoformat(),
-                    }
-                    for m in results
-                ]
-            }
-        )
+
+        return ModelListResponse(results)
