@@ -46,11 +46,13 @@ def test_empty_string_returns_empty():
 
 def test_special_chars_stripped():
     result = sanitize_fts_query("foo\"bar'baz")
+    assert result is not None
     assert '"foo"*' in result or '"bar"*' in result or '"baz"*' in result
 
 
 def test_or_joined_multiple_tokens():
     result = sanitize_fts_query("pytest database")
+    assert result is not None
     assert " OR " in result
 
 

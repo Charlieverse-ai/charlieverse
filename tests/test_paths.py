@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import charlieverse.paths as paths_mod
-from charlieverse import paths
+import charlieverse.helpers.paths as paths_mod
+from charlieverse.helpers import paths
 
 
 class TestFind:

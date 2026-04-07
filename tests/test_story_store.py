@@ -3,29 +3,33 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
-from charlieverse.memory.stories import Story, StoryTier
+from charlieverse.memory.stories import NewStory, StoryTier
+from charlieverse.memory.stories.models import DeleteStory
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_SESSION = UUID(int=0)
+_SESSION = uuid4()
 _ZERO_VEC = [0.0] * 384
+
+# Content must be >= 50 chars (MediumDescription constraint)
+_DEFAULT_CONTENT = "some story content that is long enough to pass the fifty character minimum"
 
 
 def _story(
     title: str = "test story",
-    content: str = "some story content that is long enough",
+    content: str = _DEFAULT_CONTENT,
     tier: StoryTier = StoryTier.weekly,
     period_start: str = "2026-03-16",
     period_end: str = "2026-03-22",
     **kw,
-) -> Story:
-    return Story(
+) -> NewStory:
+    return NewStory(
         title=title,
         content=content,
         tier=tier,
@@ -64,15 +68,15 @@ def _mock_vec():
 async def test_create_returns_story(story_store):
     story = await story_store.create(_story())
     assert story.id is not None
-    assert isinstance(story.id, UUID)
 
 
 async def test_create_stores_content(story_store):
-    s = await story_store.create(_story("my title", "the full story content here enough chars"))
+    full_content = "the full story content here with enough characters to pass validation"
+    s = await story_store.create(_story("my title", full_content))
     fetched = await story_store.get(s.id)
     assert fetched is not None
     assert fetched.title == "my title"
-    assert fetched.content == "the full story content here enough chars"
+    assert fetched.content == full_content
 
 
 async def test_create_stores_tier(story_store):
@@ -90,7 +94,9 @@ async def test_create_stores_tags(story_store):
 
 
 async def test_create_stores_session_id(story_store):
-    sid = uuid4()
+    from charlieverse.memory.sessions import SessionId
+
+    sid = SessionId()
     s = await story_store.create(_story(session_id=sid, tier=StoryTier.session))
     fetched = await story_store.get(s.id)
     assert fetched is not None
@@ -103,21 +109,23 @@ async def test_create_stores_session_id(story_store):
 
 
 async def test_get_nonexistent_returns_none(story_store):
-    result = await story_store.get(uuid4())
+    from charlieverse.memory.stories import StoryId
+
+    result = await story_store.get(StoryId())
     assert result is None
 
 
 async def test_list_returns_all_active(story_store):
     await story_store.create(_story("story one"))
     await story_store.create(_story("story two"))
-    results = await story_store.list()
+    results = await story_store.fetch()
     assert len(results) >= 2
 
 
 async def test_list_filters_by_tier(story_store):
     await story_store.create(_story(tier=StoryTier.weekly))
     await story_store.create(_story(tier=StoryTier.monthly))
-    weekly = await story_store.list(tier=StoryTier.weekly)
+    weekly = await story_store.fetch(tier=StoryTier.weekly)
     for s in weekly:
         assert s.tier == StoryTier.weekly
 
@@ -128,7 +136,9 @@ async def test_list_filters_by_tier(story_store):
 
 
 async def test_find_by_session(story_store):
-    sid = uuid4()
+    from charlieverse.memory.sessions import SessionId
+
+    sid = SessionId()
     await story_store.create(_story(session_id=sid, tier=StoryTier.session))
     found = await story_store.find_by_session(sid)
     assert found is not None
@@ -136,7 +146,9 @@ async def test_find_by_session(story_store):
 
 
 async def test_find_by_session_returns_none_for_missing(story_store):
-    result = await story_store.find_by_session(uuid4())
+    from charlieverse.memory.sessions import SessionId
+
+    result = await story_store.find_by_session(SessionId())
     assert result is None
 
 
@@ -180,7 +192,9 @@ async def test_upsert_creates_new(story_store):
 
 
 async def test_upsert_updates_by_session_id(story_store):
-    sid = uuid4()
+    from charlieverse.memory.sessions import SessionId
+
+    sid = SessionId()
     original = await story_store.create(_story("v1", session_id=sid, tier=StoryTier.session))
     updated = await story_store.upsert(_story("v2", session_id=sid, tier=StoryTier.session))
     assert updated.id == original.id
@@ -195,10 +209,18 @@ async def test_upsert_updates_by_session_id(story_store):
 
 
 async def test_update_changes_content(story_store):
+    from charlieverse.memory.stories.models import UpdateStory
+
     s = await story_store.create(_story("original title"))
-    s.title = "updated title"
-    s.content = "updated content that is long enough for the test"
-    await story_store.update(s)
+    updated_content = "updated content that is long enough for the test to pass validation"
+    await story_store.update(
+        UpdateStory(
+            id=s.id,
+            title="updated title",
+            content=updated_content,
+            tier=s.tier,
+        )
+    )
     fetched = await story_store.get(s.id)
     assert fetched is not None
     assert fetched.title == "updated title"
@@ -211,16 +233,16 @@ async def test_update_changes_content(story_store):
 
 async def test_soft_delete_hides_story(story_store):
     s = await story_store.create(_story())
-    await story_store.delete(s.id)
+    await story_store.delete(DeleteStory(id=s.id))
     result = await story_store.get(s.id)
     assert result is None
 
 
 async def test_soft_deleted_excluded_from_list(story_store):
     s = await story_store.create(_story("delete from list"))
-    count_before = len(await story_store.list())
-    await story_store.delete(s.id)
-    count_after = len(await story_store.list())
+    count_before = len(await story_store.fetch())
+    await story_store.delete(DeleteStory(id=s.id))
+    count_after = len(await story_store.fetch())
     assert count_after == count_before - 1
 
 
@@ -230,21 +252,23 @@ async def test_soft_deleted_excluded_from_list(story_store):
 
 
 async def test_search_finds_story(story_store):
-    await story_store.create(_story("python sprint", "we built pytest fixtures and ran them"))
+    await story_store.create(_story("python sprint", "we built pytest fixtures and ran them across the entire test suite today"))
     await story_store.rebuild_fts()
     results = await story_store.search("pytest")
     assert any("pytest" in r.content.lower() for r in results)
 
 
 async def test_search_empty_query_returns_empty(story_store):
-    await story_store.create(_story("something", "interesting content here yeah"))
+    await story_store.create(_story("something", "interesting content here yeah that needs to be long enough to pass"))
     await story_store.rebuild_fts()
     results = await story_store.search("the")
     assert results == []
 
 
 async def test_search_with_period_filter(story_store):
-    await story_store.create(_story("march sprint", "unique xyzzy content for march", period_start="2026-03-16", period_end="2026-03-22"))
+    await story_store.create(
+        _story("march sprint", "unique xyzzy content for march that is long enough to pass validation", period_start="2026-03-16", period_end="2026-03-22")
+    )
     await story_store.rebuild_fts()
     results = await story_store.search("xyzzy", period_start="2026-03-16", period_end="2026-03-22")
     assert len(results) >= 1

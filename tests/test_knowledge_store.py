@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-from uuid import UUID, uuid4
+from uuid import UUID
 
-from charlieverse.memory.knowledge import Knowledge, KnowledgeStore
+from charlieverse.memory.knowledge import KnowledgeId, KnowledgeStore
+from charlieverse.memory.knowledge.models import DeleteKnowledge, NewKnowledge
+from charlieverse.memory.sessions import SessionId
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_SESSION = UUID(int=0)
+_SESSION = SessionId(UUID(int=0))
 
 
-def _article(topic: str, content: str = "some knowledge", **kw) -> Knowledge:
-    return Knowledge(
+def _article(topic: str, content: str = "some knowledge", **kw) -> NewKnowledge:
+    return NewKnowledge(
         topic=topic,
         content=content,
         created_session_id=_SESSION,
@@ -30,7 +32,7 @@ def _article(topic: str, content: str = "some knowledge", **kw) -> Knowledge:
 async def test_create_returns_article(knowledge_store: KnowledgeStore):
     article = await knowledge_store.create(_article("pytest basics"))
     assert article.id is not None
-    assert isinstance(article.id, UUID)
+    assert isinstance(article.id, str)
 
 
 async def test_create_stores_content(knowledge_store: KnowledgeStore):
@@ -54,7 +56,7 @@ async def test_create_stores_tags(knowledge_store: KnowledgeStore):
 
 
 async def test_get_nonexistent_returns_none(knowledge_store: KnowledgeStore):
-    result = await knowledge_store.get(uuid4())
+    result = await knowledge_store.get(KnowledgeId())
     assert result is None
 
 
@@ -136,7 +138,7 @@ async def test_search_no_results_for_unrelated(knowledge_store: KnowledgeStore):
 
 async def test_soft_delete_hides_article(knowledge_store: KnowledgeStore):
     a = await knowledge_store.create(_article("delete me"))
-    await knowledge_store.delete(a.id)
+    await knowledge_store.delete(DeleteKnowledge(id=a.id))
     result = await knowledge_store.get(a.id)
     assert result is None
 
@@ -144,14 +146,14 @@ async def test_soft_delete_hides_article(knowledge_store: KnowledgeStore):
 async def test_soft_deleted_excluded_from_list(knowledge_store: KnowledgeStore):
     a = await knowledge_store.create(_article("list exclusion"))
     count_before = len(await knowledge_store.fetch())
-    await knowledge_store.delete(a.id)
+    await knowledge_store.delete(DeleteKnowledge(id=a.id))
     count_after = len(await knowledge_store.fetch())
     assert count_after == count_before - 1
 
 
 async def test_soft_deleted_excluded_from_search(knowledge_store: KnowledgeStore):
     a = await knowledge_store.create(_article("unique xyzzy knowledge", "xyzzy content"))
-    await knowledge_store.delete(a.id)
+    await knowledge_store.delete(DeleteKnowledge(id=a.id))
     await knowledge_store.rebuild_fts()
     results = await knowledge_store.search("xyzzy")
     assert len(results) == 0

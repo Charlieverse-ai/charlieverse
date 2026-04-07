@@ -12,6 +12,7 @@ from charlieverse.memory.entities import (
     UpdateEntity,
 )
 from charlieverse.memory.sessions import SessionId
+from charlieverse.types.lists import TagList
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -24,6 +25,7 @@ def _new(content: str, type: EntityType = EntityType.decision, **kw) -> NewEntit
     return NewEntity(
         type=type,
         content=content,
+        tags=kw.pop("tags", ["test"]),
         created_session_id=_SESSION,
         **kw,
     )
@@ -74,14 +76,14 @@ async def test_get_nonexistent_returns_none(memory_store):
 async def test_list_returns_all_active(memory_store):
     await memory_store.create(_new("entity one"))
     await memory_store.create(_new("entity two"))
-    results = await memory_store.list()
+    results = await memory_store.fetch()
     assert len(results) >= 2
 
 
 async def test_list_filters_by_type(memory_store):
     await memory_store.create(_new("decision one", type=EntityType.decision))
     await memory_store.create(_new("preference one", type=EntityType.preference))
-    decisions = await memory_store.list(entity_type=EntityType.decision)
+    decisions = await memory_store.fetch(entity_type=EntityType.decision)
     for e in decisions:
         assert e.type == EntityType.decision
 
@@ -121,7 +123,7 @@ async def test_update_changes_content(memory_store):
 
 async def test_update_changes_tags(memory_store):
     e = await memory_store.create(_new("tag test", tags=["old"]))
-    await memory_store.update(UpdateEntity(id=e.id, tags=["new", "tags"]))
+    await memory_store.update(UpdateEntity(id=e.id, tags=TagList(["new", "tags"])))
     fetched = await memory_store.get(e.id)
     assert fetched is not None
     assert fetched.tags == ["new", "tags"]
@@ -149,9 +151,9 @@ async def test_soft_deleted_excluded_from_search(memory_store):
 
 async def test_soft_deleted_excluded_from_list(memory_store):
     e = await memory_store.create(_new("list exclusion test"))
-    count_before = len(await memory_store.list())
+    count_before = len(await memory_store.fetch())
     await memory_store.delete(DeleteEntity(id=e.id))
-    count_after = len(await memory_store.list())
+    count_after = len(await memory_store.fetch())
     assert count_after == count_before - 1
 
 
@@ -198,7 +200,7 @@ async def test_list_orders_by_updated_at_desc(memory_store):
 
     await memory_store.update(UpdateEntity(id=e_first.id, content="created first — updated"))
 
-    results = await memory_store.list()
+    results = await memory_store.fetch()
     ids = [e.id for e in results]
     assert ids.index(e_first.id) < ids.index(e_second.id), "The updated entity should appear before the not-updated one"
 
@@ -210,6 +212,6 @@ async def test_list_filtered_by_type_orders_by_updated_at_desc(memory_store):
 
     await memory_store.update(UpdateEntity(id=e_old.id, content="old moment — refreshed"))
 
-    results = await memory_store.list(entity_type=EntityType.moment)
+    results = await memory_store.fetch(entity_type=EntityType.moment)
     ids = [e.id for e in results]
     assert ids.index(e_old.id) < ids.index(e_new.id), "The updated moment should appear first when filtering by type"

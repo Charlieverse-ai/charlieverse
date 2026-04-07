@@ -11,7 +11,9 @@ from charlieverse.db import database
 from charlieverse.embeddings import EMBEDDING_DIM
 from charlieverse.memory.entities import EntityStore
 from charlieverse.memory.knowledge import KnowledgeStore
+from charlieverse.memory.messages.store import MessageStore
 from charlieverse.memory.sessions.store import SessionStore
+from charlieverse.memory.stores import Stores
 from charlieverse.memory.stories import StoryStore
 
 
@@ -45,6 +47,24 @@ async def story_store(db):
 async def session_store(db):
     """SessionStore backed by the shared in-memory database."""
     return SessionStore(db)
+
+
+@pytest_asyncio.fixture
+async def message_store(db):
+    """MessageStore backed by the shared in-memory database."""
+    return MessageStore(db)
+
+
+@pytest_asyncio.fixture
+async def stores(memory_store, knowledge_store, session_store, story_store, message_store):
+    """Stores aggregate backed by the shared in-memory database."""
+    return Stores(
+        memories=memory_store,
+        knowledge=knowledge_store,
+        sessions=session_store,
+        stories=story_store,
+        messages=message_store,
+    )
 
 
 @pytest.fixture

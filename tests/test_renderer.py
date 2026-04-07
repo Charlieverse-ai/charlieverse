@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
-from uuid import uuid4
-
-from charlieverse.models import ContextMessage
 
 from charlieverse.context.builder import ContextBundle
 from charlieverse.context.renderer import (
@@ -20,8 +17,10 @@ from charlieverse.context.renderer import (
 )
 from charlieverse.memory.entities import Entity, EntityType
 from charlieverse.memory.knowledge import Knowledge
-from charlieverse.memory.sessions import Session
+from charlieverse.memory.messages import Message, MessageId, MessageRole
+from charlieverse.memory.sessions import Session, SessionId
 from charlieverse.memory.stories import Story
+from charlieverse.types.dates import LocalDatetime, UTCDatetime
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -34,10 +33,19 @@ def _session(
     workspace: str = "/workspace/path",
     updated_at: datetime | None = None,
 ) -> Session:
-    s = Session(what_happened=what_happened, for_next_session=for_next_session, workspace=workspace, tags=["tag"])
-    if updated_at:
-        s = s.model_copy(update={"updated_at": updated_at})
-    return s
+    from charlieverse.memory.sessions import SessionId
+
+    now = updated_at or datetime.now(UTC)
+    return Session.model_construct(
+        id=SessionId(),
+        what_happened=what_happened,
+        for_next_session=for_next_session,
+        workspace=workspace,
+        tags=["tag"],
+        created_at=now,
+        updated_at=now,
+        deleted_at=None,
+    )
 
 
 def _entity(
@@ -45,14 +53,22 @@ def _entity(
     type: EntityType = EntityType.decision,
     updated_at: datetime | None = None,
 ) -> Entity:
-    e = Entity(
+    from charlieverse.memory.entities import EntityId
+    from charlieverse.memory.sessions import SessionId
+
+    now = updated_at or datetime.now(UTC)
+    return Entity.model_construct(
+        id=EntityId(),
         type=type,
         content=content,
-        created_session_id=uuid4(),
+        tags=None,
+        pinned=False,
+        created_session_id=SessionId(),
+        updated_session_id=None,
+        created_at=now,
+        updated_at=now,
+        deleted_at=None,
     )
-    if updated_at:
-        e = e.model_copy(update={"updated_at": updated_at})
-    return e
 
 
 def _bundle(**kwargs) -> ContextBundle:
@@ -193,20 +209,20 @@ def test_very_important_tag_used_not_important():
 
 
 def test_date_group_key_today():
-    now = datetime.now().astimezone()
+    now = LocalDatetime(datetime.now().astimezone())
     assert _date_group_key(now, now) == "Today"
 
 
 def test_date_group_key_yesterday():
-    now = datetime.now().astimezone()
-    yesterday = now - timedelta(days=1)
+    now = LocalDatetime(datetime.now().astimezone())
+    yesterday = LocalDatetime(now - timedelta(days=1))
     result = _date_group_key(yesterday, now)
     assert result.startswith("Yesterday")
 
 
 def test_date_group_key_older():
-    now = datetime.now().astimezone()
-    older = now - timedelta(days=5)
+    now = LocalDatetime(datetime.now().astimezone())
+    older = LocalDatetime(now - timedelta(days=5))
     result = _date_group_key(older, now)
     # Should be a full date string, not Today/Yesterday
     assert result not in ("Today",) and not result.startswith("Yesterday")
@@ -218,34 +234,34 @@ def test_date_group_key_older():
 
 
 def test_session_time_just_now():
-    now = datetime.now().astimezone()
-    result = _session_time(now - timedelta(seconds=10), now)
+    now = LocalDatetime(datetime.now().astimezone())
+    result = _session_time(UTCDatetime(now - timedelta(seconds=10)), now)
     assert "just now" in result
 
 
 def test_session_time_minutes_ago():
-    now = datetime.now().astimezone()
-    result = _session_time(now - timedelta(minutes=30), now)
+    now = LocalDatetime(datetime.now().astimezone())
+    result = _session_time(UTCDatetime(now - timedelta(minutes=30)), now)
     assert "minutes ago" in result
 
 
 def test_session_time_hours_ago():
-    now = datetime.now().astimezone()
-    result = _session_time(now - timedelta(hours=3), now)
+    now = LocalDatetime(datetime.now().astimezone())
+    result = _session_time(UTCDatetime(now - timedelta(hours=3)), now)
     assert "hours ago" in result
 
 
 def test_session_time_yesterday_returns_time_only():
-    now = datetime.now().astimezone()
-    yesterday = now - timedelta(days=1)
+    now = LocalDatetime(datetime.now().astimezone())
+    yesterday = UTCDatetime(now - timedelta(days=1))
     result = _session_time(yesterday, now)
     # Should not include "ago" — just a time string
     assert "ago" not in result
 
 
 def test_session_time_one_minute_ago():
-    now = datetime.now().astimezone()
-    result = _session_time(now - timedelta(seconds=65), now)
+    now = LocalDatetime(datetime.now().astimezone())
+    result = _session_time(UTCDatetime(now - timedelta(seconds=65)), now)
     assert "1 minute ago" in result
 
 
@@ -255,7 +271,24 @@ def test_session_time_one_minute_ago():
 
 
 def _story(title: str = "Our Story", content: str = "Chapter 1") -> Story:
-    return Story(title=title, content=content)
+    from charlieverse.memory.stories import StoryId, StoryTier
+
+    now = datetime.now(UTC)
+    return Story.model_construct(
+        id=StoryId(),
+        title=title,
+        summary=None,
+        content=content,
+        tier=StoryTier.all_time,
+        period_start=None,
+        period_end=None,
+        workspace=None,
+        session_id=None,
+        tags=None,
+        created_at=now,
+        updated_at=now,
+        deleted_at=None,
+    )
 
 
 def test_render_all_time_story_contains_content_only():
@@ -315,13 +348,13 @@ def test_parse_period_date_invalid_returns_none():
 
 
 def test_render_tricks_returns_empty_when_no_tricks():
-    with patch("charlieverse.skills._discover_skills", return_value=[]):
+    with patch("charlieverse.helpers.skills._discover_skills", return_value=[]):
         result = _render_tricks(workspace=None)
     assert result == ""
 
 
 def test_render_tricks_returns_empty_on_exception():
-    with patch("charlieverse.skills._discover_skills", side_effect=Exception("boom")):
+    with patch("charlieverse.helpers.skills._discover_skills", side_effect=Exception("boom")):
         result = _render_tricks(workspace=None)
     assert result == ""
 
@@ -329,7 +362,7 @@ def test_render_tricks_returns_empty_on_exception():
 def test_render_tricks_formats_tricks_with_description(tmp_path):
     skill_path = str(tmp_path / "my-trick" / "SKILL.md")
     tricks = [{"name": "my-trick", "description": "does cool things", "path": skill_path}]
-    with patch("charlieverse.skills._discover_skills", return_value=tricks):
+    with patch("charlieverse.helpers.skills._discover_skills", return_value=tricks):
         result = _render_tricks(workspace=None)
     assert "<tricks>" in result
     assert "my-trick" in result
@@ -339,7 +372,7 @@ def test_render_tricks_formats_tricks_with_description(tmp_path):
 def test_render_tricks_formats_tricks_without_description(tmp_path):
     skill_path = str(tmp_path / "bare-trick" / "SKILL.md")
     tricks = [{"name": "bare-trick", "description": "", "path": skill_path}]
-    with patch("charlieverse.skills._discover_skills", return_value=tricks):
+    with patch("charlieverse.helpers.skills._discover_skills", return_value=tricks):
         result = _render_tricks(workspace=None)
     assert "bare-trick" in result
 
@@ -350,10 +383,21 @@ def test_render_tricks_formats_tricks_without_description(tmp_path):
 
 
 def _knowledge(topic: str = "Python", content: str = "Use type hints.") -> Knowledge:
-    return Knowledge(
+    from charlieverse.memory.knowledge import KnowledgeId
+    from charlieverse.memory.sessions import SessionId
+
+    now = datetime.now(UTC)
+    return Knowledge.model_construct(
+        id=KnowledgeId(),
         topic=topic,
         content=content,
-        created_session_id=uuid4(),
+        tags=None,
+        pinned=False,
+        created_session_id=SessionId(),
+        updated_session_id=None,
+        created_at=now,
+        updated_at=now,
+        deleted_at=None,
     )
 
 
@@ -522,9 +566,11 @@ def test_render_workspace_directory_none_renders_none():
 # ---------------------------------------------------------------------------
 
 
-def _context_message(role: str = "user", content: str = "hello", offset_seconds: int = 60) -> ContextMessage:
-    return ContextMessage(
-        role=role,
+def _context_message(role: str = "user", content: str = "hello", offset_seconds: int = 60) -> Message:
+    return Message.model_construct(
+        id=MessageId(),
+        session_id=SessionId(),
+        role=MessageRole(role),
         content=content,
         created_at=datetime.now(UTC) - timedelta(seconds=offset_seconds),
     )
