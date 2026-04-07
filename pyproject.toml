@@ -114,6 +114,3 @@ error-on-warning = true
 [tool.ty.src]
 include = ["charlieverse", "tests"]
 exclude = ["**/node_modules", "**/__pycache__", ".venv", ".git", "dist"]
-
-# [tool.ruff.lint.isort]
-# known-first-party = ["fastmcp"]

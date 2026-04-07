@@ -8,14 +8,11 @@ from __future__ import annotations
 from pathlib import Path
 
 _PKG_DIR = Path(__file__).resolve().parent
-_REPO_DIR = _PKG_DIR.parent
+_REPO_DIR = _PKG_DIR.parent.parent
 
 
 def _find(relative: str) -> Path | None:
     """Find a path relative to either the package dir or the repo root."""
-    bundled = _PKG_DIR / relative
-    if bundled.exists():
-        return bundled
     repo = _REPO_DIR / relative
     if repo.exists():
         return repo
