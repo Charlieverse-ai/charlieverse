@@ -8,7 +8,7 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, PlainTextResponse
 
-from charlieverse.paths import web_dist
+from charlieverse.helpers.paths import web_dist
 
 _WEB_DIST: Path | None = web_dist()
 

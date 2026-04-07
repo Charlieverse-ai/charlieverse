@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Self
 
-import aiosqlite
+from aiosqlite import Row
 from pydantic import BaseModel, Field
 
 from charlieverse.types.dates import UTCDatetime, from_iso, from_iso_or_none, utc_now
@@ -18,8 +18,6 @@ class SessionId(ModelId):
 
 
 class Session(BaseModel):
-    """A conversation session with Charlie."""
-
     id: SessionId
     what_happened: ShortDescription
     for_next_session: ShortDescription
@@ -34,7 +32,7 @@ class Session(BaseModel):
         return self.deleted_at is not None
 
     @classmethod
-    def from_row(cls, row: aiosqlite.Row) -> Self:
+    def from_row(cls, row: Row) -> Self:
         from charlieverse.types.lists import decode_tag_list
 
         return cls.model_construct(

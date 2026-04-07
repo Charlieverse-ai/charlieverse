@@ -61,7 +61,7 @@ async def test_get_nonexistent_returns_none(knowledge_store: KnowledgeStore):
 async def test_list_returns_all_active(knowledge_store: KnowledgeStore):
     await knowledge_store.create(_article("article one"))
     await knowledge_store.create(_article("article two"))
-    results = await knowledge_store.list()
+    results = await knowledge_store.fetch()
     assert len(results) >= 2
 
 
@@ -143,9 +143,9 @@ async def test_soft_delete_hides_article(knowledge_store: KnowledgeStore):
 
 async def test_soft_deleted_excluded_from_list(knowledge_store: KnowledgeStore):
     a = await knowledge_store.create(_article("list exclusion"))
-    count_before = len(await knowledge_store.list())
+    count_before = len(await knowledge_store.fetch())
     await knowledge_store.delete(a.id)
-    count_after = len(await knowledge_store.list())
+    count_after = len(await knowledge_store.fetch())
     assert count_after == count_before - 1
 
 

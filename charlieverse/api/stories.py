@@ -54,7 +54,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
             limit = int(request.query_params.get("limit", "50"))
 
             tier = StoryTier(tier_param) if tier_param else None
-            story_list = await stories.list(tier=tier, limit=limit)
+            story_list = await stories.fetch(tier=tier, limit=limit)
             return ModelListResponse(story_list)
         except Exception as e:
             return ExceptionResponse(e)

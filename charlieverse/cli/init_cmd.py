@@ -12,8 +12,8 @@ from pathlib import Path
 
 import typer
 
-from charlieverse import paths
 from charlieverse.config import config
+from charlieverse.helpers import paths
 
 # ── Formatting helpers ────────────────────────────────────────────────────────
 

@@ -71,7 +71,7 @@ class ActivationBuilder:
         recent_sessions = await self.stores.sessions.recent(limit=1)
 
         # Fetch moments — personality entities, always global
-        moments = await self.stores.memories.list(entity_type=EntityType.moment, limit=50)
+        moments = await self.stores.memories.fetch(entity_type=EntityType.moment, limit=50)
 
         # Fetch pinned entities
         pinned_entities = await self.stores.memories.pinned()
@@ -89,7 +89,7 @@ class ActivationBuilder:
 
         today = local_now().strftime("%Y-%m-%d")
 
-        weekly_stories = await self.stores.stories.list(
+        weekly_stories = await self.stores.stories.fetch(
             tier=StoryTier.weekly,
             limit=4,
         )

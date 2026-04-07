@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import builtins
 import logging
 
-import aiosqlite
+from aiosqlite import Connection
 
 from charlieverse.memory.sessions import SessionId
 from charlieverse.types.dates import utc_now
@@ -24,7 +23,7 @@ class StoryError(Exception):
 class StoryStore:
     """Store for story arc operations. The only place stories are queried."""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
+    def __init__(self, db: Connection) -> None:
         self.db = db
         self._vec_lock = asyncio.Lock()
 
@@ -155,7 +154,7 @@ class StoryStore:
     async def periods_by_tier(
         self,
         tier: StoryTier,
-    ) -> builtins.list[tuple[str, str]]:
+    ) -> list[tuple[str, str]]:
         """Return (period_start, period_end) pairs for all non-deleted stories at a tier."""
         cursor = await self.db.execute(
             "SELECT period_start, period_end FROM stories WHERE tier = ? AND deleted_at IS NULL",
@@ -191,11 +190,11 @@ class StoryStore:
         row = await cursor.fetchone()
         return Story.from_row(row) if row else None
 
-    async def list(
+    async def fetch(
         self,
         tier: StoryTier | None = None,
         limit: int = 50,
-    ) -> builtins.list[Story]:
+    ) -> list[Story]:
         """List stories, optionally filtered by tier."""
         if tier:
             cursor = await self.db.execute(
@@ -215,7 +214,7 @@ class StoryStore:
         end: str,
         limit: int = 5,
         workspace: str | None = None,
-    ) -> builtins.list[Story]:
+    ) -> list[Story]:
         """Find stories whose period overlaps the given range."""
         cursor = await self.db.execute(
             """SELECT * FROM stories
@@ -245,7 +244,7 @@ class StoryStore:
         period_start: str | None = None,
         period_end: str | None = None,
         limit: int = 5,
-    ) -> builtins.list[Story]:
+    ) -> list[Story]:
         """FTS search with optional date range filter."""
         if not query and period_start and period_end:
             return await self.find_by_period(period_start, period_end, limit)
@@ -286,11 +285,11 @@ class StoryStore:
 
     async def search_by_vector(
         self,
-        embedding: builtins.list[float],
+        embedding: list[float],
         period_start: str | None = None,
         period_end: str | None = None,
         limit: int = 5,
-    ) -> builtins.list[Story]:
+    ) -> list[Story]:
         """Vector similarity search with optional date range filter."""
         from sqlite_vec import serialize_float32
 
@@ -393,14 +392,14 @@ class StoryStore:
 
         from charlieverse.embeddings import encode
 
-        all_stories = await self.list(limit=1000)
+        all_stories = await self.fetch(limit=1000)
         if not all_stories:
             return
 
         texts = [f"{story.title}\n{story.summary or ''}\n{story.content}" for story in all_stories]
         embeddings = await encode(texts)
 
-        rows: builtins.list[tuple[int, bytes]] = []
+        rows: list[tuple[int, bytes]] = []
         for story, embedding in zip(all_stories, embeddings, strict=True):
             try:
                 cursor = await self.db.execute("SELECT rowid FROM stories WHERE id = ?", (story.id,))

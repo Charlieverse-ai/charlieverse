@@ -142,3 +142,7 @@ def _evict_stale_seen_ids() -> None:
     stale = [k for k, (_, ts) in _activation_seen_ids.items() if now - ts > _SEEN_IDS_TTL]
     for k in stale:
         del _activation_seen_ids[k]
+
+
+if __name__ == "__main__":
+    asyncio.run(start_server(host=config.server.host, port=config.server.port))

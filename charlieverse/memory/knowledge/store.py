@@ -6,10 +6,9 @@ This is the only place knowledge is queried.
 from __future__ import annotations
 
 import asyncio
-import builtins
 import logging
 
-import aiosqlite
+from aiosqlite import Connection
 
 from charlieverse.memory.sessions import SessionId
 from charlieverse.types.dates import UTCDatetime
@@ -27,7 +26,7 @@ class KnowledgeError(Exception):
 class KnowledgeStore:
     """Store for knowledge/expertise article operations."""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
+    def __init__(self, db: Connection) -> None:
         self.db = db
         self._vec_lock = asyncio.Lock()
 
@@ -131,7 +130,7 @@ class KnowledgeStore:
         row = await cursor.fetchone()
         return Knowledge.from_row(row) if row else None
 
-    async def list(self, limit: int = 50) -> builtins.list[Knowledge]:
+    async def fetch(self, limit: int = 50) -> list[Knowledge]:
         """List active knowledge articles."""
         cursor = await self.db.execute(
             "SELECT * FROM knowledge WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?",
@@ -139,14 +138,14 @@ class KnowledgeStore:
         )
         return [Knowledge.from_row(row) for row in await cursor.fetchall()]
 
-    async def pinned(self) -> builtins.list[Knowledge]:
+    async def pinned(self) -> list[Knowledge]:
         """Fetch all pinned, active knowledge articles."""
         cursor = await self.db.execute(
             "SELECT * FROM knowledge WHERE pinned = 1 AND deleted_at IS NULL ORDER BY topic",
         )
         return [Knowledge.from_row(row) for row in await cursor.fetchall()]
 
-    async def for_session(self, session_id: SessionId) -> builtins.list[Knowledge]:
+    async def for_session(self, session_id: SessionId) -> list[Knowledge]:
         """Fetch active knowledge articles created within a single session."""
         cursor = await self.db.execute(
             """SELECT * FROM knowledge
@@ -156,7 +155,7 @@ class KnowledgeStore:
         )
         return [Knowledge.from_row(row) for row in await cursor.fetchall()]
 
-    async def created_since(self, since: UTCDatetime) -> builtins.list[Knowledge]:
+    async def created_since(self, since: UTCDatetime) -> list[Knowledge]:
         """Fetch active knowledge articles created at or after the given timestamp."""
         cursor = await self.db.execute(
             """SELECT * FROM knowledge
@@ -189,7 +188,7 @@ class KnowledgeStore:
     # Search
     # ------------------------------------------------------------------
 
-    async def search(self, query: str, include_pinned: bool = True, limit: int = 10) -> builtins.list[Knowledge]:
+    async def search(self, query: str, include_pinned: bool = True, limit: int = 10) -> list[Knowledge]:
         """Full-text search across knowledge using FTS5 + BM25 ranking."""
         from charlieverse.db.fts import sanitize_fts_query
 
@@ -211,9 +210,9 @@ class KnowledgeStore:
 
     async def search_by_vector(
         self,
-        embedding: builtins.list[float],
+        embedding: list[float],
         limit: int = 10,
-    ) -> builtins.list[Knowledge]:
+    ) -> list[Knowledge]:
         """Semantic search using sqlite-vec."""
         from sqlite_vec import serialize_float32
 
@@ -232,7 +231,7 @@ class KnowledgeStore:
     async def upsert_embedding(
         self,
         knowledge_id: KnowledgeId,
-        embedding: builtins.list[float],
+        embedding: list[float],
     ) -> None:
         """Store or update the embedding for a knowledge article."""
         from sqlite_vec import serialize_float32
@@ -319,14 +318,14 @@ class KnowledgeStore:
 
         from charlieverse.embeddings import encode
 
-        articles = await self.list(limit=5000)
+        articles = await self.fetch(limit=5000)
         if not articles:
             return
 
         texts = [f"{article.topic} {article.content}" for article in articles]
         embeddings = await encode(texts)
 
-        rows: builtins.list[tuple[int, bytes]] = []
+        rows: list[tuple[int, bytes]] = []
         for article, embedding in zip(articles, embeddings, strict=True):
             try:
                 cursor = await self.db.execute(

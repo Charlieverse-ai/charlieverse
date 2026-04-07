@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from charlieverse.config import config
-from charlieverse.skills import (
+from charlieverse.helpers.skills import (
     _discover_skills,
     _find_skill,
     _parse_frontmatter,

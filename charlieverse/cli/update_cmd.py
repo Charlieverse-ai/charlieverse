@@ -7,7 +7,7 @@ from pathlib import Path
 
 import typer
 
-from charlieverse import paths
+from charlieverse.helpers import paths
 
 _PKG_DIR = Path(__file__).resolve().parent.parent
 _REPO_DIR = _PKG_DIR.parent

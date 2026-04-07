@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 
-from charlieverse import paths
 from charlieverse.context.builder import ContextBundle
+from charlieverse.helpers import paths
 from charlieverse.helpers.time_utils import relative_date
 from charlieverse.memory.entities import Entity, EntityType
 from charlieverse.memory.messages import Message
@@ -152,7 +152,7 @@ def _render_first_run(bundle: ContextBundle) -> str:
 def _render_tricks(workspace: str | None) -> str:
     """Discover tricks and render them for the activation context."""
     try:
-        from charlieverse.skills import _discover_skills
+        from charlieverse.helpers.skills import _discover_skills
 
         tricks = _discover_skills()
     except Exception:

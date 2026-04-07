@@ -15,10 +15,10 @@ from charlieverse.api.responses.permalink import PermalinkResponse
 from charlieverse.api.responses.summaries import EntitySummary, KnowledgeSummary, StorySummary
 from charlieverse.embeddings import encode_one, prepare_entity_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
+from charlieverse.helpers.tasks import track_task
 from charlieverse.memory.entities import DeleteEntity, Entity, EntityId, EntityStore, EntityType, NewEntity, UpdateEntity
 from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.stores import Stores
-from charlieverse.tasks import track_task
 from charlieverse.types.dates import utc_now
 from charlieverse.types.id import ModelId
 from charlieverse.types.lists import TagList

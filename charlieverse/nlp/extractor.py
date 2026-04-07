@@ -158,12 +158,11 @@ def _resolve_date_range(text: str, now: UTCDatetime | None = None) -> TemporalRe
     return TemporalRef(text=text, start=UTCDatetime(start), end=UTCDatetime(end))
 
 
-def extract_entities(text: str, max_length: int = 1000) -> list[str]:
+def extract_entities(text: str) -> list[str]:
     """Extract named entities and key noun phrases from text.
 
     Args:
         text: Input text to analyze.
-        max_length: Truncate text to this length before processing (speed guard).
 
     Returns:
         Deduplicated list of extracted terms, ordered by appearance.
@@ -192,7 +191,7 @@ def extract_entities(text: str, max_length: int = 1000) -> list[str]:
     return terms
 
 
-def extract_temporal_refs(text: str, max_length: int = 1000) -> list[TemporalRef]:
+def extract_temporal_refs(text: str) -> list[TemporalRef]:
     """Extract and resolve temporal references from text.
 
     Returns resolved date ranges for expressions like "last week",

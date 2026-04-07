@@ -4,7 +4,7 @@ import asyncio
 import logging
 import re
 
-import aiosqlite
+from aiosqlite import Connection
 
 from charlieverse.db.fts import sanitize_fts_query
 from charlieverse.memory.sessions import SessionId
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class MessageStore:
-    def __init__(self, db: aiosqlite.Connection) -> None:
+    def __init__(self, db: Connection) -> None:
         self.db = db
         self._vec_lock = asyncio.Lock()
 

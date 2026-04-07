@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import aiosqlite
+from aiosqlite import Connection
 
 from .models import DeleteSession, NewSession, Session, SessionId, UpdateSession
 
@@ -14,7 +14,7 @@ class SessionError(Exception):
 class SessionStore:
     """Store for session operations."""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
+    def __init__(self, db: Connection) -> None:
         self.db = db
 
     async def create(self, session: NewSession) -> SessionId:

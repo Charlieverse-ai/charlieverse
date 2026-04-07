@@ -69,7 +69,7 @@ async def list(
     """List stories, optionally filtered by tier (session, daily, weekly, monthly, all-time)."""
     story_store = Stores.from_context(ctx).stories
 
-    stories = await story_store.list(tier=tier, limit=limit)
+    stories = await story_store.fetch(tier=tier, limit=limit)
     return ModelListResponse(stories)
 
 

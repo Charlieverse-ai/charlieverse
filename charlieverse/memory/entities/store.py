@@ -6,7 +6,6 @@ This is the only place entities are queried.
 from __future__ import annotations
 
 import asyncio
-import builtins
 import logging
 
 import aiosqlite
@@ -104,11 +103,11 @@ class EntityStore:
         row = await cursor.fetchone()
         return Entity.from_row(row) if row else None
 
-    async def list(
+    async def fetch(
         self,
         entity_type: EntityType | None = None,
         limit: int = 50,
-    ) -> builtins.list[Entity]:
+    ) -> list[Entity]:
         """List active entities, optionally filtered by type."""
         if entity_type:
             cursor = await self.db.execute(
@@ -122,14 +121,14 @@ class EntityStore:
             )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 
-    async def pinned(self) -> builtins.list[Entity]:
+    async def pinned(self) -> list[Entity]:
         """Fetch all pinned, active entities."""
         cursor = await self.db.execute(
             "SELECT * FROM entities WHERE pinned = 1 AND deleted_at IS NULL ORDER BY created_at DESC",
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 
-    async def for_sessions(self, session_ids: builtins.list[SessionId]) -> builtins.list[Entity]:
+    async def for_sessions(self, session_ids: list[SessionId]) -> list[Entity]:
         """Fetch active entities linked to the given sessions."""
         if not session_ids:
             return []
@@ -143,7 +142,7 @@ class EntityStore:
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 
-    async def for_session(self, session_id: SessionId) -> builtins.list[Entity]:
+    async def for_session(self, session_id: SessionId) -> list[Entity]:
         """Fetch active entities created within a single session."""
         cursor = await self.db.execute(
             """SELECT * FROM entities
@@ -153,7 +152,7 @@ class EntityStore:
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 
-    async def created_since(self, since: UTCDatetime) -> builtins.list[Entity]:
+    async def created_since(self, since: UTCDatetime) -> list[Entity]:
         """Fetch active entities created at or after the given timestamp."""
         cursor = await self.db.execute(
             """SELECT * FROM entities
@@ -184,7 +183,7 @@ class EntityStore:
     # Search
     # ------------------------------------------------------------------
 
-    async def search(self, query: str, include_pinned: bool = True, limit: int = 10) -> builtins.list[Entity]:
+    async def search(self, query: str, include_pinned: bool = True, limit: int = 10) -> list[Entity]:
         """Full-text search across entities using FTS5 + BM25 ranking."""
         from charlieverse.db.fts import sanitize_fts_query
 
@@ -207,9 +206,9 @@ class EntityStore:
 
     async def search_by_vector(
         self,
-        embedding: builtins.list[float],
+        embedding: list[float],
         limit: int = 10,
-    ) -> builtins.list[Entity]:
+    ) -> list[Entity]:
         """Semantic search using sqlite-vec cosine similarity."""
         from sqlite_vec import serialize_float32
 
@@ -225,7 +224,7 @@ class EntityStore:
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 
-    async def upsert_embedding(self, entity_id: EntityId, embedding: builtins.list[float]) -> None:
+    async def upsert_embedding(self, entity_id: EntityId, embedding: list[float]) -> None:
         """Store or update the embedding for an entity."""
         from sqlite_vec import serialize_float32
 
@@ -313,14 +312,14 @@ class EntityStore:
 
         from charlieverse.embeddings import encode, prepare_entity_text
 
-        entities = await self.list(limit=5000)
+        entities = await self.fetch(limit=5000)
         if not entities:
             return
 
         texts = [prepare_entity_text(entity.content, entity.tags) for entity in entities]
         embeddings = await encode(texts)
 
-        rows: builtins.list[tuple[int, bytes]] = []
+        rows: list[tuple[int, bytes]] = []
         for entity, embedding in zip(entities, embeddings, strict=True):
             try:
                 cursor = await self.db.execute(

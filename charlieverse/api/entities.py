@@ -56,7 +56,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
             limit = int(request.query_params.get("limit", "100"))
 
             entity_type = EntityType(type_param) if type_param else None
-            entities = await memories.list(entity_type=entity_type, limit=limit)
+            entities = await memories.fetch(entity_type=entity_type, limit=limit)
 
             return ModelListResponse(entities)
         except Exception as e:
@@ -180,7 +180,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
             knowledge: KnowledgeStore = rest_stores.knowledge
             limit = int(request.query_params.get("limit", "50"))
 
-            articles = await knowledge.list(limit=limit)
+            articles = await knowledge.fetch(limit=limit)
             return ModelListResponse(articles)
         except Exception as e:
             return ExceptionResponse(e)

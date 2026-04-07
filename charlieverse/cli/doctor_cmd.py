@@ -19,8 +19,8 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from charlieverse import paths
 from charlieverse.config import config
+from charlieverse.helpers import paths
 
 console = Console()
 
