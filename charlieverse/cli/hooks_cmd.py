@@ -268,7 +268,7 @@ async def _session_start(host: str, port: int, source: str, context: IncomingHoo
     result = _build_context_static(activation)
 
     # Run user hooks from ~/.charlieverse/hooks/session-start/
-    user_hook_output = await _run_user_hooks("session-start", session_id=str(context.session_id), workspace=context.workspace)
+    user_hook_output = await _run_user_hooks("session-start", session_id=context.session_id, workspace=context.workspace)
 
     if user_hook_output:
         result += user_hook_output

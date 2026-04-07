@@ -4,7 +4,6 @@ from collections.abc import Callable
 from typing import Any, Self
 from uuid import UUID
 
-from pydantic import model_serializer
 from pydantic_core import CoreSchema, core_schema
 
 from charlieverse.helpers.uuid import create_uuid, uuid_from_str
@@ -18,32 +17,26 @@ class ParseError(Exception):
 __default_uuid__ = "__default_uuid__"
 
 
-class ModelId:
+class ModelId(str):
     _uuid: UUID
 
-    def __init__(self, value: str | None | UUID | ModelId = __default_uuid__) -> None:
+    def __new__(cls, value: str | None | UUID | ModelId = __default_uuid__) -> Self:
         if isinstance(value, ModelId):
-            self._uuid = value._uuid
-            return super().__init__()
+            return super().__new__(cls, str(value._uuid))
 
         if value is __default_uuid__:
-            self._uuid = create_uuid()
-            return super().__init__()
+            # self._uuid = create_uuid()
+            return super().__new__(cls, str(create_uuid()))
 
         if isinstance(value, UUID):
-            self._uuid = value
-            return super().__init__()
+            return super().__new__(cls, str(value))
 
         parsed_uuid = uuid_from_str(value)
         if not parsed_uuid:
             raise ParseError(f"{value} was not a valid UUID")
 
-        self._uuid = parsed_uuid
-        return super().__init__()
-
-    @model_serializer(mode="plain")
-    def serialize_model(self) -> str:
-        return str(self._uuid)
+        # self._uuid = parsed_uuid
+        return super().__new__(cls, str(parsed_uuid))
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -62,12 +55,6 @@ class ModelId:
         from_string_or_uuid = core_schema.chain_schema(
             [
                 core_schema.uuid_schema(),
-                # core_schema.union_schema(
-                #     [
-                #         core_schema.str_schema(),
-                #         core_schema.uuid_schema(),
-                #     ]
-                # ),
                 core_schema.no_info_plain_validator_function(validate_uuid),
             ]
         )
@@ -84,6 +71,3 @@ class ModelId:
         )
 
         return core_schema.no_info_plain_validator_function(validate_uuid)
-
-    def __str__(self):
-        return str(self._uuid)

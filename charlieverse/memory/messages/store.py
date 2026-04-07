@@ -89,7 +89,7 @@ class MessageStore:
         # Grab more than we need so we can filter noise and still hit the turn count
         fetch_limit = turns * 6  # generous buffer for filtered messages
         cursor = await self.db.execute(
-            """SELECT role, content, created_at FROM messages
+            """SELECT * FROM messages
                ORDER BY created_at DESC
                LIMIT ?""",
             (fetch_limit,),
@@ -126,14 +126,14 @@ class MessageStore:
         """Fetch all messages for a session, optionally after a cutoff."""
         if since is not None:
             cursor = await self.db.execute(
-                """SELECT role, content, created_at FROM messages
+                """SELECT * FROM messages
                    WHERE session_id = ? AND created_at > ?
                    ORDER BY created_at ASC""",
                 (str(session_id), since.isoformat()),
             )
         else:
             cursor = await self.db.execute(
-                """SELECT role, content, created_at FROM messages
+                """SELECT * FROM messages
                    WHERE session_id = ?
                    ORDER BY created_at ASC""",
                 (str(session_id),),
