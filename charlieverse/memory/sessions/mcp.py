@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastmcp import Context, FastMCP
 from fastmcp.server.dependencies import CurrentContext
 
-from charlieverse.api.responses.permalink import PermalinkResponse
 from charlieverse.memory.stores import Stores
+from charlieverse.server.responses.permalink import PermalinkResponse
 from charlieverse.types.lists import TagList
 from charlieverse.types.strings import NonEmptyString
 

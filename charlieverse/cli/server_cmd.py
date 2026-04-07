@@ -221,7 +221,7 @@ def start(
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
 
-    from charlieverse.server import start_server
+    from charlieverse.server.start import start_server
 
     asyncio.run(start_server(host=host, port=port))
 

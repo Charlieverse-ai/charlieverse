@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from pathlib import Path
 
 from aiosqlite import Connection
 from fastmcp import FastMCP
 from fastmcp.server.lifespan import lifespan
+from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
 from rich.console import Console
 
-from charlieverse.api import entities, hooks, spa
-from charlieverse.api import stories as stories_api
 from charlieverse.config import config
 from charlieverse.db import database
 from charlieverse.memory.entities import EntityStore
@@ -21,25 +19,24 @@ from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.knowledge.mcp import server as knowledge
 from charlieverse.memory.messages.mcp import server as messages
 from charlieverse.memory.messages.store import MessageStore
-from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.sessions.mcp import server as sessions
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stores import Stores, _StoreContext
 from charlieverse.memory.stories import StoryStore
 from charlieverse.memory.stories.mcp import server as stories
-from charlieverse.types.id import ModelId
+from charlieverse.server.api import register_routes
 
 console = Console()
 
 
-async def connect_to_db() -> Connection:
+async def _connect_to_db() -> Connection:
     console.log("Connecting to Database")
     db_path: Path = config.database
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return await database.connect(db_path)
 
 
-async def setup_stores(db: Connection) -> _StoreContext:
+async def _setup_stores(db: Connection) -> _StoreContext:
     context: _StoreContext = {
         "memories": EntityStore(db),
         "sessions": SessionStore(db),
@@ -70,7 +67,7 @@ async def setup_stores(db: Connection) -> _StoreContext:
     return context
 
 
-async def prewarm():
+async def _prewarm():
     # os.environ["HF_HUB_VERBOSITY"] = "error"
     # os.environ["TRANSFORMERS_VERBOSITY"] = "error"
     # os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
@@ -86,9 +83,9 @@ async def prewarm():
 
 
 async def start_server(host: str, port: int):
-    await prewarm()
-    db = await connect_to_db()
-    store_context = await setup_stores(db)
+    await _prewarm()
+    db = await _connect_to_db()
+    store_context = await _setup_stores(db)
     stores = Stores.from_context(store_context)
 
     @lifespan
@@ -99,6 +96,10 @@ async def start_server(host: str, port: int):
 
     mcp = FastMCP("Charlieverse", lifespan=app_lifespan)
 
+    # Middleware
+    mcp.add_middleware(ErrorHandlingMiddleware(include_traceback=False, transform_errors=True))
+
+    # Mount
     mcp.mount(sessions, namespace="session")
     mcp.mount(stories, namespace="story")
     mcp.mount(knowledge, namespace="knowledge")
@@ -106,42 +107,10 @@ async def start_server(host: str, port: int):
     mcp.mount(messages, namespace="messages")
     mcp.mount(memories)
 
-    hooks.register_routes(mcp, stores)
-    entities.register_routes(mcp, stores)
-    stories_api.register_routes(mcp, stores)
-    spa.register_routes(mcp)
+    # Custom Routes
+    register_routes(mcp, stores)
 
     await mcp.run_async("http", host=host, port=port, show_banner=False)
-
-
-# Store references for REST routes (populated during lifespan).
-# Typed as dict so the api/ register_routes helpers (which accept dict) stay compatible.
-_rest_stores: dict = {}
-
-# session_id -> (IDs delivered at activation, timestamp).
-# Entries older than 24h are evicted on access to prevent unbounded growth (C-02).
-_SEEN_IDS_TTL = 86400  # 24 hours
-_activation_seen_ids: dict[ModelId, tuple[set[ModelId], float]] = {}
-
-
-def get_seen_ids(session_id: SessionId) -> set[ModelId]:
-    """Get the set of activation IDs for a session, with TTL eviction."""
-    _evict_stale_seen_ids()
-    entry = _activation_seen_ids.get(session_id)
-    return entry[0] if entry else set()
-
-
-def set_seen_ids(session_id: SessionId, ids: set[ModelId]) -> None:
-    """Store activation IDs for a session."""
-    _activation_seen_ids[session_id] = (ids, time.monotonic())
-
-
-def _evict_stale_seen_ids() -> None:
-    """Remove entries older than TTL."""
-    now = time.monotonic()
-    stale = [k for k, (_, ts) in _activation_seen_ids.items() if now - ts > _SEEN_IDS_TTL]
-    for k in stale:
-        del _activation_seen_ids[k]
 
 
 if __name__ == "__main__":

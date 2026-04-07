@@ -4,9 +4,9 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
-from charlieverse.api.responses import ModelListResponse
 from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.stores import Stores
+from charlieverse.server.responses import ModelListResponse
 from charlieverse.types.strings import ShortString
 
 server = FastMCP(name="Messages")

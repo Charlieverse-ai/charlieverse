@@ -8,15 +8,15 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
-from charlieverse.api.responses import ModelListResponse
-from charlieverse.api.responses.knowledge_summary import KnowledgeSummary
-from charlieverse.api.responses.permalink import PermalinkResponse
 from charlieverse.embeddings import encode_one, prepare_knowledge_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.helpers.tasks import track_task
 from charlieverse.memory.knowledge import KnowledgeId
 from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.stores import Stores
+from charlieverse.server.responses import ModelListResponse
+from charlieverse.server.responses.knowledge_summary import KnowledgeSummary
+from charlieverse.server.responses.permalink import PermalinkResponse
 from charlieverse.types.lists import TagList
 from charlieverse.types.strings import NonEmptyString
 

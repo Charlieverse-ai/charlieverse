@@ -23,11 +23,9 @@ def _parse_uuid(value: str | UUID | None) -> UUID | None:
 
 
 class ModelId(str):
-    _uuid: UUID
-
     def __new__(cls, value: str | None | UUID | ModelId = __default_uuid__) -> Self:
         if isinstance(value, ModelId):
-            return super().__new__(cls, str(value._uuid))
+            return super().__new__(cls, str(value))
 
         if value is __default_uuid__:
             from uuid import uuid4
@@ -41,7 +39,6 @@ class ModelId(str):
         if not parsed_uuid:
             raise ValueError(f"{value} was not a valid UUID")
 
-        # self._uuid = parsed_uuid
         return super().__new__(cls, str(parsed_uuid))
 
     @classmethod

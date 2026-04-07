@@ -9,10 +9,10 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
-from charlieverse.api.responses import ModelListResponse
-from charlieverse.api.responses.permalink import PermalinkResponse
 from charlieverse.memory.sessions import NewSession, SessionId
 from charlieverse.memory.stores import Stores
+from charlieverse.server.responses import ModelListResponse
+from charlieverse.server.responses.permalink import PermalinkResponse
 from charlieverse.types.dates import UTCDatetime, at_utc_midnight, to_local
 from charlieverse.types.lists import TagList
 from charlieverse.types.strings import MediumDescription, NonEmptyString, ShortDescription, ShortString
