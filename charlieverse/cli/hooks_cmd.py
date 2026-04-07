@@ -36,6 +36,11 @@ DEFAULT_HOST = config.server.ip_address()
 DEFAULT_PORT = config.server.port
 LOG_FILE = config.logs / "hooks.log"
 
+# Claude has a tool output length before it saves to a file.
+# This makes Charlie very inconsistent when reading the activation context,
+# because Claude shows 2kb and then the file path. Then Charlie will either think he has enough, or only read part of the file
+# Instead we will save our own file with explicit instructions for Charlie.
+MAX_OUTPUT_LENGTH_BYTES = 10000
 
 # ===== Helpers =====
 
@@ -167,6 +172,13 @@ async def _run_user_hooks(hook_dir_name: str, **env_vars: str | None) -> str:
 
 def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
     """Output context in the universal hookSpecificOutput JSON format."""
+
+    # Save to a temp file
+    if len(context.encode("utf-8")) >= MAX_OUTPUT_LENGTH_BYTES:
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8") as tmp:
+            tmp.write(context)
+            context = f"<very-important>Output saved to a temporary file. Before doing anything read 100% of the output: {tmp.name}</very-important>"
+
     output = json.dumps(
         {
             "hookSpecificOutput": {
@@ -273,12 +285,8 @@ async def _session_start(host: str, port: int, source: str, context: IncomingHoo
     if user_hook_output:
         result += user_hook_output
 
-    with tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8") as tmp:
-        # 2. Write data
-        tmp.write(result)
+    _output_context(result, hook_event="SessionStart")
 
-        reminder = f"<very-important>Read the ENTIRE file: {tmp.name}</very-important>"
-        _output_context(reminder, hook_event="SessionStart")
     typer.Exit(0)
 
 

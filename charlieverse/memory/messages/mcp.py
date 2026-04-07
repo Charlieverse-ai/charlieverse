@@ -13,7 +13,7 @@ server = FastMCP(name="Messages")
 
 
 @server.tool
-async def search_messages(
+async def search(
     query: ShortString,
     limit: int = 20,
     session_id: SessionId | None = None,
