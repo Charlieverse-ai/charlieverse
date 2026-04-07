@@ -21,7 +21,7 @@ class SessionStore:
         """Insert a new session."""
         await self.db.execute(
             "INSERT INTO sessions (id, workspace, created_at, updated_at) VALUES (?, ?, ?, ?)",
-            (str(session.id), session.workspace, session.created_at, session.created_at),
+            (session.id, session.workspace, session.created_at, session.created_at),
         )
         await self.db.commit()
 
@@ -31,7 +31,7 @@ class SessionStore:
         """Fetch a session by ID."""
         cursor = await self.db.execute(
             "SELECT * FROM sessions WHERE id = ? AND deleted_at IS NULL",
-            [str(session_id)],
+            [session_id],
         )
         row = await cursor.fetchone()
         return Session.from_row(row) if row else None
@@ -62,7 +62,7 @@ class SessionStore:
 
         cursor = await self.db.execute(
             f"UPDATE sessions SET {statements} WHERE id = ? AND deleted_at IS NULL RETURNING *",
-            [*values, str(session.id)],
+            [*values, session.id],
         )
         row = await cursor.fetchone()
         await self.db.commit()
@@ -135,7 +135,7 @@ class SessionStore:
         """Mark a session as deleted."""
         await self.db.execute(
             "UPDATE sessions SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL",
-            (session.deleted_at, str(session.id)),
+            (session.deleted_at, session.id),
         )
         await self.db.commit()
 

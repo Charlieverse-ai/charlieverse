@@ -62,11 +62,11 @@ class MessageStore:
         cursor = await self.db.execute(
             """INSERT OR IGNORE INTO messages (id, session_id, role, content, created_at)
                VALUES (?, ?, ?, ?, ?)""",
-            (str(msg_id), str(session_id), role.value if isinstance(role, MessageRole) else role, content, created_at),
+            (msg_id, session_id, role.value if isinstance(role, MessageRole) else role, content, created_at),
         )
         inserted = cursor.rowcount > 0
         if inserted:
-            row_cursor = await self.db.execute("SELECT rowid FROM messages WHERE id = ?", (str(msg_id),))
+            row_cursor = await self.db.execute("SELECT rowid FROM messages WHERE id = ?", (msg_id,))
             msg_row = await row_cursor.fetchone()
             if msg_row:
                 await self.db.execute(
@@ -129,14 +129,14 @@ class MessageStore:
                 """SELECT * FROM messages
                    WHERE session_id = ? AND created_at > ?
                    ORDER BY created_at ASC""",
-                (str(session_id), since.isoformat()),
+                (session_id, since.isoformat()),
             )
         else:
             cursor = await self.db.execute(
                 """SELECT * FROM messages
                    WHERE session_id = ?
                    ORDER BY created_at ASC""",
-                (str(session_id),),
+                (session_id,),
             )
 
         return [Message.from_row(row) for row in await cursor.fetchall()]
@@ -151,7 +151,7 @@ class MessageStore:
         params: list = []
         if session_id:
             query += " AND session_id = ?"
-            params.append(str(session_id))
+            params.append(session_id)
         if role:
             query += " AND role = ?"
             params.append(role.value if isinstance(role, MessageRole) else role)

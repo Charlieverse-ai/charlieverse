@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
+from charlieverse.models import ContextMessage
+
 from charlieverse.context.builder import ContextBundle
 from charlieverse.context.renderer import (
     _date_group_key,
@@ -20,7 +22,6 @@ from charlieverse.memory.entities import Entity, EntityType
 from charlieverse.memory.knowledge import Knowledge
 from charlieverse.memory.sessions import Session
 from charlieverse.memory.stories import Story
-from charlieverse.models import ContextMessage
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -431,7 +432,7 @@ def test_render_first_run_contains_session_id():
     session = _session()
     bundle = ContextBundle(session=session)
     output = render(bundle)
-    assert str(session.id) in output
+    assert session.id in output
 
 
 # ---------------------------------------------------------------------------
@@ -472,10 +473,10 @@ def test_seen_ids_includes_all_entity_groups():
         related_entities=[related],
     )
     ids = bundle.seen_ids
-    assert str(moment.id) in ids
-    assert str(pinned.id) in ids
-    assert str(session_entity.id) in ids
-    assert str(related.id) in ids
+    assert moment.id in ids
+    assert pinned.id in ids
+    assert session_entity.id in ids
+    assert related.id in ids
 
 
 def test_seen_ids_includes_knowledge():
@@ -485,7 +486,7 @@ def test_seen_ids_includes_knowledge():
         moments=[_entity()],
         pinned_knowledge=[knowledge],
     )
-    assert str(knowledge.id) in bundle.seen_ids
+    assert knowledge.id in bundle.seen_ids
 
 
 def test_seen_ids_includes_all_time_story():
@@ -495,7 +496,7 @@ def test_seen_ids_includes_all_time_story():
         moments=[_entity()],
         all_time_story=story,
     )
-    assert str(story.id) in bundle.seen_ids
+    assert story.id in bundle.seen_ids
 
 
 # ---------------------------------------------------------------------------

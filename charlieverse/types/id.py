@@ -6,15 +6,20 @@ from uuid import UUID
 
 from pydantic_core import CoreSchema, core_schema
 
-from charlieverse.helpers.uuid import create_uuid, uuid_from_str
-
-
-class ParseError(Exception):
-    pass
-
-
 # Default value signal to distinguish between None and no arguments
 __default_uuid__ = "__default_uuid__"
+
+
+def _parse_uuid(value: str | UUID | None) -> UUID | None:
+    """Parse a UUID string, returning None on malformed input."""
+    if not value:
+        return None
+    if isinstance(value, UUID):
+        return value
+    try:
+        return UUID(value)
+    except (ValueError, AttributeError):
+        return None
 
 
 class ModelId(str):
@@ -25,15 +30,16 @@ class ModelId(str):
             return super().__new__(cls, str(value._uuid))
 
         if value is __default_uuid__:
-            # self._uuid = create_uuid()
-            return super().__new__(cls, str(create_uuid()))
+            from uuid import uuid4
+
+            return super().__new__(cls, str(uuid4()))
 
         if isinstance(value, UUID):
             return super().__new__(cls, str(value))
 
-        parsed_uuid = uuid_from_str(value)
+        parsed_uuid = _parse_uuid(value)
         if not parsed_uuid:
-            raise ParseError(f"{value} was not a valid UUID")
+            raise ValueError(f"{value} was not a valid UUID")
 
         # self._uuid = parsed_uuid
         return super().__new__(cls, str(parsed_uuid))
@@ -49,8 +55,8 @@ class ModelId(str):
                 return value
             try:
                 return cls(value)
-            except ParseError as e:
-                raise ValueError("Invalid UUID") from e
+            except ValueError as e:
+                raise e from e
 
         from_string_or_uuid = core_schema.chain_schema(
             [

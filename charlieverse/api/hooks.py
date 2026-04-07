@@ -13,7 +13,6 @@ from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
 from charlieverse.db.fts import clean_text
 from charlieverse.embeddings import encode_one
-from charlieverse.helpers.uuid import create_uuid, uuid_from_str
 from charlieverse.memory.entities import EntityStore
 from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.messages import MessageId, MessageRole, MessageStore
@@ -35,7 +34,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
         """Preview activation context for debugging. Returns rendered context as plain text."""
         sessions_store: SessionStore = rest_stores.sessions
 
-        session_id = uuid_from_str(request.query_params.get("session_id"))
+        session_id = request.query_params.get("session_id")
         workspace = request.query_params.get("workspace")
         session: Session | None = None
 
@@ -59,7 +58,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
     async def api_session_start(request: Request) -> JSONResponse:
         """Start or resume a session. Returns activation XML."""
         body = await request.json()
-        session_id = body.get("session_id", str(create_uuid()))
+        session_id = body.get("session_id", SessionId())
         workspace = body.get("workspace")
 
         sessions_store: SessionStore = rest_stores.sessions
@@ -74,7 +73,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
 
         return JSONResponse(
             {
-                "session_id": str(session.id),
+                "session_id": session.id,
                 "activation": activation,
             }
         )
@@ -137,8 +136,8 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
 
         return JSONResponse(
             {
-                "id": str(msg.id),
-                "session_id": str(msg.session_id),
+                "id": msg.id,
+                "session_id": msg.session_id,
                 "role": msg.role.value,
                 "content": msg.content[:200],
                 "created_at": msg.created_at.isoformat(),
@@ -188,7 +187,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
                         "entity": entity,
                         "memories": [
                             {
-                                "id": str(m.id),
+                                "id": m.id,
                                 "type": m.type.value,
                                 "content": m.content[:200],
                                 "tags": m.tags,
@@ -197,7 +196,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
                         ],
                         "knowledge": [
                             {
-                                "id": str(k.id),
+                                "id": k.id,
                                 "topic": k.topic,
                                 "content": k.content[:200],
                             }
@@ -220,7 +219,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
                 def _story_entry(story, query_emb, ref_text=None):
                     snippet = extract_snippet(story.content, query_emb)
                     entry = {
-                        "id": str(story.id),
+                        "id": story.id,
                         "title": story.title,
                         "tier": story.tier.value,
                         "content": snippet,
@@ -240,7 +239,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
                             limit=3,
                         )
                         for story in matching:
-                            if str(story.id) not in seen_ids:
+                            if story.id not in seen_ids:
                                 seen_ids.add(story.id)
                                 stories_result.append(_story_entry(story, query_embedding, ref.text))
                 else:
@@ -249,7 +248,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
                         limit=3,
                     )
                     for story in matching:
-                        if str(story.id) not in seen_ids:
+                        if story.id not in seen_ids:
                             stories_result.append(_story_entry(story, query_embedding))
             except Exception:
                 pass

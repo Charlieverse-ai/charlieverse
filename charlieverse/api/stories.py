@@ -185,7 +185,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
 
             session = await sessions_store.get(session_id)
             session_stub = SessionStub(
-                id=str(session_id),
+                id=session_id,
                 workspace=session.workspace if session else None,
                 created_at=session.created_at.isoformat() if session else None,
             )
@@ -264,7 +264,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
                     range_end=target_date.isoformat(),
                     sessions=[
                         SessionSummary(
-                            id=str(s.id),
+                            id=s.id,
                             what_happened=s.what_happened,
                             for_next_session=s.for_next_session,
                             tags=s.tags,

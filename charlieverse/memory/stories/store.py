@@ -39,7 +39,7 @@ class StoryStore:
                workspace, session_id, tags, created_at, updated_at, deleted_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                str(story.id),
+                story.id,
                 story.title,
                 story.summary,
                 story.content,
@@ -47,7 +47,7 @@ class StoryStore:
                 story.period_start,
                 story.period_end,
                 story.workspace,
-                str(story.session_id) if story.session_id else None,
+                story.session_id if story.session_id else None,
                 encode_tag_list(story.tags) if story.tags else None,
                 story.created_at.isoformat(),
                 story.created_at.isoformat(),
@@ -78,10 +78,10 @@ class StoryStore:
                 story.period_start,
                 story.period_end,
                 story.workspace,
-                str(story.session_id) if story.session_id else None,
+                story.session_id if story.session_id else None,
                 encode_tag_list(story.tags) if story.tags else None,
                 story.updated_at.isoformat(),
-                str(story.id),
+                story.id,
             ),
         )
         row = await cursor.fetchone()
@@ -132,7 +132,7 @@ class StoryStore:
         """Fetch a story by ID."""
         cursor = await self.db.execute(
             "SELECT * FROM stories WHERE id = ? AND deleted_at IS NULL LIMIT 1",
-            (str(story_id),),
+            (story_id,),
         )
         row = await cursor.fetchone()
         return Story.from_row(row) if row else None
@@ -147,7 +147,7 @@ class StoryStore:
         """Find the session-tier story for a given session."""
         cursor = await self.db.execute(
             "SELECT * FROM stories WHERE session_id = ? AND deleted_at IS NULL LIMIT 1",
-            (str(session_id),),
+            (session_id,),
         )
         row = await cursor.fetchone()
         return Story.from_row(row) if row else None
@@ -231,7 +231,7 @@ class StoryStore:
         """Soft-delete a story."""
         await self.db.execute(
             "UPDATE stories SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-            (delete.deleted_at.isoformat(), delete.deleted_at.isoformat(), str(delete.id)),
+            (delete.deleted_at.isoformat(), delete.deleted_at.isoformat(), delete.id),
         )
         await self.db.commit()
 
@@ -324,7 +324,7 @@ class StoryStore:
     # ------------------------------------------------------------------
 
     async def _sync_fts_insert(self, story: Story) -> None:
-        cursor = await self.db.execute("SELECT rowid FROM stories WHERE id = ?", (str(story.id),))
+        cursor = await self.db.execute("SELECT rowid FROM stories WHERE id = ?", (story.id,))
         row = await cursor.fetchone()
         if not row:
             return
@@ -342,7 +342,7 @@ class StoryStore:
     async def _sync_fts_delete(self, story_id: StoryId) -> None:
         cursor = await self.db.execute(
             "SELECT rowid, title, summary, content, tags FROM stories WHERE id = ?",
-            (str(story_id),),
+            (story_id,),
         )
         row = await cursor.fetchone()
         if not row:
@@ -363,7 +363,7 @@ class StoryStore:
             embedding = await encode_one(text)
 
             async with self._vec_lock:
-                cursor = await self.db.execute("SELECT rowid FROM stories WHERE id = ?", (str(story.id),))
+                cursor = await self.db.execute("SELECT rowid FROM stories WHERE id = ?", (story.id,))
                 row = await cursor.fetchone()
                 if row:
                     await self.db.execute("DELETE FROM stories_vec WHERE rowid = ?", (row[0],))
@@ -403,7 +403,7 @@ class StoryStore:
         rows: builtins.list[tuple[int, bytes]] = []
         for story, embedding in zip(all_stories, embeddings, strict=True):
             try:
-                cursor = await self.db.execute("SELECT rowid FROM stories WHERE id = ?", (str(story.id),))
+                cursor = await self.db.execute("SELECT rowid FROM stories WHERE id = ?", (story.id,))
                 row = await cursor.fetchone()
                 if row:
                     rows.append((row[0], serialize_float32(embedding)))

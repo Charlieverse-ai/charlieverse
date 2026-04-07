@@ -42,12 +42,12 @@ class KnowledgeStore:
                updated_session_id, created_at, updated_at, deleted_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                str(knowledge.id),
+                knowledge.id,
                 knowledge.topic,
                 knowledge.content,
                 encode_tag_list(knowledge.tags) if knowledge.tags else None,
                 int(knowledge.pinned),
-                str(knowledge.created_session_id),
+                knowledge.created_session_id,
                 None,
                 knowledge.created_at.isoformat(),
                 knowledge.created_at.isoformat(),
@@ -85,7 +85,7 @@ class KnowledgeStore:
                 int(merged_pinned),
                 str(merged_updated_session) if merged_updated_session else None,
                 update.updated_at.isoformat(),
-                str(update.id),
+                update.id,
             ),
         )
         row = await cursor.fetchone()
@@ -117,7 +117,7 @@ class KnowledgeStore:
         """Fetch a knowledge article by ID."""
         cursor = await self.db.execute(
             "SELECT * FROM knowledge WHERE id = ? AND deleted_at IS NULL",
-            (str(knowledge_id),),
+            (knowledge_id,),
         )
         row = await cursor.fetchone()
         return Knowledge.from_row(row) if row else None
@@ -152,7 +152,7 @@ class KnowledgeStore:
             """SELECT * FROM knowledge
                WHERE created_session_id = ? AND deleted_at IS NULL
                ORDER BY created_at ASC""",
-            (str(session_id),),
+            (session_id,),
         )
         return [Knowledge.from_row(row) for row in await cursor.fetchall()]
 
@@ -170,7 +170,7 @@ class KnowledgeStore:
         """Soft-delete a knowledge article."""
         await self.db.execute(
             "UPDATE knowledge SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-            (delete.deleted_at.isoformat(), delete.deleted_at.isoformat(), str(delete.id)),
+            (delete.deleted_at.isoformat(), delete.deleted_at.isoformat(), delete.id),
         )
         await self.db.commit()
 
@@ -181,7 +181,7 @@ class KnowledgeStore:
         now = utc_now()
         await self.db.execute(
             "UPDATE knowledge SET pinned = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-            (int(pinned), now.isoformat(), str(knowledge_id)),
+            (int(pinned), now.isoformat(), knowledge_id),
         )
         await self.db.commit()
 
@@ -239,7 +239,7 @@ class KnowledgeStore:
 
         cursor = await self.db.execute(
             "SELECT rowid FROM knowledge WHERE id = ?",
-            (str(knowledge_id),),
+            (knowledge_id,),
         )
         row = await cursor.fetchone()
         if not row:
@@ -261,7 +261,7 @@ class KnowledgeStore:
     async def _sync_fts_insert(self, knowledge: Knowledge) -> None:
         cursor = await self.db.execute(
             "SELECT rowid FROM knowledge WHERE id = ?",
-            (str(knowledge.id),),
+            (knowledge.id,),
         )
         row = await cursor.fetchone()
         if not row:
@@ -279,7 +279,7 @@ class KnowledgeStore:
     async def _sync_fts_delete(self, knowledge_id: KnowledgeId) -> None:
         cursor = await self.db.execute(
             "SELECT rowid, topic, content, tags FROM knowledge WHERE id = ?",
-            (str(knowledge_id),),
+            (knowledge_id,),
         )
         row = await cursor.fetchone()
         if not row:
@@ -331,7 +331,7 @@ class KnowledgeStore:
             try:
                 cursor = await self.db.execute(
                     "SELECT rowid FROM knowledge WHERE id = ?",
-                    (str(article.id),),
+                    (article.id,),
                 )
                 row = await cursor.fetchone()
                 if row:

@@ -83,14 +83,14 @@ async def read(id: StoryId, ctx: Context = CurrentContext()) -> dict[str, Any]:
         raise ToolError(f"Story {id!s} not found")
 
     return {
-        "id": str(story.id),
+        "id": story.id,
         "title": story.title,
         "summary": story.summary,
         "content": story.content,
         "tier": story.tier.value,
         "period_start": story.period_start,
         "period_end": story.period_end,
-        "session_id": str(story.session_id) if story.session_id else None,
+        "session_id": story.session_id,
         "workspace": story.workspace,
     }
 
@@ -170,7 +170,7 @@ async def _rollup_story_data(stores: Stores, target: str) -> dict[str, Any]:
         "range_end": range_end,
         "stories": [
             {
-                "id": str(s.id),
+                "id": s.id,
                 "title": s.title,
                 "summary": s.summary,
                 "content": s.content,
@@ -190,7 +190,7 @@ async def _rollup_story_data(stores: Stores, target: str) -> dict[str, Any]:
             result["fallback"] = "sessions"
             result["sessions"] = [
                 {
-                    "id": str(s.id),
+                    "id": s.id,
                     "what_happened": s.what_happened,
                     "for_next_session": s.for_next_session,
                     "workspace": s.workspace,
@@ -234,7 +234,7 @@ async def _daily_rollup_data(stores: Stores, today: date) -> dict[str, Any]:
         "range_end": today.isoformat(),
         "sessions": [
             {
-                "id": str(s.id),
+                "id": s.id,
                 "what_happened": s.what_happened,
                 "for_next_session": s.for_next_session,
                 "workspace": s.workspace,
@@ -281,7 +281,7 @@ async def _session_story_data(stores: Stores, session_id: SessionId) -> dict[str
 
     return {
         "type": "session",
-        "session_id": str(session_id),
+        "session_id": session_id,
         "workspace": session.workspace if session else None,
         "existing_story": {
             "title": existing_story.title,

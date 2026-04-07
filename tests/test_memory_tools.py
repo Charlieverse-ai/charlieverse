@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC
 
 import pytest
-
 from charlieverse.tools.memory import (
     forget,
     pin,
@@ -310,7 +309,7 @@ async def test_update_memory_changes_content(memory_store, mock_embed):
         memories=memory_store,
     )
     await update_memory(
-        id=str(created.id),
+        id=created.id,
         content="revised decision",
         memories=memory_store,
     )
@@ -342,7 +341,7 @@ async def test_forget_removes_entity(memory_store, mock_embed):
         content="entity to forget",
         memories=memory_store,
     )
-    await forget(id=str(created.id), memories=memory_store)
+    await forget(id=created.id, memories=memory_store)
     stored = await memory_store.get(created.id)
     assert stored is None
 
@@ -357,7 +356,7 @@ async def test_pin_entity(memory_store, mock_embed):
         content="pin this decision",
         memories=memory_store,
     )
-    await pin(id=str(created.id), pinned=True, memories=memory_store)
+    await pin(id=created.id, pinned=True, memories=memory_store)
     stored = await memory_store.get(created.id)
     assert stored is not None
     assert stored.pinned is True
@@ -369,7 +368,7 @@ async def test_unpin_entity(memory_store, mock_embed):
         pinned=True,
         memories=memory_store,
     )
-    await pin(id=str(created.id), pinned=False, memories=memory_store)
+    await pin(id=created.id, pinned=False, memories=memory_store)
     stored = await memory_store.get(created.id)
     assert stored is not None
     assert stored.pinned is False
@@ -387,7 +386,7 @@ async def test_pin_knowledge_article(knowledge_store, memory_store, mock_embed):
     )
     await knowledge_store.upsert(article)
     await pin(
-        id=str(article.id),
+        id=article.id,
         pinned=True,
         memories=memory_store,
         knowledge_store=knowledge_store,
@@ -410,7 +409,7 @@ async def test_unpin_knowledge_article(knowledge_store, memory_store, mock_embed
     )
     await knowledge_store.upsert(article)
     await pin(
-        id=str(article.id),
+        id=article.id,
         pinned=False,
         memories=memory_store,
         knowledge_store=knowledge_store,
@@ -530,7 +529,7 @@ async def test_recall_ranks_recent_entities_higher(memory_store, knowledge_store
     old_date = (datetime.now(UTC) - timedelta(days=60)).isoformat()
     await memory_store.db.execute(
         "UPDATE entities SET created_at = ?, updated_at = ? WHERE id = ?",
-        (old_date, old_date, str(old.id)),
+        (old_date, old_date, old.id),
     )
     await memory_store.db.commit()
 

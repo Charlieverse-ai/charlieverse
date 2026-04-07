@@ -42,12 +42,12 @@ class EntityStore:
                updated_session_id, created_at, updated_at, deleted_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                str(entity.id),
+                entity.id,
                 entity.type.value,
                 entity.content,
                 encode_tag_list(entity.tags) if entity.tags else None,
                 int(entity.pinned),
-                str(entity.created_session_id),
+                entity.created_session_id,
                 None,
                 entity.created_at.isoformat(),
                 entity.created_at.isoformat(),
@@ -83,7 +83,7 @@ class EntityStore:
                 int(merged_pinned),
                 str(merged_updated_session) if merged_updated_session else None,
                 update.updated_at.isoformat(),
-                str(update.id),
+                update.id,
             ),
         )
         row = await cursor.fetchone()
@@ -99,7 +99,7 @@ class EntityStore:
         """Fetch an entity by ID. Returns None if not found or soft-deleted."""
         cursor = await self.db.execute(
             "SELECT * FROM entities WHERE id = ? AND deleted_at IS NULL",
-            (str(entity_id),),
+            (entity_id,),
         )
         row = await cursor.fetchone()
         return Entity.from_row(row) if row else None
@@ -139,7 +139,7 @@ class EntityStore:
                 WHERE created_session_id IN ({placeholders})
                 AND deleted_at IS NULL
                 ORDER BY created_at DESC""",
-            [str(sid) for sid in session_ids],
+            list(session_ids),
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 
@@ -149,7 +149,7 @@ class EntityStore:
             """SELECT * FROM entities
                WHERE created_session_id = ? AND deleted_at IS NULL
                ORDER BY created_at ASC""",
-            (str(session_id),),
+            (session_id,),
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 
@@ -167,7 +167,7 @@ class EntityStore:
         """Soft-delete an entity."""
         await self.db.execute(
             "UPDATE entities SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-            (delete.deleted_at.isoformat(), delete.deleted_at.isoformat(), str(delete.id)),
+            (delete.deleted_at.isoformat(), delete.deleted_at.isoformat(), delete.id),
         )
         await self.db.commit()
 
@@ -176,7 +176,7 @@ class EntityStore:
         now = utc_now()
         await self.db.execute(
             "UPDATE entities SET pinned = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
-            (int(pinned), now.isoformat(), str(entity_id)),
+            (int(pinned), now.isoformat(), entity_id),
         )
         await self.db.commit()
 
@@ -229,7 +229,7 @@ class EntityStore:
         """Store or update the embedding for an entity."""
         from sqlite_vec import serialize_float32
 
-        cursor = await self.db.execute("SELECT rowid FROM entities WHERE id = ?", (str(entity_id),))
+        cursor = await self.db.execute("SELECT rowid FROM entities WHERE id = ?", (entity_id,))
         row = await cursor.fetchone()
         if not row:
             return
@@ -251,7 +251,7 @@ class EntityStore:
         """Insert a new entity into the FTS index."""
         cursor = await self.db.execute(
             "SELECT rowid FROM entities WHERE id = ?",
-            (str(entity.id),),
+            (entity.id,),
         )
         row = await cursor.fetchone()
         if not row:
@@ -269,7 +269,7 @@ class EntityStore:
         """Remove an entity's current FTS entry using values from the content table."""
         cursor = await self.db.execute(
             "SELECT rowid, content, tags FROM entities WHERE id = ?",
-            (str(entity_id),),
+            (entity_id,),
         )
         row = await cursor.fetchone()
         if not row:
@@ -325,7 +325,7 @@ class EntityStore:
             try:
                 cursor = await self.db.execute(
                     "SELECT rowid FROM entities WHERE id = ?",
-                    (str(entity.id),),
+                    (entity.id,),
                 )
                 row = await cursor.fetchone()
                 if row:

@@ -5,7 +5,6 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-
 from charlieverse.helpers.uuid import create_uuid
 from charlieverse.mcp.context import _permalink, _remember_with_url
 
@@ -61,7 +60,7 @@ async def test_remember_with_url_url_contains_id():
         id = entity_id
 
     result = await _remember_with_url(FakeResult())
-    assert str(entity_id) in result["url"]
+    assert entity_id in result["url"]
 
 
 @pytest.mark.asyncio

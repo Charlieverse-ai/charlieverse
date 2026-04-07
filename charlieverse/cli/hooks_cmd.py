@@ -323,7 +323,7 @@ async def _prompt_submit(host: str, port: int, context: IncomingHookContext) -> 
                 client.get(f"http://{host}:{port}/api/sessions/{session_id}"),
                 client.get(
                     f"http://{host}:{port}/api/messages/latest",
-                    params={"session_id": str(session_id), "role": "assistant"},
+                    params={"session_id": session_id, "role": "assistant"},
                 ),
                 return_exceptions=True,
             )
@@ -355,7 +355,7 @@ async def _prompt_submit(host: str, port: int, context: IncomingHookContext) -> 
     reminders_output = await _build_reminders(ctx)
 
     # Run user hooks from ~/.charlieverse/hooks/prompt-submit/
-    user_hook_output = await _run_user_hooks("prompt-submit", session_id=str(session_id), message=user_prompt)
+    user_hook_output = await _run_user_hooks("prompt-submit", session_id=session_id, message=user_prompt)
     if user_hook_output:
         reminders_output += user_hook_output
 
@@ -418,7 +418,7 @@ def stop(
         )
 
         # Run user hooks from ~/.charlieverse/hooks/stop/
-        asyncio.run(_run_user_hooks("stop", session_id=str(context.session_id), last_assistant_message=last_message))
+        asyncio.run(_run_user_hooks("stop", session_id=context.session_id, last_assistant_message=last_message))
 
     _log("Stop.result", msg="Finished")
     raise typer.Exit(0)
@@ -468,7 +468,7 @@ async def _session_end(host: str, port: int, source: str, session_id: SessionId)
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
                 f"http://{host}:{port}/api/sessions/end",
-                json={"session_id": str(session_id), "source": source},
+                json={"session_id": session_id, "source": source},
             )
     except Exception as e:
         _log("session-end", f"ERROR: {e}")
