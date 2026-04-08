@@ -2,7 +2,6 @@
 name: Storyteller
 description: 'Collects raw data and creates a story narrative from it'
 color: orange
-model: sonnet
 background: true
 ---
 

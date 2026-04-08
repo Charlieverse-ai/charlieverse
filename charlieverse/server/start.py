@@ -100,7 +100,7 @@ async def start_server(host: str, port: int):
     mcp.add_middleware(ErrorHandlingMiddleware(include_traceback=False, transform_errors=True))
 
     # Mount
-    mcp.mount(sessions, namespace="session")
+    mcp.mount(sessions)
     mcp.mount(stories, namespace="story")
     mcp.mount(knowledge, namespace="knowledge")
     mcp.mount(knowledge, namespace="knowledge")

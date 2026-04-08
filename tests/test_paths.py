@@ -9,39 +9,20 @@ from charlieverse.helpers import paths
 
 
 class TestFind:
-    def test_returns_bundled_path_when_exists(self, tmp_path):
-        bundled = tmp_path / "pkg" / "web" / "dist"
-        bundled.mkdir(parents=True)
+    def test_returns_repo_path_when_exists(self, tmp_path):
+        target = tmp_path / "web" / "dist"
+        target.mkdir(parents=True)
 
-        with patch.object(paths_mod, "_PKG_DIR", tmp_path / "pkg"):
+        with patch.object(paths_mod, "_REPO_DIR", tmp_path):
             result = paths_mod._find("web/dist")
 
-        assert result == bundled
+        assert result == target
 
-    def test_falls_back_to_repo_when_bundled_missing(self, tmp_path):
-        pkg_dir = tmp_path / "pkg"
-        pkg_dir.mkdir()
-        repo_dir = tmp_path
-        (repo_dir / "web" / "dist").mkdir(parents=True)
-
-        with (
-            patch.object(paths_mod, "_PKG_DIR", pkg_dir),
-            patch.object(paths_mod, "_REPO_DIR", repo_dir),
-        ):
-            result = paths_mod._find("web/dist")
-
-        assert result == repo_dir / "web" / "dist"
-
-    def test_returns_none_when_neither_exists(self, tmp_path):
-        pkg_dir = tmp_path / "pkg"
-        pkg_dir.mkdir()
+    def test_returns_none_when_missing(self, tmp_path):
         repo_dir = tmp_path / "repo"
         repo_dir.mkdir()
 
-        with (
-            patch.object(paths_mod, "_PKG_DIR", pkg_dir),
-            patch.object(paths_mod, "_REPO_DIR", repo_dir),
-        ):
+        with patch.object(paths_mod, "_REPO_DIR", repo_dir):
             result = paths_mod._find("web/dist")
 
         assert result is None
@@ -52,10 +33,7 @@ class TestWebDist:
         dist = tmp_path / "web" / "dist"
         dist.mkdir(parents=True)
 
-        with (
-            patch.object(paths_mod, "_PKG_DIR", tmp_path),
-            patch.object(paths_mod, "_REPO_DIR", tmp_path / "nonexistent"),
-        ):
+        with patch.object(paths_mod, "_REPO_DIR", tmp_path):
             result = paths.web_dist()
 
         assert result == dist
@@ -75,10 +53,7 @@ class TestIntegration:
         claude_dir = tmp_path / "integrations" / "claude"
         claude_dir.mkdir(parents=True)
 
-        with (
-            patch.object(paths_mod, "_PKG_DIR", tmp_path),
-            patch.object(paths_mod, "_REPO_DIR", tmp_path / "nonexistent"),
-        ):
+        with patch.object(paths_mod, "_REPO_DIR", tmp_path):
             result = paths.integration("claude")
 
         assert result == claude_dir

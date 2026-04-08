@@ -411,7 +411,7 @@ async def update_memory(
     content: ShortDescription,
     tags: TagList,
     ctx: Context = CurrentContext(),
-) -> None:
+) -> PermalinkResponse:
     """Update an existing memory's content and/or tags. Preserves creation date and provenance."""
     memories = Stores.from_context(ctx).memories
     existing = await memories.get(id)
@@ -427,6 +427,8 @@ async def update_memory(
         )
     )
     track_task(asyncio.create_task(_fire_and_forget_embedding(memories, updated)))
+
+    return PermalinkResponse("memories", updated.id)
 
 
 @server.tool

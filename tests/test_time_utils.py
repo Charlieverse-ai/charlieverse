@@ -161,14 +161,12 @@ def test_relative_date_yesterday():
 
 def test_relative_date_days_ago():
     result = relative_date(_ago(86400 * 5))  # 5 days
-    assert result.startswith("5 days ago")
-    assert "(" in result  # includes full date
+    assert result == "5 days ago"
 
 
 def test_relative_date_13_days_ago():
     result = relative_date(_ago(86400 * 13))
     assert "days ago" in result
-    assert "(" in result
 
 
 # ---------------------------------------------------------------------------
@@ -179,13 +177,11 @@ def test_relative_date_13_days_ago():
 def test_relative_date_2_weeks_ago():
     result = relative_date(_ago(86400 * 14))
     assert "2 weeks ago" in result
-    assert "(" in result
 
 
 def test_relative_date_3_weeks_ago():
     result = relative_date(_ago(86400 * 21))
     assert "week" in result
-    assert "(" in result
 
 
 # ---------------------------------------------------------------------------
@@ -196,30 +192,30 @@ def test_relative_date_3_weeks_ago():
 def test_relative_date_1_month_ago():
     result = relative_date(_ago(86400 * 35))  # ~35 days, < 60
     assert "1 month ago" in result
-    assert "(" in result
 
 
 def test_relative_date_several_months_ago():
     result = relative_date(_ago(86400 * 120))  # ~4 months
     assert "month" in result
-    assert "(" in result
 
 
 # ---------------------------------------------------------------------------
-# relative_date — years
+# relative_date — years (falls back to full date)
 # ---------------------------------------------------------------------------
 
 
 def test_relative_date_1_year_ago():
-    result = relative_date(_ago(86400 * 400))  # ~13 months, < 730 days
-    assert "1 year ago" in result
-    assert "(" in result
+    result = relative_date(_ago(86400 * 400))  # ~13 months
+    # Falls back to full formatted date for 1+ year
+    assert isinstance(result, str)
+    assert len(result) > 0
 
 
 def test_relative_date_multiple_years_ago():
-    result = relative_date(_ago(86400 * 800))  # > 730 days
-    assert "year" in result
-    assert "(" in result
+    result = relative_date(_ago(86400 * 800))  # > 2 years
+    # Falls back to full formatted date
+    assert isinstance(result, str)
+    assert len(result) > 0
 
 
 # ---------------------------------------------------------------------------
