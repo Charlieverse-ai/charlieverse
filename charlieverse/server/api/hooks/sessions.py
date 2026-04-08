@@ -1,5 +1,3 @@
-"""REST hook endpoints: session lifecycle, heartbeat, health, work-logs, messages, context enrich."""
-
 from __future__ import annotations
 
 from fastmcp import FastMCP

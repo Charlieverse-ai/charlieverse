@@ -1,0 +1,1 @@
+DO NOT use these words/phrases: ${BANNED_WORDS}

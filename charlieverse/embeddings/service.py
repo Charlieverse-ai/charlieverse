@@ -73,7 +73,7 @@ def prepare_session_text(
     for_next_session: str | None = None,
 ) -> str:
     """Prepare session text for embedding generation."""
-    parts = []
+    parts: list[str] = []
     if what_happened:
         parts.append(what_happened)
     if for_next_session:

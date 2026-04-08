@@ -128,17 +128,25 @@ class EntityStore:
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 
-    async def for_sessions(self, session_ids: list[SessionId]) -> list[Entity]:
+    async def for_sessions(self, session_ids: list[SessionId], ignoring: list[EntityId] | None = None) -> list[Entity]:
         """Fetch active entities linked to the given sessions."""
         if not session_ids:
             return []
+
         placeholders = ",".join("?" * len(session_ids))
+
+        if not ignoring:
+            ignoring = []
+
+        ignoring_placeholders = ",".join("?" * len(ignoring)) if ignoring else ""
+
         cursor = await self.db.execute(
             f"""SELECT * FROM entities
                 WHERE created_session_id IN ({placeholders})
                 AND deleted_at IS NULL
+                {f"AND id NOT IN ({ignoring_placeholders})" if ignoring else ""}
                 ORDER BY created_at DESC""",
-            list(session_ids),
+            [*session_ids, *ignoring],
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 
@@ -188,7 +196,6 @@ class EntityStore:
         from charlieverse.db.fts import sanitize_fts_query
 
         fts_query = sanitize_fts_query(query)
-        print("🦄→", fts_query)
         if not fts_query:
             return []
 
@@ -208,19 +215,26 @@ class EntityStore:
         self,
         embedding: list[float],
         limit: int = 10,
+        ignoring: list[EntityId] | None = None,
     ) -> list[Entity]:
         """Semantic search using sqlite-vec cosine similarity."""
         from sqlite_vec import serialize_float32
 
+        if not ignoring:
+            ignoring = []
+
+        ignoring_placeholders = ",".join("?" * len(ignoring)) if ignoring else ""
+
         cursor = await self.db.execute(
-            """SELECT e.*, v.distance FROM entities e
+            f"""SELECT e.*, v.distance FROM entities e
                JOIN entities_vec v ON e.rowid = v.rowid
                WHERE v.embedding MATCH ?
                AND v.k = ?
                AND e.deleted_at IS NULL
+               {f"AND e.id NOT IN ({ignoring_placeholders})" if ignoring else ""}
                ORDER BY v.distance
                LIMIT ?""",
-            (serialize_float32(embedding), limit, limit),
+            [serialize_float32(embedding), limit, *ignoring, limit],
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 

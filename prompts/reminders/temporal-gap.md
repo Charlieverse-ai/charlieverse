@@ -1,1 +1,1 @@
-since_last_message: ${TIME_SINCE}
+since last message: ${TIME_SINCE}

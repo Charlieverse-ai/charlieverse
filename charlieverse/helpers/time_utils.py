@@ -51,14 +51,25 @@ def format_local(dt: LocalDatetime, fmt: str) -> str:
     return dt.strftime(fmt)
 
 
-def relative_time(start: UTCDatetime, now: UTCDatetime) -> str:
+def relative_time(start: UTCDatetime, now: UTCDatetime | None = None) -> str:
     """Format the delta between two UTC instants as a human-readable duration.
 
     e.g. "just now", "12 minutes", "2 hours, 35 minutes"
     """
+    if not now:
+        now = utc_now()
+
     delta = now - start
     total_seconds = int(delta.total_seconds())
 
+    return relative_time_seconds(total_seconds)
+
+
+def relative_time_seconds(total_seconds: int) -> str:
+    """Format the delta between two UTC instants as a human-readable duration.
+
+    e.g. "just now", "12 minutes", "2 hours, 35 minutes"
+    """
     if total_seconds < 60:
         return "just now"
 
@@ -75,13 +86,15 @@ def relative_time(start: UTCDatetime, now: UTCDatetime) -> str:
     return f"{hours} hour{'s' if hours != 1 else ''}, {remaining_mins} minute{'s' if remaining_mins != 1 else ''}"
 
 
-def relative_date(date: UTCDatetime) -> str:
+def relative_date(date: UTCDatetime, now: UTCDatetime | None = None) -> str:
     """Format a UTC instant as a relative 'ago' string for activation context.
 
     e.g. "just now", "5 minutes ago", "2.5 hours ago", "3 days ago"
     Falls back to full date format for dates older than a week.
     """
-    now = utc_now()
+    if not now:
+        now = utc_now()
+
     diff = now - date
     total_seconds = diff.total_seconds()
 
@@ -103,17 +116,14 @@ def relative_date(date: UTCDatetime) -> str:
         days = total_seconds / 86400
         full_date = format_datetime(date)
         if days < 14:
-            return f"{int(days)} days ago ({full_date})"
+            return f"{int(days)} days ago"
         elif days < 30:
             weeks = days / 7
-            return f"2 weeks ago ({full_date})" if weeks < 3 else f"{round(weeks, 1)} weeks ago ({full_date})"
+            return "2 weeks ago" if weeks < 3 else f"{round(weeks, 1)} weeks ago"
         elif days < 60:
-            return f"1 month ago ({full_date})"
+            return "1 month ago"
         elif days < 365:
             months = days / 30.44
-            return f"{round(months, 1)} months ago ({full_date})"
-        elif days < 730:
-            return f"1 year ago ({full_date})"
+            return f"{round(months, 1)} months ago"
         else:
-            years = days / 365.25
-            return f"{round(years, 1)} years ago ({full_date})"
+            return f"{full_date}"

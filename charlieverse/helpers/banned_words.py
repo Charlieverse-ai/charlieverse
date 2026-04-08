@@ -76,6 +76,16 @@ BANNED_WORDS = {
 }
 
 
+def sorted_banned_words() -> list[str]:
+    words = list(BANNED_WORDS)
+    words.sort()
+    return words
+
+
+def banned_word_string() -> str:
+    return ", ".join(sorted_banned_words())
+
+
 def _strip_ignored_regions(text: str) -> str:
     """Remove regions where banned phrases shouldn't be enforced.
 
@@ -124,3 +134,9 @@ def format_feedback(matches: set[str]) -> str:
     """Format matches into a rephrase-friendly message for the hook."""
 
     return f"Rephrase without using: {', '.join([f'"{m}"' for m in matches])}"
+
+
+if __name__ == "__main__":
+    words = list(BANNED_WORDS)
+    words.sort()
+    print(f"# The following words/phrases are banned:\n{', '.join(words)}")

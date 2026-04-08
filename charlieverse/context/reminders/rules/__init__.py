@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
+from charlieverse.context.reminders.rules.banned_words import BannedWordsRule
 from charlieverse.context.reminders.rules.base import ReminderRule
-from charlieverse.context.reminders.rules.collaboration import CollaborationRule
-from charlieverse.context.reminders.rules.generate_story import GenerateStoryRule
-from charlieverse.context.reminders.rules.language_rules import LanguageRulesRule
-from charlieverse.context.reminders.rules.memory_tools import MemoryToolsRule
 from charlieverse.context.reminders.rules.save_session import SaveSessionRule
 from charlieverse.context.reminders.rules.search_memories import SearchMemoriesRule
 from charlieverse.context.reminders.rules.system_prompt import SystemPromptRule
@@ -19,15 +16,10 @@ def register_rules(template: ReminderTemplate | None = None) -> list[ReminderRul
     """Create and return all reminder rules with a shared template renderer."""
     t = template or ReminderTemplate()
     return [
-        # Always-on
-        CollaborationRule(t),
-        LanguageRulesRule(t),
-        SystemPromptRule(t),
-        MemoryToolsRule(t),
         TemporalContextRule(t),
-        # Conditional
+        SystemPromptRule(t),
         TemporalGapRule(t),
         SaveSessionRule(t),
         SearchMemoriesRule(t),
-        GenerateStoryRule(t),
+        BannedWordsRule(t),
     ]

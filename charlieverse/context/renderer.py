@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os.path
 from datetime import timedelta
 from pathlib import Path
 
@@ -11,7 +12,6 @@ from charlieverse.helpers.time_utils import relative_date
 from charlieverse.memory.entities import Entity, EntityType
 from charlieverse.memory.messages import Message
 from charlieverse.memory.sessions import Session
-from charlieverse.memory.stories import Story
 from charlieverse.types.dates import LocalDatetime, UTCDatetime, from_iso_or_none, local_now, to_local
 
 PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "prompts"
@@ -19,91 +19,65 @@ PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "promp
 
 def render(bundle: ContextBundle) -> str:
     """Render the activation context as XML for provider consumption."""
+    renderer = Renderer()
+    renderer.append(f"<session_id>{bundle.session.id}</session_id>")
+    renderer.append("<very-important>Weight information according to relative time (most recent → least).</very-important>")
+
     if bundle.is_first_run:
-        return _render_first_run(bundle)
+        _render_first_run(bundle, renderer)
+    else:
+        _render_context(bundle, renderer)
 
-    parts: list[str] = []
-    parts.append(f"<workspace_directory>{bundle.workspace}</workspace_directory>")
-    parts.append(f"<session_id>{bundle.session.id}</session_id>")
-    parts.append("<very-important>Weight information according to relative time (most recent → least).</very-important>")
-    parts.append("<activation_output>")
+    return renderer.render()
 
-    # Workspace awareness
-    # if bundle.session.workspace and not bundle.session_stories:
-    #     parts.append(f"<workspace-context>New workspace: {bundle.session.workspace} — no previous sessions here.</workspace-context>")
 
+def _render_context(bundle: ContextBundle, renderer: Renderer):
     # Use local time for all "today/yesterday" display logic
     now = local_now()
-
     # Raw sessions from last 2 days
     if bundle.recent_sessions:
         current_date_key: str | None = None
         most_recent = True
-        parts.append("<very-important>Sessions are ordered from most recent to least. Weight them according to relative time.</very-important>")
+        renderer.append("<sessions>")
 
         for session in bundle.recent_sessions:
             session_date = to_local(session.updated_at)
             date_key = _date_group_key(session_date, now)
             if date_key != current_date_key:
                 current_date_key = date_key
-                parts.append(f"# {date_key}")
-            path = f' path="{_display_path(session.workspace)}"' if session.workspace else ""
-            tag = "last_session" if most_recent else "session"
-            parts.append(f'<{tag} time="{_session_time(session.updated_at, now)}"{path}>')
-            parts.append(_render_session(session, now, most_recent=most_recent))
-            # Recent messages go inside the last session block
-            if most_recent and bundle.recent_messages:
-                parts.append(_render_recent_messages(bundle.recent_messages))
-            parts.append(f"</{'last_session' if most_recent else 'session'}>")
+                # renderer.append(f"# {date_key}")
+
+            workspace = _display_path(session.workspace)
+            path = f' path="{workspace}"' if workspace else ""
+            most_recent_attr = ' most_recent="true"' if most_recent else ""
+
+            tag = "session"
+
+            renderer.append(f'<{tag} time="{relative_date(session.updated_at)}"{path}{most_recent_attr}>')
+            renderer.append(_render_session(session, now, most_recent=most_recent))
+            renderer.append(f"</{tag}>")
             most_recent = False
+        renderer.append("</sessions>")
 
-    if bundle.pinned_entities:
-        parts.append("<pinned>")
-        # Pinned entities get important_ prefix
-        for entity in bundle.pinned_entities:
-            parts.append(_render_entity(entity))
-        parts.append("</pinned>\n")
-
-    # Moments
-    if bundle.moments:
-        parts.append("<moments>")
-        for entity in bundle.moments:
-            parts.append(_render_entity(entity))
-        parts.append("</moments>\n")
+    renderer.append_entities(bundle.pinned_entities)
+    renderer.append_entities(bundle.moments)
 
     # Pinned knowledge (expertise)
     if bundle.pinned_knowledge:
-        parts.append("<knowledge>")
+        renderer.append("<knowledge>")
         for knowledge in bundle.pinned_knowledge:
-            parts.append(f"## {knowledge.topic}")
-            parts.append(knowledge.content)
+            renderer.append(f"## {knowledge.topic}")
+            renderer.append(knowledge.content)
 
-        parts.append("</knowledge>\n")
+        renderer.append("</knowledge>")
 
-    parts.append("<related_memories>")
-
-    # Session entities (non-pinned, non-moment)
-    if bundle.session_entities:
-        for entity in bundle.session_entities:
-            parts.append(_render_entity(entity))
-
-    # Related entities
-    if bundle.related_entities:
-        for entity in bundle.related_entities:
-            parts.append(_render_entity(entity))
-
-    parts.append("</related_memories>")
+    if bundle.session_entities or bundle.related_entities:
+        renderer.append("<related_memories>")
+        renderer.append_entities([*bundle.session_entities, *bundle.related_entities])
+        renderer.append("</related_memories>")
 
     if bundle.all_time_story:
-        parts.append(_render_all_time_story(bundle.all_time_story))
-
-    # Tricks discovery — list available tricks so Charlie knows what's loaded
-    tricks_section = _render_tricks(bundle.session.workspace)
-    if tricks_section:
-        parts.append(tricks_section)
-
-    parts.append("</activation_output>")
-    return "\n".join(parts)
+        renderer.append(bundle.all_time_story.content, "our_story_so_far")
 
 
 def _render_recent_messages(messages: list[Message]) -> str:
@@ -123,17 +97,8 @@ def _render_recent_messages(messages: list[Message]) -> str:
     return "\n".join(lines)
 
 
-def _render_first_run(bundle: ContextBundle) -> str:
+def _render_first_run(bundle: ContextBundle, renderer: Renderer):
     """Render the birthday message for brand new Charlies."""
-    parts: list[str] = []
-    parts.append("<activation_output>")
-
-    now_str = local_now().strftime("%A, %B %d, %Y at %I:%M:%S %p %Z")
-    parts.append("---")
-    parts.append(f"Now: {now_str}")
-    parts.append(f"Current Session ID: {bundle.session.id}\n")
-    parts.append("---")
-
     # Load the birthday letter
     first_run_path = PROMPTS_DIR / "first-run.md"
     try:
@@ -141,12 +106,9 @@ def _render_first_run(bundle: ContextBundle) -> str:
     except FileNotFoundError:
         birthday_letter = "Welcome! This is your first session. Get to know your person."
 
-    parts.append("<its_your_birthday>")
-    parts.append(birthday_letter)
-    parts.append("</its_your_birthday>")
-
-    parts.append("</activation_output>")
-    return "\n".join(parts)
+    renderer.append("<its_your_birthday>")
+    renderer.append(birthday_letter)
+    renderer.append("</its_your_birthday>")
 
 
 def _render_tricks(workspace: str | None) -> str:
@@ -167,21 +129,9 @@ def _render_tricks(workspace: str | None) -> str:
     for trick in tricks:
         name = trick.get("name")
         desc = trick.get("description")
-        if desc:
-            lines.append(f"- **{name}**: {desc}")
-        else:
-            lines.append(f"- **{name}**")
+        lines.append(f"- {name}{f': {desc}' if desc else ''}")
 
     lines.append("</tricks>")
-    return "\n".join(lines)
-
-
-def _render_all_time_story(story: Story) -> str:
-    lines: list[str] = []
-    lines.append("<our_story_so_far>")
-    lines.append(story.content)
-    lines.append("</our_story_so_far>\n")
-
     return "\n".join(lines)
 
 
@@ -189,26 +139,21 @@ def _render_session(session: Session, now: LocalDatetime, most_recent: bool) -> 
     """Render a session under its date group."""
     lines: list[str] = []
 
-    lines.append(f"\n{session.what_happened}\n")
-    if most_recent:
-        lines.append(f"## For This Session:\n{session.for_next_session}\n")
+    lines.append(f"What we did:\n{session.what_happened}\n")
+    # if most_recent:
+    lines.append(f"For Next:\n{session.for_next_session}")
 
     return "\n".join(lines)
 
 
-def _render_entity(entity: Entity) -> str:
+def _render_entity(entity: Entity, renderer: Renderer):
     """Render an entity's content."""
-    lines: list[str] = []
+    important = entity.pinned or entity.type == EntityType.moment
 
-    if entity.type is EntityType.moment:
-        lines.append(f"- {relative_date(entity.updated_at)}")
-    else:
-        lines.append(f"## {entity.type.value.capitalize()}")
-        lines.append(f"### {relative_date(entity.updated_at)}")
+    tag = f"important-{entity.type}" if important else entity.type
+    attrs = f'date="{relative_date(entity.updated_at)}">'
 
-    lines.append(entity.content + "\n")
-
-    return "\n".join(lines)
+    renderer.append(entity.content, tag=tag, attrs=attrs)
 
 
 def _date_group_key(date: LocalDatetime, now: LocalDatetime) -> str:
@@ -224,10 +169,11 @@ def _date_group_key(date: LocalDatetime, now: LocalDatetime) -> str:
         return date.strftime("%A, %B %-d, %Y")
 
 
-def _display_path(path: str) -> str:
-    import os.path
-
-    return path.replace(os.path.expanduser("~"), "~", 1)
+def _display_path(path: str | None) -> str | None:
+    if not path:
+        return None
+    path = path.strip()
+    path.replace(os.path.expanduser("~"), "~", 1)
 
 
 def _session_time(date: UTCDatetime, now: LocalDatetime) -> str:
@@ -258,3 +204,36 @@ def _parse_period_date(period: str | None) -> UTCDatetime | None:
         return from_iso_or_none(period)
     except (ValueError, TypeError):
         return None
+
+
+class Renderer:
+    _parts: list[str]
+
+    def __init__(self):
+        self._parts = []
+
+    def append(self, line: str | None, tag: str | None = None, attrs: str | None = None):
+        if not line:
+            return
+
+        if tag:
+            line = f"<{tag}{f' {attrs}' if attrs else ''}>\n{line}\n</{tag}>"
+
+        self._parts.append(line)
+
+    def render(self) -> str:
+        return "\n".join(self._parts)
+
+    def append_entities(self, entities: list[Entity] | None):
+        if not entities:
+            return
+        for entity in entities:
+            self.append_entity(entity)
+
+    def append_entity(self, entity: Entity):
+        important = entity.pinned or entity.type == EntityType.moment
+
+        tag = f"important-{entity.type}" if important else entity.type
+        attrs = f'date="{relative_date(entity.updated_at)}"'
+
+        self.append(entity.content, tag=tag, attrs=attrs)

@@ -101,13 +101,13 @@ def _is_subagent(stdin_data: dict | None) -> bool:
     return bool(stdin_data and stdin_data.get("agent_id"))
 
 
-async def _post_message(host: str, port: int, **kwargs) -> None:
+async def _post_message(**kwargs) -> None:
     """POST a message to the server. Best-effort."""
     import httpx
 
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            await client.post(f"http://{host}:{port}/api/messages", json=kwargs)
+            await client.post(config.server.api_url("messages"), json=kwargs)
     except Exception:
         pass
 
@@ -303,12 +303,12 @@ def prompt_submit(
     context = _incoming_context()
 
     if context:
-        asyncio.run(_prompt_submit(host, port, context))
+        asyncio.run(_prompt_submit(context))
 
     typer.Exit(0)
 
 
-async def _prompt_submit(host: str, port: int, context: IncomingHookContext) -> None:
+async def _prompt_submit(context: IncomingHookContext) -> None:
     user_prompt = context.stdin.get("prompt")
     if not user_prompt:
         _log("prompt-submit", "ERROR: Missing User Submitted Text", data=context.stdin)
@@ -325,29 +325,12 @@ async def _prompt_submit(host: str, port: int, context: IncomingHookContext) -> 
 
     # Pre-fetch timing data from the server (best-effort, never blocks)
     try:
+        url = config.server.api_url(f"session/{session_id}/prompt_submit")
+
         async with httpx.AsyncClient(timeout=2.0) as client:
-            # Session timing + last assistant message in parallel
-            session_resp, msg_resp = await asyncio.gather(
-                client.get(f"http://{host}:{port}/api/sessions/{session_id}"),
-                client.get(
-                    f"http://{host}:{port}/api/messages/latest",
-                    params={"session_id": session_id, "role": "assistant"},
-                ),
-                return_exceptions=True,
-            )
-
-            if not isinstance(session_resp, Exception) and session_resp.status_code == 200:
-                session_data = session_resp.json()
-
-                if session_data.get("created_at"):
-                    metadata["session_start"] = session_data["created_at"]
-                if session_data.get("updated_at"):
-                    metadata["last_session_save_at"] = session_data["updated_at"]
-
-            if not isinstance(msg_resp, Exception) and msg_resp.status_code == 200:
-                msg_data = msg_resp.json()
-                if msg_data.get("created_at"):
-                    metadata["last_assistant_response_at"] = msg_data["created_at"]
+            response = await client.get(url)
+            if not isinstance(response, Exception) and response.status_code == 200:
+                metadata = response.json()
     except Exception:
         pass
 
@@ -371,8 +354,6 @@ async def _prompt_submit(host: str, port: int, context: IncomingHookContext) -> 
 
     # Post user message to server
     await _post_message(
-        host,
-        port,
         session_id=session_id,
         role="user",
         content=user_prompt,
@@ -390,35 +371,31 @@ def stop(
 ) -> None:
     """Hook: Stop. Captures assistant response and logs stop event."""
     context = _incoming_context()
-    from charlieverse.helpers.banned_words import check_text, format_feedback
-
     if context:
         last_message = str(context.stdin.get("last_assistant_message"))
 
         if not last_message:
             _log(context.event, "ERROR: Skipping stop hook because it's missing the last assistant message", data=context.stdin)
-            typer.Exit(0)
+            raise typer.Exit(0)
             return
 
-        violations = check_text(last_message)
-        if violations:
-            from rich.console import Console
+        # violations = check_text(last_message)
+        # if violations:
+        #     from rich.console import Console
 
-            feedback = format_feedback(violations)
+        #     feedback = format_feedback(violations)
 
-            _log(context.event, f"ERROR: {feedback}", data=context.stdin)
+        #     _log(context.event, f"ERROR: {feedback}", data=context.stdin)
 
-            error_console = Console(stderr=True)
-            error_console.print(feedback)
+        #     error_console = Console(stderr=True)
+        #     error_console.print(feedback)
 
-            raise typer.Exit(2)
-            return
+        #     raise typer.Exit(2)
+        #     return
 
         # Save assistant message
         asyncio.run(
             _post_message(
-                host,
-                port,
                 session_id=context.session_id,
                 role="assistant",
                 content=last_message,

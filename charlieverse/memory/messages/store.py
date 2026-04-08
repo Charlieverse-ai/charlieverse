@@ -11,7 +11,7 @@ from charlieverse.memory.sessions import SessionId
 from charlieverse.types.dates import UTCDatetime
 from charlieverse.types.strings import ShortString
 
-from .models import Message, MessageId, MessageRole
+from .models import LatestMessage, Message, MessageId, MessageRole
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +145,7 @@ class MessageStore:
         self,
         session_id: SessionId | None = None,
         role: MessageRole | str | None = None,
-    ) -> Message | None:
+    ) -> LatestMessage | None:
         """Return the most recent message, optionally filtered by session and/or role."""
         query = "SELECT * FROM messages WHERE 1=1"
         params: list = []
@@ -159,7 +159,11 @@ class MessageStore:
 
         async with self.db.execute(query, params) as cursor:
             row = await cursor.fetchone()
-        return Message.from_row(row) if row else None
+            count = await self.total(session_id)
+            if row:
+                message = LatestMessage.from_row(row)
+                message.message_count = count
+                return message
 
     async def bulk_insert(self, batch: list[tuple]) -> int:
         """Bulk insert (id, session_id, role, content, created_at) tuples. Returns rows actually inserted."""
@@ -173,9 +177,12 @@ class MessageStore:
         after = await self.total()
         return after - before
 
-    async def total(self) -> int:
+    async def total(self, session_id: SessionId | None = None) -> int:
         """Total rows in messages table."""
-        cursor = await self.db.execute("SELECT COUNT(*) FROM messages")
+        if session_id:
+            cursor = await self.db.execute("SELECT COUNT(*) FROM messages WHERE session_id = ?", [session_id])
+        else:
+            cursor = await self.db.execute("SELECT COUNT(*) FROM messages")
         row = await cursor.fetchone()
         return row[0] if row else 0
 

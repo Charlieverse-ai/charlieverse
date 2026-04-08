@@ -35,3 +35,7 @@ class Message(BaseModel):
             role=MessageRole(row["role"]),
             created_at=from_iso(row["created_at"]),
         )
+
+
+class LatestMessage(Message):
+    message_count: int

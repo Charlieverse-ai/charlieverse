@@ -6,10 +6,11 @@ from fastmcp import FastMCP
 
 from charlieverse.memory.stores import Stores
 
-from . import enrich_context, sessions
+from . import enrich_context, prompt_submit, sessions
 
 
 def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
     """Register hook REST endpoints on the given FastMCP instance."""
     enrich_context.register_routes(mcp, rest_stores)
     sessions.register_routes(mcp, rest_stores)
+    prompt_submit.register_routes(mcp, rest_stores)

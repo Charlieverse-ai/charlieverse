@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from charlieverse.memory.entities import Entity, EntityType
+from charlieverse.memory.entities import Entity, EntityId, EntityType
 from charlieverse.memory.knowledge import Knowledge
 from charlieverse.memory.messages import Message
 from charlieverse.memory.sessions import Session
@@ -29,6 +29,7 @@ class ContextBundle:
     pinned_knowledge: list[Knowledge] = field(default_factory=list)
     recent_messages: list[Message] = field(default_factory=list)
     all_time_story: Story | None = field(default=None)
+    banned_words: list[str] = field(default_factory=list)
 
     @property
     def is_first_run(self) -> bool:
@@ -67,21 +68,38 @@ class ActivationBuilder:
 
     async def build(self, session: Session, workspace: str | None) -> ContextBundle:
         """Build the full context bundle for the given session."""
+        # Deduplicate entities: moments → pinned → session → related
+        seen_ids: set[EntityId] = set()
+
         # Fetch sessions from the last 2 days (raw data, no story layer dependency)
-        recent_sessions = await self.stores.sessions.recent(limit=1)
+        recent_sessions = await self.stores.sessions.recent(limit=10)
 
         # Fetch moments — personality entities, always global
         moments = await self.stores.memories.fetch(entity_type=EntityType.moment, limit=50)
+        [seen_ids.add(memory.id) for memory in moments]
 
         # Fetch pinned entities
         pinned_entities = await self.stores.memories.pinned()
+        [seen_ids.add(memory.id) for memory in pinned_entities]
 
         # Fetch entities linked to recent sessions
         recent_ids = [s.id for s in recent_sessions]
-        session_entities = await self.stores.memories.for_sessions(recent_ids) if recent_ids else []
+        session_entities = await self.stores.memories.for_sessions(recent_ids, ignoring=list(seen_ids)) if recent_ids else []
+        [seen_ids.add(memory.id) for memory in session_entities]
 
         # Fetch related entities via vector search if we have a session description
         related_entities: list[Entity] = []
+        if session.what_happened or session.for_next_session:
+            from charlieverse.embeddings import encode_one, prepare_session_text
+
+            text = prepare_session_text(session.what_happened, session.for_next_session)
+            if text:
+                try:
+                    embedding = await encode_one(text)
+                    related_entities: list[Entity] = await self.stores.memories.search_by_vector(embedding, limit=10, ignoring=list(seen_ids))
+                except Exception:
+                    # Embeddings are best-effort — never block activation
+                    pass
 
         # Fetch stories — weekly for compressed history, all-time for the arc
         weekly_stories: list[Story] = []
@@ -101,9 +119,6 @@ class ActivationBuilder:
 
         # Fetch pinned knowledge
         pinned_knowledge = await self.stores.knowledge.pinned()
-
-        # Deduplicate entities: moments → pinned → session → related
-        seen_ids: set[ModelId] = set()
 
         def _dedup(entities: list[Entity]) -> list[Entity]:
             result = []
