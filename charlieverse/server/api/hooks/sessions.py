@@ -1,14 +1,38 @@
 from __future__ import annotations
 
+import time
+
 from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 
 from charlieverse.context import ActivationBuilder
 from charlieverse.context import renderer as context_renderer
+from charlieverse.context.builder import ContextBundle
 from charlieverse.memory.sessions import Session, SessionId, UpdateSession
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stores import Stores
+
+# Bundle cache — keyed by session_id, expires after 60s.
+# Multiple section hooks hit the server in quick succession for the same session;
+# caching avoids rebuilding the bundle (and re-running embeddings) for each one.
+_CACHE_TTL = 60.0
+_bundle_cache: dict[str, tuple[ContextBundle, float]] = {}
+
+
+async def _get_or_build_bundle(session: Session, workspace: str | None, stores: Stores) -> ContextBundle:
+    """Return a cached bundle or build a fresh one."""
+    key = str(session.id)
+    now = time.monotonic()
+    cached = _bundle_cache.get(key)
+    if cached:
+        bundle, ts = cached
+        if now - ts < _CACHE_TTL:
+            return bundle
+    builder = ActivationBuilder(stores)
+    bundle = await builder.build(session, workspace)
+    _bundle_cache[key] = (bundle, now)
+    return bundle
 
 
 def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
@@ -34,26 +58,26 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
         if not session:
             return PlainTextResponse("Missing")
 
-        builder = ActivationBuilder(rest_stores)
-        bundle = await builder.build(session, workspace)
+        bundle = await _get_or_build_bundle(session, workspace, rest_stores)
         activation = context_renderer.render(bundle)
 
         return PlainTextResponse(activation)
 
     @mcp.custom_route("/api/sessions/start", methods=["POST"])
     async def api_session_start(request: Request) -> JSONResponse:
-        """Start or resume a session. Returns activation."""
+        """Start or resume a session. Returns activation (full or single section)."""
         body = await request.json()
         session_id = body.get("session_id", SessionId())
         workspace = body.get("workspace")
+        section = body.get("section")
 
         sessions_store: SessionStore = rest_stores.sessions
 
         session = await sessions_store.upsert(UpdateSession(id=session_id, workspace=workspace))
 
-        builder = ActivationBuilder(rest_stores)
-        bundle = await builder.build(session, workspace)
-        activation = context_renderer.render(bundle)
+        bundle = await _get_or_build_bundle(session, workspace, rest_stores)
+
+        activation = context_renderer.render_section(bundle, section) if section else context_renderer.render(bundle)
 
         set_seen_ids(session.id, bundle.seen_ids)
 

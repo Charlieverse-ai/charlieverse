@@ -11,7 +11,6 @@ import asyncio
 import json
 import os
 import sys
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -174,10 +173,10 @@ def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
     """Output context in the universal hookSpecificOutput JSON format."""
 
     # Save to a temp file
-    if len(context.encode("utf-8")) >= MAX_OUTPUT_LENGTH_BYTES:
-        with tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8") as tmp:
-            tmp.write(context)
-            context = f"<very-important>Output saved to a temporary file. Before doing anything read 100% of the output: {tmp.name}</very-important>"
+    # if len(context.encode("utf-8")) >= MAX_OUTPUT_LENGTH_BYTES:
+    #     with tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8") as tmp:
+    #         tmp.write(context)
+    #         context = f"<very-important>Output saved to a temporary file. Before doing anything read 100% of the output: {tmp.name}</very-important>"
 
     output = json.dumps(
         {
@@ -251,24 +250,37 @@ def session_start(
     host: str = typer.Option(DEFAULT_HOST, help="Server host"),
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
     source: str = typer.Option(..., help="Source"),
+    section: str | None = typer.Option(None, help="Render only this section of the activation context"),
 ) -> None:
     """Hook: SessionStart. Prints activation context to stdout."""
     context = _incoming_context()
 
     if context:
-        asyncio.run(_session_start(host, port, source, context))
+        asyncio.run(_session_start(host, port, source, context, section=section))
 
     raise typer.Exit(0)
 
 
-async def _session_start(host: str, port: int, source: str, context: IncomingHookContext) -> None:
+async def _session_start(host: str, port: int, source: str, context: IncomingHookContext, *, section: str | None = None) -> None:
+
+    body: dict = {"session_id": context.session_id, "source": source, "workspace": context.workspace}
+    if section:
+        body["section"] = section
+
+    if section == "user-hooks":
+        user_hook_output = await _run_user_hooks("session-start", session_id=context.session_id, workspace=context.workspace)
+        if user_hook_output:
+            _output_context(user_hook_output, hook_event="SessionStart")
+        raise typer.Exit(0)
+        return
+
     import httpx
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.post(
                 f"http://{host}:{port}/api/sessions/start",
-                json={"session_id": context.session_id, "source": source, "workspace": context.workspace},
+                json=body,
             )
             response.raise_for_status()
             data = response.json()
@@ -277,17 +289,22 @@ async def _session_start(host: str, port: int, source: str, context: IncomingHoo
         print(f"Error connecting to Charlieverse at {host}:{port}: {e}", file=sys.stderr)
         raise typer.Exit(1) from e
 
-    result = _build_context_static(activation)
+    if not activation:
+        raise typer.Exit(0)
 
-    # Run user hooks from ~/.charlieverse/hooks/session-start/
-    user_hook_output = await _run_user_hooks("session-start", session_id=context.session_id, workspace=context.workspace)
+    result = _build_context_static(activation) if not section else activation
 
-    if user_hook_output:
-        result += user_hook_output
+    # print("🦄 Section", section, result)
+
+    # Run user hooks only for the last section (or full render) to avoid running them 7 times
+    # if not section:
+    # user_hook_output = await _run_user_hooks("session-start", session_id=context.session_id, workspace=context.workspace)
+    # if user_hook_output:
+    #     result += user_hook_output
 
     _output_context(result, hook_event="SessionStart")
 
-    typer.Exit(0)
+    raise typer.Exit(0)
 
 
 # ===== prompt-submit =====

@@ -20,10 +20,10 @@ class SessionStore:
     async def create(self, session: NewSession) -> SessionId:
         """Insert a new session."""
         await self.db.execute(
-            "INSERT INTO sessions (id, workspace, created_at, updated_at) VALUES (?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO sessions (id, workspace, created_at, updated_at) VALUES (?, ?, ?, ?)",
             (session.id, session.workspace, session.created_at, session.created_at),
         )
-        await self.db.commit()
+        # await self.db.commit()
 
         return session.id
 
@@ -34,6 +34,7 @@ class SessionStore:
             [session_id],
         )
         row = await cursor.fetchone()
+        await cursor.close()
         return Session.from_row(row) if row else None
 
     async def update(self, session: UpdateSession) -> Session:
@@ -65,6 +66,7 @@ class SessionStore:
             [*values, session.id],
         )
         row = await cursor.fetchone()
+        await cursor.close()
         await self.db.commit()
 
         if not row:

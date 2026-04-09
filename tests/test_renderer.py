@@ -591,32 +591,39 @@ def _context_message(role: str = "user", content: str = "hello", offset_seconds:
     )
 
 
+def _render_messages_to_str(msgs: list) -> str:
+    """Helper: render recent messages through a Renderer and return the output string."""
+    r = Renderer()
+    _render_recent_messages(msgs, r)
+    return r.render()
+
+
 def test_render_recent_messages_includes_tags():
     msgs = [
         _context_message("user", "what are we working on?", 120),
         _context_message("assistant", "we are building features", 60),
     ]
-    output = _render_recent_messages(msgs)
+    output = _render_messages_to_str(msgs)
     assert "<recent_messages>" in output
     assert "</recent_messages>" in output
 
 
 def test_render_recent_messages_shows_user_content():
     msgs = [_context_message("user", "tell me about the changes", 60)]
-    output = _render_recent_messages(msgs)
+    output = _render_messages_to_str(msgs)
     assert "tell me about the changes" in output
 
 
 def test_render_recent_messages_shows_assistant_content():
     msgs = [_context_message("assistant", "here is what i found", 60)]
-    output = _render_recent_messages(msgs)
+    output = _render_messages_to_str(msgs)
     assert "here is what i found" in output
 
 
 def test_render_recent_messages_truncates_long_content():
     long_content = "x" * 600
     msgs = [_context_message("assistant", long_content, 60)]
-    output = _render_recent_messages(msgs)
+    output = _render_messages_to_str(msgs)
     # Truncated at 200 chars + "…"
     assert "x" * 200 + "…" in output
 
@@ -629,5 +636,5 @@ def test_render_recent_messages_does_not_appear_when_empty():
 
 def test_render_recent_messages_user_labeled_as_me():
     msgs = [_context_message("user", "context message", 60)]
-    output = _render_recent_messages(msgs)
+    output = _render_messages_to_str(msgs)
     assert "<me " in output

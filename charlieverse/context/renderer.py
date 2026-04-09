@@ -18,83 +18,124 @@ from charlieverse.types.dates import LocalDatetime, UTCDatetime, from_iso_or_non
 PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "prompts"
 
 
-class ActivationContext:
-    banned: str
-    recent_sessions: str
-    pinned_memories: str
-    moments: str
-    recent_messages: str
-    related_memories: str
-    pinned_knowledge: str
+SECTIONS = ("personality", "moments", "important", "sessions", "related", "story", "messages")
 
 
 def render(bundle: ContextBundle) -> str:
-    """Render the activation context as XML for provider consumption."""
+    """Render the full activation context as XML for provider consumption."""
     renderer = Renderer()
+    if bundle.is_first_run:
+        _render_personality(bundle, renderer)
+        _render_first_run(bundle, renderer)
+    else:
+        for section in SECTIONS:
+            _render_to(bundle, section, renderer)
+    return renderer.render()
+
+
+def render_section(bundle: ContextBundle, section: str) -> str:
+    """Render a single named section of the activation context."""
+    if section not in SECTIONS:
+        return ""
+    renderer = Renderer()
+    if bundle.is_first_run:
+        # Only personality and first-run matter for new users
+        if section == "personality":
+            _render_personality(bundle, renderer)
+            _render_first_run(bundle, renderer)
+    else:
+        _render_to(bundle, section, renderer)
+    return renderer.render()
+
+
+def _render_to(bundle: ContextBundle, section: str, renderer: Renderer) -> None:
+    """Dispatch rendering for a single section."""
+    match section:
+        case "personality":
+            _render_personality(bundle, renderer)
+        case "moments":
+            # renderer.append_entities(bundle.moments)
+            if not bundle.moments:
+                return
+            renderer.append("<important-moments>")
+            for moment in bundle.moments:
+                renderer.append(f"## {relative_date(moment.updated_at)}")
+                renderer.append(moment.content.strip())
+
+            renderer.append("</important-moments>")
+        case "pinned-memories":
+            renderer.append_entities(bundle.pinned_entities)
+        case "pinned-knowledge":
+            _render_pinned_knowledge(bundle, renderer)
+        case "sessions":
+            _render_sessions(bundle, renderer)
+        case "related":
+            _render_related(bundle, renderer)
+        case "story":
+            _render_story(bundle, renderer)
+        case "messages":
+            _render_messages(bundle, renderer)
+
+
+def _render_personality(bundle: ContextBundle, renderer: Renderer) -> None:
     renderer.append(f"DO NOT use these words/phrases: {banned_word_string()}", tag="very-important")
     renderer.append(f"<session_id>{bundle.session.id}</session_id>")
     renderer.append("<very-important>Weight information according to relative time (most recent → least).</very-important>")
 
-    if bundle.is_first_run:
-        _render_first_run(bundle, renderer)
-    else:
-        _render_context(bundle, renderer)
 
-    return renderer.render()
-
-
-def _render_context(bundle: ContextBundle, renderer: Renderer):
-    # Use local time for all "today/yesterday" display logic
+def _render_sessions(bundle: ContextBundle, renderer: Renderer) -> None:
+    if not bundle.recent_sessions:
+        return
     now = local_now()
-    # Raw sessions from last 2 days
-    if bundle.recent_sessions:
-        current_date_key: str | None = None
-        most_recent = True
-        renderer.append("<sessions>")
+    current_date_key: str | None = None
+    most_recent = True
+    renderer.append("<sessions>")
 
-        for session in bundle.recent_sessions:
-            session_date = to_local(session.updated_at)
-            date_key = _date_group_key(session_date, now)
-            if date_key != current_date_key:
-                current_date_key = date_key
-                # renderer.append(f"# {date_key}")
+    for session in bundle.recent_sessions:
+        session_date = to_local(session.updated_at)
+        date_key = _date_group_key(session_date, now)
+        if date_key != current_date_key:
+            current_date_key = date_key
 
-            workspace = _display_path(session.workspace)
-            path = f' path="{workspace}"' if workspace else ""
-            most_recent_attr = ' most_recent="true"' if most_recent else ""
+        workspace = _display_path(session.workspace)
+        path = f' path="{workspace}"' if workspace else ""
+        most_recent_attr = ' most_recent="true"' if most_recent else ""
 
-            tag = "session"
+        renderer.append(f'<session time="{relative_date(session.updated_at)}"{path}{most_recent_attr}>')
+        renderer.append(_render_session(session, now, most_recent=most_recent))
+        renderer.append("</session>")
+        most_recent = False
+    renderer.append("</sessions>")
 
-            renderer.append(f'<{tag} time="{relative_date(session.updated_at)}"{path}{most_recent_attr}>')
-            renderer.append(_render_session(session, now, most_recent=most_recent))
-            renderer.append(f"</{tag}>")
-            most_recent = False
-        renderer.append("</sessions>")
 
-    _render_recent_messages(bundle.recent_messages, renderer)
-    renderer.append_entities(bundle.pinned_entities)
-    renderer.append_entities(bundle.moments)
+def _render_pinned_knowledge(bundle: ContextBundle, renderer: Renderer) -> None:
+    renderer.append("<knowledge>")
+    for knowledge in bundle.pinned_knowledge:
+        renderer.append(f"## {knowledge.topic}")
+        renderer.append(knowledge.content)
+    renderer.append("</knowledge>")
 
-    # Pinned knowledge (expertise)
-    if bundle.pinned_knowledge:
-        renderer.append("<knowledge>")
-        for knowledge in bundle.pinned_knowledge:
-            renderer.append(f"## {knowledge.topic}")
-            renderer.append(knowledge.content)
 
-        renderer.append("</knowledge>")
-
+def _render_related(bundle: ContextBundle, renderer: Renderer) -> None:
     if bundle.session_entities or bundle.related_entities:
         renderer.append("<related_memories>")
         renderer.append_entities([*bundle.session_entities, *bundle.related_entities])
         renderer.append("</related_memories>")
 
+
+def _render_story(bundle: ContextBundle, renderer: Renderer) -> None:
     if bundle.all_time_story:
         renderer.append(bundle.all_time_story.content, "our_story_so_far")
 
 
+def _render_messages(bundle: ContextBundle, renderer: Renderer) -> None:
+    _render_recent_messages(bundle.recent_messages, renderer)
+
+
 def _render_recent_messages(messages: list[Message], renderer: Renderer):
     """Render recent messages for context seeding."""
+    if not messages:
+        return
     renderer.append("<recent_messages>")
     for msg in messages:
         label = "me" if msg.role == "user" else "charlie"
@@ -244,7 +285,7 @@ class Renderer:
     def append_entity(self, entity: Entity):
         important = entity.pinned or entity.type == EntityType.moment
 
-        tag = f"important-{entity.type}" if important else entity.type
+        tag = f"{entity.type}" if important else entity.type
         attrs = f'date="{relative_date(entity.updated_at)}"'
 
         self.append(entity.content, tag=tag, attrs=attrs)
