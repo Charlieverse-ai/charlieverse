@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -173,10 +174,10 @@ def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
     """Output context in the universal hookSpecificOutput JSON format."""
 
     # Save to a temp file
-    # if len(context.encode("utf-8")) >= MAX_OUTPUT_LENGTH_BYTES:
-    #     with tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8") as tmp:
-    #         tmp.write(context)
-    #         context = f"<very-important>Output saved to a temporary file. Before doing anything read 100% of the output: {tmp.name}</very-important>"
+    if len(context.encode("utf-8")) >= MAX_OUTPUT_LENGTH_BYTES:
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False, encoding="utf-8") as tmp:
+            tmp.write(context)
+            context = f"<very-important>Output saved to a temporary file. Before doing anything read 100% of the output: {tmp.name}</very-important>"
 
     output = json.dumps(
         {
