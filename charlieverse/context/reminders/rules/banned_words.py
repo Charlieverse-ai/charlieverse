@@ -20,10 +20,9 @@ class BannedWordsRule(ReminderRule):
             return None
         seconds_since_session_start = ctx.metadata.get("session_start")
         seconds_since_last_save = ctx.metadata.get("last_save")
-        message_count = int(ctx.metadata.get("message_count", 0))
 
         time_since = int(seconds_since_last_save or seconds_since_session_start or 0)
-        if time_since < REMINDER_INTERVAL_SECONDS and message_count > 1:
+        if time_since < REMINDER_INTERVAL_SECONDS:
             return None
 
         from charlieverse.helpers.banned_words import banned_word_string

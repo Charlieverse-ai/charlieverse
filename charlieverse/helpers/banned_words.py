@@ -83,7 +83,7 @@ def sorted_banned_words() -> list[str]:
 
 
 def banned_word_string() -> str:
-    return ", ".join(sorted_banned_words())
+    return ", ".join([f'"{w}"' for w in sorted_banned_words()])
 
 
 def _strip_ignored_regions(text: str) -> str:
@@ -137,6 +137,4 @@ def format_feedback(matches: set[str]) -> str:
 
 
 if __name__ == "__main__":
-    words = list(BANNED_WORDS)
-    words.sort()
-    print(f"# The following words/phrases are banned:\n{', '.join(words)}")
+    print(banned_word_string())

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from charlieverse.context.builder import ContextBundle
 from charlieverse.helpers import paths
+from charlieverse.helpers.banned_words import banned_word_string
 from charlieverse.helpers.time_utils import relative_date
 from charlieverse.memory.entities import Entity, EntityType
 from charlieverse.memory.messages import Message
@@ -17,9 +18,20 @@ from charlieverse.types.dates import LocalDatetime, UTCDatetime, from_iso_or_non
 PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "prompts"
 
 
+class ActivationContext:
+    banned: str
+    recent_sessions: str
+    pinned_memories: str
+    moments: str
+    recent_messages: str
+    related_memories: str
+    pinned_knowledge: str
+
+
 def render(bundle: ContextBundle) -> str:
     """Render the activation context as XML for provider consumption."""
     renderer = Renderer()
+    renderer.append(f"DO NOT use these words/phrases: {banned_word_string()}", tag="very-important")
     renderer.append(f"<session_id>{bundle.session.id}</session_id>")
     renderer.append("<very-important>Weight information according to relative time (most recent → least).</very-important>")
 
@@ -59,6 +71,7 @@ def _render_context(bundle: ContextBundle, renderer: Renderer):
             most_recent = False
         renderer.append("</sessions>")
 
+    _render_recent_messages(bundle.recent_messages, renderer)
     renderer.append_entities(bundle.pinned_entities)
     renderer.append_entities(bundle.moments)
 
@@ -80,10 +93,9 @@ def _render_context(bundle: ContextBundle, renderer: Renderer):
         renderer.append(bundle.all_time_story.content, "our_story_so_far")
 
 
-def _render_recent_messages(messages: list[Message]) -> str:
+def _render_recent_messages(messages: list[Message], renderer: Renderer):
     """Render recent messages for context seeding."""
-    lines: list[str] = []
-    lines.append("<recent_messages>")
+    renderer.append("<recent_messages>")
     for msg in messages:
         label = "me" if msg.role == "user" else "charlie"
         # Truncate long assistant messages to keep context lean
@@ -91,10 +103,9 @@ def _render_recent_messages(messages: list[Message]) -> str:
         if len(content) > 200:
             content = content[:200] + "…"
         age = relative_date(msg.created_at)
-        lines.append(f'<{label} date="{age}">{content}</{label}>')
+        renderer.append(f'<{label} date="{age}">{content}</{label}>')
 
-    lines.append("</recent_messages>")
-    return "\n".join(lines)
+    renderer.append("</recent_messages>")
 
 
 def _render_first_run(bundle: ContextBundle, renderer: Renderer):

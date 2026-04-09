@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from charlieverse.helpers.banned_words import BANNED_WORDS
 from charlieverse.memory.entities import Entity, EntityId, EntityType
 from charlieverse.memory.knowledge import Knowledge
 from charlieverse.memory.messages import Message
@@ -75,7 +76,7 @@ class ActivationBuilder:
         recent_sessions = await self.stores.sessions.recent(limit=10)
 
         # Fetch moments — personality entities, always global
-        moments = await self.stores.memories.fetch(entity_type=EntityType.moment, limit=50)
+        moments = await self.stores.memories.fetch(entity_type=EntityType.moment, limit=1000)
         [seen_ids.add(memory.id) for memory in moments]
 
         # Fetch pinned entities
@@ -115,7 +116,7 @@ class ActivationBuilder:
         all_time_story = await self.stores.stories.get_all_time()
 
         # Fetch recent messages for context seeding (last 3 turns)
-        recent_messages = await self.stores.messages.recent_messages(turns=3)
+        recent_messages = await self.stores.messages.recent_messages(turns=6)
 
         # Fetch pinned knowledge
         pinned_knowledge = await self.stores.knowledge.pinned()
@@ -128,10 +129,13 @@ class ActivationBuilder:
                     result.append(e)
             return result
 
-        moments = _dedup(moments)
-        pinned_entities = _dedup(pinned_entities)
-        session_entities = _dedup(session_entities)
-        related_entities = _dedup(related_entities)
+        # moments = _dedup(moments)
+        # pinned_entities = _dedup(pinned_entities)
+        # session_entities = _dedup(session_entities)
+        # related_entities = _dedup(related_entities)
+
+        banned = list(BANNED_WORDS)
+        banned.sort()
 
         return ContextBundle(
             workspace=workspace,
@@ -145,4 +149,5 @@ class ActivationBuilder:
             pinned_knowledge=pinned_knowledge,
             recent_messages=recent_messages,
             all_time_story=all_time_story,
+            banned_words=banned,
         )
