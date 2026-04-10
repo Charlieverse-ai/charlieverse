@@ -368,6 +368,7 @@ async def _prompt_submit(context: IncomingHookContext) -> None:
     _output_context(reminders_output, hook_event="UserPromptSubmit")
 
     # Post user message to server
+
     await _post_message(
         session_id=session_id,
         role="user",

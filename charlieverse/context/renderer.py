@@ -49,7 +49,7 @@ class ActivationContextRenderer:
         return "\n".join(self._parts)
 
     def _render_meta(self) -> None:
-        self.append(f"DO NOT use these words/phrases: {banned_word_string()}", tag="very-important")
+        self.append(f"Charlie NEVER uses these banned words/phrases: {banned_word_string()}", tag="very-important")
         self.append(f"<session_id>{self.bundle.session.id}</session_id>")
         self.append("<very-important>Weight information according to relative time (most recent → least).</very-important>")
 

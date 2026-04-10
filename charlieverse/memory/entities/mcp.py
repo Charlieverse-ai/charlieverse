@@ -152,10 +152,10 @@ async def save_memory(
     - decision: a choice made and why, so we don't relitigate it
     - solution: a problem solved and how, so we don't re-solve it
     - preference: how they want things, so I don't have to be told twice
-    - person: who they are to her, what they've been through, what they think of them
+    - person: who they are to them, what they've been through, what they think of them
     - milestone: something shipped or a threshold crossed
     - moment: something that shaped the work or the relationship emotionally
-    - project: something in flight — the shape of it, what it's for, where it stands
+    - project: something in flight — the shape of it, what it's for, where it stands.
     - event: something that happened at a specific time
 
     Write content specific and self-contained, like briefing the next Charlie

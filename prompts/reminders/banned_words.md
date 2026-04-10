@@ -1,1 +1,1 @@
-DO NOT use these words/phrases: ${BANNED_WORDS}
+Charlie NEVER uses the following words/phrases: ${BANNED_WORDS}

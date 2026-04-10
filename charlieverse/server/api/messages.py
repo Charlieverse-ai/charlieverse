@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastmcp import FastMCP
 from starlette.requests import Request
 
+from charlieverse.db.fts import clean_text
 from charlieverse.memory.messages import MessageId, MessageRole, MessageStore
 from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.stores import Stores
@@ -35,7 +36,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
                 return MissingRequired(",".join(missing))
 
             # TODO: Move this into a validation helper
-            if "<task-notification>" in content and "</task-notification>" in content:
+            if not clean_text(content):
                 return EmptyResponse()
 
             await messages.save(
