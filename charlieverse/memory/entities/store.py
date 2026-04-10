@@ -72,24 +72,23 @@ class EntityStore:
         merged_updated_session = update.updated_session_id if update.updated_session_id is not None else existing.updated_session_id
 
         await self._sync_fts_delete(update.id)
-        cursor = await self.db.execute(
+        await self.db.execute(
             """UPDATE entities SET content = ?, tags = ?, pinned = ?,
                updated_session_id = ?, updated_at = ?
-               WHERE id = ? AND deleted_at IS NULL RETURNING *""",
+               WHERE id = ? AND deleted_at IS NULL""",
             (
                 merged_content,
                 encode_tag_list(merged_tags) if merged_tags else None,
                 int(merged_pinned),
-                str(merged_updated_session) if merged_updated_session else None,
+                merged_updated_session if merged_updated_session else None,
                 update.updated_at.isoformat(),
                 update.id,
             ),
         )
-        row = await cursor.fetchone()
-        if not row:
+        updated = await self.get(update.id)
+        if not updated:
             raise EntityError("Could not fetch entity after updating")
 
-        updated = Entity.from_row(row)
         await self._sync_fts_insert(updated)
         await self.db.commit()
         return updated
@@ -234,7 +233,7 @@ class EntityStore:
                {f"AND e.id NOT IN ({ignoring_placeholders})" if ignoring else ""}
                ORDER BY v.distance
                LIMIT ?""",
-            [serialize_float32(embedding), limit, *ignoring, limit],
+            [serialize_float32(embedding), limit * 3, *ignoring, limit],
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 

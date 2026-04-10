@@ -73,10 +73,10 @@ class KnowledgeStore:
         merged_updated_session = update.updated_session_id if update.updated_session_id is not None else existing.updated_session_id
 
         await self._sync_fts_delete(update.id)
-        cursor = await self.db.execute(
+        await self.db.execute(
             """UPDATE knowledge SET topic = ?, content = ?, tags = ?, pinned = ?,
                updated_session_id = ?, updated_at = ?
-               WHERE id = ? AND deleted_at IS NULL RETURNING *""",
+               WHERE id = ? AND deleted_at IS NULL""",
             (
                 merged_topic,
                 merged_content,
@@ -87,11 +87,10 @@ class KnowledgeStore:
                 update.id,
             ),
         )
-        row = await cursor.fetchone()
-        if not row:
+        updated = await self.get(update.id)
+        if not updated:
             raise KnowledgeError("Could not fetch knowledge after updating")
 
-        updated = Knowledge.from_row(row)
         await self._sync_fts_insert(updated)
         await self.db.commit()
         return updated

@@ -6,6 +6,9 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
+from charlieverse.db.fts import clean_text
+from charlieverse.memory.sessions import Session
+
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
 
@@ -68,14 +71,6 @@ def prepare_knowledge_text(topic: str, content: str, tags: list[str] | None = No
     return " ".join(parts)
 
 
-def prepare_session_text(
-    what_happened: str | None = None,
-    for_next_session: str | None = None,
-) -> str:
+def prepare_session_text(session: Session) -> str | None:
     """Prepare session text for embedding generation."""
-    parts: list[str] = []
-    if what_happened:
-        parts.append(what_happened)
-    if for_next_session:
-        parts.append(for_next_session)
-    return " ".join(parts) if parts else ""
+    return clean_text(f"{session.what_happened} {session.for_next_session}")

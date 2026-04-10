@@ -6,10 +6,9 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 
-from charlieverse.context import ActivationBuilder
-from charlieverse.context import renderer as context_renderer
-from charlieverse.context.builder import ContextBundle
-from charlieverse.memory.sessions import Session, SessionId, UpdateSession
+from charlieverse.context import ActivationBuilder, ContextBundle
+from charlieverse.context.renderer import ActivationContextRenderer
+from charlieverse.memory.sessions import NewSession, Session, SessionId
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stores import Stores
 
@@ -20,17 +19,18 @@ _CACHE_TTL = 60.0
 _bundle_cache: dict[str, tuple[ContextBundle, float]] = {}
 
 
-async def _get_or_build_bundle(session: Session, workspace: str | None, stores: Stores) -> ContextBundle:
+async def _get_or_build_bundle(session_id: SessionId, workspace: str | None, stores: Stores) -> ContextBundle:
     """Return a cached bundle or build a fresh one."""
-    key = str(session.id)
+    key = str(session_id)
     now = time.monotonic()
     cached = _bundle_cache.get(key)
+
     if cached:
         bundle, ts = cached
         if now - ts < _CACHE_TTL:
             return bundle
     builder = ActivationBuilder(stores)
-    bundle = await builder.build(session, workspace)
+    bundle = await builder.build(session_id, workspace)
     _bundle_cache[key] = (bundle, now)
     return bundle
 
@@ -58,8 +58,8 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
         if not session:
             return PlainTextResponse("Missing")
 
-        bundle = await _get_or_build_bundle(session, workspace, rest_stores)
-        activation = context_renderer.render(bundle)
+        bundle = await _get_or_build_bundle(session.id, workspace, rest_stores)
+        activation = ActivationContextRenderer(bundle).render()
 
         return PlainTextResponse(activation)
 
@@ -69,21 +69,19 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
         body = await request.json()
         session_id = body.get("session_id", SessionId())
         workspace = body.get("workspace")
-        section = body.get("section")
 
         sessions_store: SessionStore = rest_stores.sessions
 
-        session = await sessions_store.upsert(UpdateSession(id=session_id, workspace=workspace))
+        await sessions_store.ensure(NewSession(id=session_id, workspace=workspace))
 
-        bundle = await _get_or_build_bundle(session, workspace, rest_stores)
+        bundle = await _get_or_build_bundle(session_id, workspace, rest_stores)
+        activation = ActivationContextRenderer(bundle).render()
 
-        activation = context_renderer.render_section(bundle, section) if section else context_renderer.render(bundle)
-
-        set_seen_ids(session.id, bundle.seen_ids)
+        set_seen_ids(session_id, bundle.seen_ids)
 
         return JSONResponse(
             {
-                "session_id": session.id,
+                "session_id": session_id,
                 "activation": activation,
             }
         )

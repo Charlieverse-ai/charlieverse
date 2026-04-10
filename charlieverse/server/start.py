@@ -33,7 +33,9 @@ async def _connect_to_db() -> Connection:
     console.log("Connecting to Database")
     db_path: Path = config.database
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    return await database.connect(db_path)
+
+    connection = await database.connect(db_path)
+    return connection
 
 
 async def _setup_stores(db: Connection) -> _StoreContext:
@@ -101,10 +103,9 @@ async def start_server(host: str, port: int):
 
     # Mount
     mcp.mount(sessions)
-    mcp.mount(stories, namespace="story")
-    mcp.mount(knowledge, namespace="knowledge")
-    mcp.mount(knowledge, namespace="knowledge")
-    mcp.mount(messages, namespace="messages")
+    mcp.mount(stories)
+    mcp.mount(knowledge)
+    mcp.mount(messages)
     mcp.mount(memories)
 
     # Custom Routes

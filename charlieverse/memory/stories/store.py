@@ -64,11 +64,11 @@ class StoryStore:
     async def update(self, story: UpdateStory) -> Story:
         """Update an existing story."""
         await self._sync_fts_delete(story.id)
-        cursor = await self.db.execute(
+        await self.db.execute(
             """UPDATE stories SET title = ?, summary = ?, content = ?, tier = ?,
                period_start = ?, period_end = ?, workspace = ?, session_id = ?,
                tags = ?, updated_at = ?
-               WHERE id = ? AND deleted_at IS NULL RETURNING *""",
+               WHERE id = ? AND deleted_at IS NULL""",
             (
                 story.title,
                 story.summary,
@@ -83,11 +83,10 @@ class StoryStore:
                 story.id,
             ),
         )
-        row = await cursor.fetchone()
-        if not row:
+        updated = await self.get(story.id)
+        if not updated:
             raise StoryError("Could not fetch story after updating")
 
-        updated = Story.from_row(row)
         await self._sync_fts_insert(updated)
         await self._sync_vec(updated)
         await self.db.commit()
@@ -314,7 +313,7 @@ class StoryStore:
                    AND stories.deleted_at IS NULL
                    ORDER BY v.distance
                    LIMIT ?""",
-                (serialize_float32(embedding), limit, limit),
+                (serialize_float32(embedding), limit * 3, limit),
             )
         return [Story.from_row(row) for row in await cursor.fetchall()]
 
@@ -358,7 +357,7 @@ class StoryStore:
 
             from charlieverse.embeddings import encode_one
 
-            text = f"{story.title}\n{story.summary or ''}\n{story.content}"
+            text = story.embed_content
             embedding = await encode_one(text)
 
             async with self._vec_lock:
@@ -396,7 +395,7 @@ class StoryStore:
         if not all_stories:
             return
 
-        texts = [f"{story.title}\n{story.summary or ''}\n{story.content}" for story in all_stories]
+        texts = [story.embed_content for story in all_stories]
         embeddings = await encode(texts)
 
         rows: list[tuple[int, bytes]] = []

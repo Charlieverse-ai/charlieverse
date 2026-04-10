@@ -6,7 +6,7 @@ from charlieverse.context.reminders.rules.base import ReminderRule
 from charlieverse.context.reminders.types import HookContext, ReminderResult
 from charlieverse.helpers.time_utils import relative_time_seconds
 
-SAVE_INTERVAL_SECONDS = 600  # 10 mins
+SAVE_INTERVAL_SECONDS = 1800  # 30 mins
 
 
 class SaveSessionRule(ReminderRule):

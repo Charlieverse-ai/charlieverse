@@ -23,7 +23,6 @@ class SessionStore:
             "INSERT OR IGNORE INTO sessions (id, workspace, created_at, updated_at) VALUES (?, ?, ?, ?)",
             (session.id, session.workspace, session.created_at, session.created_at),
         )
-        # await self.db.commit()
 
         return session.id
 
@@ -34,7 +33,6 @@ class SessionStore:
             [session_id],
         )
         row = await cursor.fetchone()
-        await cursor.close()
         return Session.from_row(row) if row else None
 
     async def update(self, session: UpdateSession) -> Session:
@@ -61,18 +59,22 @@ class SessionStore:
         columns.append("updated_at = ?")
         statements = ", ".join(columns)
 
-        cursor = await self.db.execute(
-            f"UPDATE sessions SET {statements} WHERE id = ? AND deleted_at IS NULL RETURNING *",
+        await self.db.execute(
+            f"UPDATE sessions SET {statements} WHERE id = ? AND deleted_at IS NULL",
             [*values, session.id],
         )
-        row = await cursor.fetchone()
-        await cursor.close()
+        updated = await self.get(session.id)
         await self.db.commit()
 
-        if not row:
+        if not updated:
             raise SessionError("Could not fetch session after updating")
 
-        return Session.from_row(row)
+        return updated
+
+    async def ensure(self, session: NewSession):
+        """Insert or update a session by ID."""
+        if not await self.get(session.id):
+            await self.create(session)
 
     async def upsert(self, session: UpdateSession) -> Session:
         """Insert or update a session by ID."""

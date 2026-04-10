@@ -184,7 +184,6 @@ def _output_context(context: str, hook_event: str = "UserPromptSubmit") -> None:
             "hookSpecificOutput": {
                 "hookEventName": hook_event,
                 "additionalContext": f"{context}",
-                "suppressOutput": True,
             }
         }
     )
@@ -263,7 +262,6 @@ def session_start(
 
 
 async def _session_start(host: str, port: int, source: str, context: IncomingHookContext, *, section: str | None = None) -> None:
-
     body: dict = {"session_id": context.session_id, "source": source, "workspace": context.workspace}
     if section:
         body["section"] = section
@@ -298,10 +296,9 @@ async def _session_start(host: str, port: int, source: str, context: IncomingHoo
     # print("🦄 Section", section, result)
 
     # Run user hooks only for the last section (or full render) to avoid running them 7 times
-    # if not section:
-    # user_hook_output = await _run_user_hooks("session-start", session_id=context.session_id, workspace=context.workspace)
-    # if user_hook_output:
-    #     result += user_hook_output
+    user_hook_output = await _run_user_hooks("session-start", session_id=context.session_id, workspace=context.workspace)
+    if user_hook_output:
+        result += user_hook_output
 
     _output_context(result, hook_event="SessionStart")
 

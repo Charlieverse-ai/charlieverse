@@ -1,12 +1,10 @@
 """Charlieverse activation context assembly."""
 
 from charlieverse.context.builder import ActivationBuilder, ContextBundle
-from charlieverse.context.renderer import SECTIONS, render, render_section
+from charlieverse.context.renderer import ActivationContextRenderer
 
 __all__ = [
-    "SECTIONS",
     "ActivationBuilder",
+    "ActivationContextRenderer",
     "ContextBundle",
-    "render",
-    "render_section",
 ]

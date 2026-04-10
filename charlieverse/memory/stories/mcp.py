@@ -11,7 +11,6 @@ from fastmcp.server.dependencies import CurrentContext
 
 from charlieverse.memory.sessions import NewSession, SessionId
 from charlieverse.memory.stores import Stores
-from charlieverse.server.responses import ModelListResponse
 from charlieverse.server.responses.permalink import PermalinkResponse
 from charlieverse.types.dates import UTCDatetime, at_utc_midnight, to_local
 from charlieverse.types.lists import TagList
@@ -24,7 +23,7 @@ server = FastMCP(name="Stories")
 
 
 @server.tool
-async def upsert(
+async def update_story(
     title: ShortString,
     content: MediumDescription,
     tier: StoryTier,
@@ -60,43 +59,43 @@ async def upsert(
     return PermalinkResponse("story", result.id)
 
 
+# @server.tool
+# async def list(
+#     tier: StoryTier | None = None,
+#     limit: int = 20,
+#     ctx: Context = CurrentContext(),
+# ) -> ModelListResponse:
+#     """List stories, optionally filtered by tier (session, daily, weekly, monthly, all-time)."""
+#     story_store = Stores.from_context(ctx).stories
+
+#     stories = await story_store.fetch(tier=tier, limit=limit)
+#     return ModelListResponse(stories)
+
+
+# @server.tool
+# async def read(id: StoryId, ctx: Context = CurrentContext()) -> dict[str, Any]:
+#     """Read the full content of a story."""
+#     story_store = Stores.from_context(ctx).stories
+
+#     story = await story_store.get(id)
+#     if not story:
+#         raise ToolError(f"Story {id!s} not found")
+
+#     return {
+#         "id": story.id,
+#         "title": story.title,
+#         "summary": story.summary,
+#         "content": story.content,
+#         "tier": story.tier.value,
+#         "period_start": story.period_start,
+#         "period_end": story.period_end,
+#         "session_id": story.session_id,
+#         "workspace": story.workspace,
+#     }
+
+
 @server.tool
-async def list(
-    tier: StoryTier | None = None,
-    limit: int = 20,
-    ctx: Context = CurrentContext(),
-) -> ModelListResponse:
-    """List stories, optionally filtered by tier (session, daily, weekly, monthly, all-time)."""
-    story_store = Stores.from_context(ctx).stories
-
-    stories = await story_store.fetch(tier=tier, limit=limit)
-    return ModelListResponse(stories)
-
-
-@server.tool
-async def read(id: StoryId, ctx: Context = CurrentContext()) -> dict[str, Any]:
-    """Read the full content of a story."""
-    story_store = Stores.from_context(ctx).stories
-
-    story = await story_store.get(id)
-    if not story:
-        raise ToolError(f"Story {id!s} not found")
-
-    return {
-        "id": story.id,
-        "title": story.title,
-        "summary": story.summary,
-        "content": story.content,
-        "tier": story.tier.value,
-        "period_start": story.period_start,
-        "period_end": story.period_end,
-        "session_id": story.session_id,
-        "workspace": story.workspace,
-    }
-
-
-@server.tool
-async def forget(
+async def forget_story(
     id: StoryId,
     ctx: Context = CurrentContext(),
 ) -> None:
@@ -111,7 +110,7 @@ async def forget(
 
 
 @server.tool
-async def get_rollup(
+async def story_data(
     target: str,
     ctx: Context = CurrentContext(),
 ) -> dict[str, Any]:

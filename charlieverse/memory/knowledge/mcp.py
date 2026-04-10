@@ -8,55 +8,52 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import CurrentContext
 
-from charlieverse.embeddings import encode_one, prepare_knowledge_text
+from charlieverse.embeddings import prepare_knowledge_text
 from charlieverse.embeddings.tasks import fire_and_forget_embedding
 from charlieverse.helpers.tasks import track_task
-from charlieverse.memory.knowledge import KnowledgeId
 from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.stores import Stores
-from charlieverse.server.responses import ModelListResponse
-from charlieverse.server.responses.knowledge_summary import KnowledgeSummary
 from charlieverse.server.responses.permalink import PermalinkResponse
 from charlieverse.types.lists import TagList
 from charlieverse.types.strings import NonEmptyString
 
-from .models import Knowledge, NewKnowledge
+from .models import NewKnowledge
 from .store import KnowledgeStore
 
 server = FastMCP(name="Knowledge")
 
 
+# @server.tool
+# async def search(
+#     query: NonEmptyString,
+#     limit: int = 5,
+#     ctx: Context = CurrentContext(),
+# ) -> ModelListResponse:
+#     """Search the knowledge base. Semantic + full-text search across knowledge articles."""
+#     knowledge_store: KnowledgeStore = Stores.from_context(ctx).knowledge
+
+#     fts_results = await knowledge_store.search(query, limit=limit)
+
+#     vector_results: list[Knowledge] = []
+#     try:
+#         embedding = await encode_one(query)
+#         vector_results = await knowledge_store.search_by_vector(embedding, limit=limit)
+#     except Exception:
+#         pass
+
+#     seen: set[KnowledgeId] = set()
+#     merged: list[Knowledge] = []
+#     for k in fts_results + vector_results:
+#         key = k.id
+#         if key not in seen:
+#             seen.add(key)
+#             merged.append(k)
+
+#     return ModelListResponse([KnowledgeSummary(id=k.id, content=k.content) for k in merged[:limit]])
+
+
 @server.tool
-async def search(
-    query: NonEmptyString,
-    limit: int = 5,
-    ctx: Context = CurrentContext(),
-) -> ModelListResponse:
-    """Search the knowledge base. Semantic + full-text search across knowledge articles."""
-    knowledge_store: KnowledgeStore = Stores.from_context(ctx).knowledge
-
-    fts_results = await knowledge_store.search(query, limit=limit)
-
-    vector_results: list[Knowledge] = []
-    try:
-        embedding = await encode_one(query)
-        vector_results = await knowledge_store.search_by_vector(embedding, limit=limit)
-    except Exception:
-        pass
-
-    seen: set[KnowledgeId] = set()
-    merged: list[Knowledge] = []
-    for k in fts_results + vector_results:
-        key = k.id
-        if key not in seen:
-            seen.add(key)
-            merged.append(k)
-
-    return ModelListResponse([KnowledgeSummary(id=k.id, content=k.content) for k in merged[:limit]])
-
-
-@server.tool
-async def update(
+async def update_article(
     topic: NonEmptyString,
     content: NonEmptyString,
     session_id: SessionId,

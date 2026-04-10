@@ -3,17 +3,13 @@ name: session-save
 description: Save the current session and optionally generate story rollups.
 ---
 
-## What this skill does
-
-Saves the current session and optionally generates/updates story rollups (daily, weekly, monthly).
-
 ## Steps
 
 ### 1. Save the session
 
 Call `session_update` with:
-- `what_happened`: A concise summary of what happened this session
-- `for_next_session`: What the next session should pick up on
+- `what_happened`: Details about what happened this session
+- `for_next_session`: A list of TODO's for the next section
 - `tags`: Relevant tags
 - `workspace`: The current workspace path if applicable
 

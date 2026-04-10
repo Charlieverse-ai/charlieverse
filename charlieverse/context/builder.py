@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from charlieverse.embeddings import encode_one
 from charlieverse.helpers.banned_words import BANNED_WORDS
 from charlieverse.memory.entities import Entity, EntityId, EntityType
+from charlieverse.memory.entities.mcp import _rank_by_relevance_and_recency
 from charlieverse.memory.knowledge import Knowledge
 from charlieverse.memory.messages import Message
-from charlieverse.memory.sessions import Session
+from charlieverse.memory.sessions import Session, SessionId
 from charlieverse.memory.stores import Stores
 from charlieverse.memory.stories import Story, StoryTier
 from charlieverse.types.dates import local_now
@@ -67,7 +69,7 @@ class ActivationBuilder:
     def __init__(self, stores: Stores) -> None:
         self.stores = stores
 
-    async def build(self, session: Session, workspace: str | None) -> ContextBundle:
+    async def build(self, session_id: SessionId, workspace: str | None) -> ContextBundle:
         """Build the full context bundle for the given session."""
         # Deduplicate entities: moments → pinned → session → related
         seen_ids: set[EntityId] = set()
@@ -77,6 +79,7 @@ class ActivationBuilder:
 
         # Fetch moments — personality entities, always global
         moments = await self.stores.memories.fetch(entity_type=EntityType.moment, limit=1000)
+        moments = _rank_by_relevance_and_recency(moments, set(), set())
         [seen_ids.add(memory.id) for memory in moments]
 
         # Fetch pinned entities
@@ -86,22 +89,29 @@ class ActivationBuilder:
         # Fetch entities linked to recent sessions
         recent_ids = [s.id for s in recent_sessions]
         session_entities = await self.stores.memories.for_sessions(recent_ids, ignoring=list(seen_ids)) if recent_ids else []
+        session_entities = _rank_by_relevance_and_recency(session_entities, set(), set())
         [seen_ids.add(memory.id) for memory in session_entities]
 
         # Fetch related entities via vector search if we have a session description
         related_entities: list[Entity] = []
-        if session.what_happened or session.for_next_session:
-            from charlieverse.embeddings import encode_one, prepare_session_text
+        from charlieverse.embeddings import prepare_session_text
 
-            text = prepare_session_text(session.what_happened, session.for_next_session)
-            if text:
+        if recent_sessions:
+            texts: list[str] = []
+            for session in recent_sessions:
+                content = prepare_session_text(session)
+                if content:
+                    texts.append(content)
+
+            if texts:
                 try:
-                    embedding = await encode_one(text)
-                    related_entities: list[Entity] = await self.stores.memories.search_by_vector(embedding, limit=10, ignoring=list(seen_ids))
-                except Exception:
-                    # Embeddings are best-effort — never block activation
-                    pass
+                    embedding = await encode_one("\n".join(texts))
+                    related_entities = await self.stores.memories.search_by_vector(embedding, limit=10, ignoring=list(seen_ids))
 
+                except Exception as e:
+                    print("🦄 Embedding failed", e)
+
+        related_entities = _rank_by_relevance_and_recency(related_entities, set(), set())
         # Fetch stories — weekly for compressed history, all-time for the arc
         weekly_stories: list[Story] = []
         all_time_story: Story | None = None

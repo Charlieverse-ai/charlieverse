@@ -68,6 +68,10 @@ class Story(BaseModel):
             deleted_at=from_iso_or_none(row["deleted_at"]),
         )
 
+    @property
+    def embed_content(self) -> str:
+        return f"{self.title}\n{f'\n{self.summary}' or ''}{self.content}"
+
 
 class NewStory(BaseModel):
     """Payload for creating a new story."""

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import re
 
-from charlieverse.helpers.stop_words import STOP_WORDS
-
 
 def is_ignored(text: str) -> bool:
+    if text.startswith("[Request interrupted"):
+        return True
+
     # Slash commands
     if re.match(r"^\/([\w-]+)(?:\s+(.*))?$", text):
         return True
@@ -29,7 +30,7 @@ def strip_noise(content: str) -> str:
     # PascalCase
     content = re.sub(r"\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b", " ", content)
     # Strip file paths (absolute and relative)
-    content = re.sub(r'([a-zA-Z]:\\|\/)[^"<>|]+?[^"<>|]*\.\w+', " ", content)
+    content = re.sub(r'(\/.*|[a-zA-Z]:\\(?:([^<>:"\/\\|?*]*[^<>:"\/\\|?*.]\\|..\\)*([^<>:"\/\\|?*]*[^<>:"\/\\|?*.]\\?|..\\))?)', " ", content)
     # Strip git log lines (e.g. "abc1234 Charlie Mar 5 ...")
     content = re.sub(r"^[a-f0-9]{6,}\s+.*$", " ", content, flags=re.MULTILINE)
     # Strip lines that look like shell output / file listings
@@ -39,12 +40,17 @@ def strip_noise(content: str) -> str:
     # Inline `code`
     content = re.sub(r"(?<!`)(`)([^`]+)\1(?!`)", " ", content, flags=re.MULTILINE)
     # Normalize all multi spaces to 1
+    content = re.sub(r"-{2,}", " ", content)
+    content = re.sub(r"[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}", " ", content)
     content = re.sub(r"\s{2,}", " ", content, flags=re.MULTILINE)
 
     return content.strip()
 
 
-def clean_text(text: str) -> str | None:
+def clean_text(text: str | None) -> str | None:
+    if not text:
+        return None
+
     string = text.strip()
     if not string or is_ignored(string):
         return None
@@ -53,7 +59,9 @@ def clean_text(text: str) -> str | None:
     if not string:
         return None
 
-    tokens = re.findall(r"[\w-]+", string.lower())
+    from charlieverse.helpers.stop_words import STOP_WORDS
+
+    tokens = string.lower().split(" ")
     filtered = [t for t in tokens if t not in STOP_WORDS and len(t) > 2]
     if filtered:
         return " ".join(filtered)

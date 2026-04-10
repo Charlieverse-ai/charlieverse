@@ -114,8 +114,6 @@ class MessageStore:
                     break
 
         result = filtered[:cutoff] if cutoff else filtered
-        # Reverse to chronological order
-        result.reverse()
         return result
 
     async def messages_for_session(

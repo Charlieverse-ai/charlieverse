@@ -9,7 +9,7 @@ from charlieverse.context.reminders.types import (
     ReminderTag,
 )
 
-REMINDER_INTERVAL_SECONDS = 600  # 10 mins
+REMINDER_INTERVAL_SECONDS = 1800  # 30 mins
 
 
 class BannedWordsRule(ReminderRule):

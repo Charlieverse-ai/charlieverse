@@ -1,5 +1,3 @@
-"""REST hook endpoints: session lifecycle, heartbeat, health, work-logs, messages, context enrich."""
-
 from __future__ import annotations
 
 from fastmcp import FastMCP
@@ -9,6 +7,7 @@ from starlette.responses import JSONResponse
 from charlieverse.db.fts import clean_text
 from charlieverse.embeddings import encode_one
 from charlieverse.memory.entities import EntityStore
+from charlieverse.memory.entities.mcp import _rank_by_relevance_and_recency
 from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.stores import Stores
 from charlieverse.memory.stories import StoryStore
@@ -51,11 +50,11 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
         not_found: list[str] = []
 
         for entity in entities:
-            memory_results = await memories.search(entity, limit=3, include_pinned=False)
-            knowledge_results = await knowledge.search(entity, limit=1, include_pinned=False)
+            memory_results = _rank_by_relevance_and_recency(await memories.search(entity, limit=3, include_pinned=False), set(), set())
+            knowledge_results = []  # await knowledge.search(entity, limit=2, include_pinned=False)
 
-            new_memories = [m for m in memory_results if m.id not in seen_ids and (not session_id or m.created_session_id != session_id)]
-            new_knowledge = [k for k in knowledge_results if k.id not in seen_ids and (not session_id or k.created_session_id != session_id)]
+            new_memories = [m for m in memory_results if m.id not in seen_ids]
+            new_knowledge = [k for k in knowledge_results if k.id not in seen_ids]
 
             if new_memories or new_knowledge:
                 found.append(

@@ -6,7 +6,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.server.dependencies import CurrentContext
 
 from charlieverse.context import ActivationBuilder
-from charlieverse.context import renderer as context_renderer
+from charlieverse.context.renderer import ActivationContextRenderer
 from charlieverse.memory.sessions.store import SessionStore
 from charlieverse.memory.stores import Stores
 from charlieverse.server.responses.permalink import PermalinkResponse
@@ -31,15 +31,13 @@ async def activation_context(
     if not session:
         return "Nothing"
 
-    builder = ActivationBuilder(stores)
-    bundle = await builder.build(session, workspace)
-    activation = context_renderer.render(bundle)
+    bundle = await ActivationBuilder(stores).build(session_id, workspace)
 
-    return activation
+    return ActivationContextRenderer(bundle).render()
 
 
 @server.tool
-async def session_update(
+async def update_session(
     session_id: SessionId,
     workspace: NonEmptyString,
     content: SessionContent | None = None,

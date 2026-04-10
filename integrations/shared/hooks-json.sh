@@ -6,10 +6,6 @@ function hook() {
   echo "$CHARLIE_CLI hooks $1 --source '$SOURCE'"
 }
 
-function section_hook() {
-  echo "$CHARLIE_CLI hooks session-start --source '$SOURCE' --section $1"
-}
-
 cat <<JSON
 {
   "hooks": {
@@ -17,39 +13,7 @@ cat <<JSON
       {
         "hooks": [
           {
-            "command": "$(section_hook personality)",
-            "type": "command"
-          },
-          {
-            "command": "$(section_hook pinned-memories)",
-            "type": "command"
-          },
-          {
-            "command": "$(section_hook pinned-knowledge)",
-            "type": "command"
-          },
-          {
-            "command": "$(section_hook sessions)",
-            "type": "command"
-          },
-          {
-            "command": "$(section_hook moments)",
-            "type": "command"
-          },
-          {
-            "command": "$(section_hook related)",
-            "type": "command"
-          },
-          {
-            "command": "$(section_hook story)",
-            "type": "command"
-          },
-          {
-            "command": "$(section_hook messages)",
-            "type": "command"
-          },
-            {
-            "command": "$(section_hook user-hooks)",
+            "command": "$(hook session-start)",
             "type": "command"
           }
         ],
