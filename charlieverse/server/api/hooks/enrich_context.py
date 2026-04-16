@@ -8,7 +8,6 @@ from charlieverse.db.fts import clean_text
 from charlieverse.embeddings import encode_one
 from charlieverse.memory.entities import EntityStore
 from charlieverse.memory.entities.mcp import _rank_by_relevance_and_recency
-from charlieverse.memory.knowledge import KnowledgeStore
 from charlieverse.memory.stores import Stores
 from charlieverse.memory.stories import StoryStore
 from charlieverse.types.id import ModelId
@@ -44,19 +43,16 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
         temporal_refs = extract_temporal_refs(text)
 
         memories: EntityStore = rest_stores.memories
-        knowledge: KnowledgeStore = rest_stores.knowledge
 
         found: list[dict] = []
         not_found: list[str] = []
 
         for entity in entities:
             memory_results = _rank_by_relevance_and_recency(await memories.search(entity, limit=3, include_pinned=False), set(), set())
-            knowledge_results = await knowledge.search(entity, limit=2, include_pinned=False)
 
             new_memories = [m for m in memory_results if m.id not in seen_ids]
-            new_knowledge = [k for k in knowledge_results if k.id not in seen_ids]
 
-            if new_memories or new_knowledge:
+            if new_memories:
                 found.append(
                     {
                         "entity": entity,
@@ -68,14 +64,6 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
                                 "tags": m.tags,
                             }
                             for m in new_memories
-                        ],
-                        "knowledge": [
-                            {
-                                "id": k.id,
-                                "topic": k.topic,
-                                "content": k.content[:200],
-                            }
-                            for k in new_knowledge
                         ],
                     }
                 )
@@ -101,8 +89,6 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
                         "period_start": story.period_start,
                         "period_end": story.period_end,
                     }
-                    if ref_text:
-                        entry["ref"] = ref_text
                     return entry
 
                 if temporal_refs:
@@ -132,7 +118,6 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
             prompt_ids: set[ModelId] = set()
             for entry in found:
                 prompt_ids.update(m["id"] for m in entry.get("memories", []))
-                prompt_ids.update(k["id"] for k in entry.get("knowledge", []))
             prompt_ids.update(s["id"] for s in stories_result)
             if prompt_ids:
                 existing = get_seen_ids(session_id)
@@ -141,7 +126,7 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
 
         return JSONResponse(
             {
-                "entities": entities,
+                "memories": entities,
                 "found": found,
                 "not_found": not_found,
                 "stories": stories_result,

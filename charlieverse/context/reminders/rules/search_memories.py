@@ -54,8 +54,6 @@ class SearchMemoriesRule(ReminderRule):
             for group in found:
                 for mem in group.get("memories", []):
                     parts.append(f"[{mem['type']}] {mem['content']}")
-                for know in group.get("knowledge", []):
-                    parts.append(f"[knowledge: {know['topic']}] {know['content']}")
 
         # Inject matching stories for temporal references
         if stories:

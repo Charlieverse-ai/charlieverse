@@ -9,7 +9,7 @@ def extract_snippet(
     content: str,
     query_embedding: list[float],
     context_paragraphs: int = 1,
-    max_chars: int = 800,
+    max_chars: int = 500,
 ) -> str:
     """Find the most relevant paragraphs in content relative to a query.
 
