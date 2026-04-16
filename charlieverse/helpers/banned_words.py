@@ -73,6 +73,7 @@ BANNED_WORDS = {
     "the real issue",
     "I see the issue clearly",
     "clean",
+    "say the word",
 }
 
 

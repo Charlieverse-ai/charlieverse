@@ -11,7 +11,7 @@ from charlieverse.context.reminders.types import (
 
 
 class SystemPromptRule(ReminderRule):
-    tag = ReminderTag.CHARLIE_REMINDER
+    tag = ReminderTag.VERY_IMPORTANT
 
     async def evaluate(self, ctx: HookContext) -> ReminderResult | None:
         if ctx.event != "UserPromptSubmit":
