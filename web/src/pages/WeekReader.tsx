@@ -8,6 +8,8 @@ interface WeekReaderProps {
   periodEnd: string
   /** Optional title override — otherwise falls back to "Week of <range>". */
   title?: string
+  /** Weekly rollup to render when no daily stories exist for this period. */
+  fallbackStory?: Story
   onBack: () => void
 }
 
@@ -30,11 +32,13 @@ function orderDailies(stories: Story[]): Story[] {
   })
 }
 
-export function WeekReader({ periodStart, periodEnd, title, onBack }: WeekReaderProps) {
+export function WeekReader({ periodStart, periodEnd, title, fallbackStory, onBack }: WeekReaderProps) {
   const { data: dailies, isLoading } = useStoriesInPeriod('daily', periodStart, periodEnd)
 
   const heading = title || `Week of ${weekRangeLabel(periodStart, periodEnd)}`
   const ordered = orderDailies(dailies || [])
+  const hasDailies = ordered.length > 0
+  const showFallback = !isLoading && !hasDailies && !!fallbackStory
 
   return (
     <div className="reader">
@@ -46,7 +50,8 @@ export function WeekReader({ periodStart, periodEnd, title, onBack }: WeekReader
           <h1 style={{ margin: 0 }}>{heading}</h1>
           <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 6 }}>
             {weekRangeLabel(periodStart, periodEnd)}
-            {ordered.length > 0 && ` · ${ordered.length} ${ordered.length === 1 ? 'day' : 'days'}`}
+            {hasDailies && ` · ${ordered.length} ${ordered.length === 1 ? 'day' : 'days'}`}
+            {showFallback && ' · weekly summary'}
           </p>
         </header>
 
@@ -56,7 +61,9 @@ export function WeekReader({ periodStart, periodEnd, title, onBack }: WeekReader
           </div>
         )}
 
-        {!isLoading && ordered.length === 0 && (
+        {showFallback && <Markdown content={fallbackStory.content} />}
+
+        {!isLoading && !hasDailies && !fallbackStory && (
           <div style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '48px 0', fontSize: 13 }}>
             No daily stories for this week yet.
           </div>

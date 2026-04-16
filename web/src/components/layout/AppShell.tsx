@@ -19,12 +19,14 @@ interface ActiveWeek {
   periodStart: string
   periodEnd: string
   title?: string
+  fallbackStory?: Story
 }
 
 interface ActiveMonth {
   periodStart: string
   periodEnd: string
   title?: string
+  fallbackStory?: Story
 }
 
 type DetailItem =
@@ -138,7 +140,8 @@ export function AppShell() {
   // Browser history for story reader (enables swipe-back on iOS)
   const openStory = useCallback((story: Story) => {
     // Weekly stories pivot to a dailies-for-this-week view instead of the
-    // weekly rollup content.
+    // weekly rollup content. The weekly story is carried as a fallback so the
+    // reader can render it when no dailies exist for that period.
     if (story.tier === 'weekly' && story.period_start && story.period_end) {
       setNoAnimate(false)
       setActiveMonth(null)
@@ -146,6 +149,7 @@ export function AppShell() {
         periodStart: story.period_start,
         periodEnd: story.period_end,
         title: story.title,
+        fallbackStory: story,
       })
       history.pushState({ week: true }, '')
       contentRef.current?.scrollTo(0, 0)
@@ -159,6 +163,7 @@ export function AppShell() {
         periodStart: story.period_start,
         periodEnd: story.period_end,
         title: story.title,
+        fallbackStory: story,
       })
       history.pushState({ month: true }, '')
       contentRef.current?.scrollTo(0, 0)
@@ -328,6 +333,7 @@ export function AppShell() {
               periodStart={activeWeek.periodStart}
               periodEnd={activeWeek.periodEnd}
               title={activeWeek.title}
+              fallbackStory={activeWeek.fallbackStory}
               onBack={handleWeekBack}
             />
           ) : activeMonth ? (
@@ -335,6 +341,7 @@ export function AppShell() {
               periodStart={activeMonth.periodStart}
               periodEnd={activeMonth.periodEnd}
               title={activeMonth.title}
+              fallbackStory={activeMonth.fallbackStory}
               onBack={handleMonthBack}
               onSelectWeek={openWeek}
             />
