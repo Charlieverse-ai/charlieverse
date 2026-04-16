@@ -5,6 +5,27 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.14.4] — 2026-04-16
+
+### Added
+- **`POST /api/rebuild`** — dashboard Settings page now has a working backing route for the "Rebuild indexes" button. Runs the same `stories.dedupe` + parallel FTS/vector rebuild across memories, knowledge, stories, and messages that the server performs on startup. Previously the button silently 405'd against the SPA catch-all.
+
+### Changed
+- Public docs in `docs/` and `README.md` refreshed to match the v1.14.3 surface (`/api/memories` replaces `/api/entities`, `save_memory` replaces the nine `remember_*` helpers, `search_memories` replaces `recall`, module paths point at the feature-package layout).
+
+### Fixed
+- Three modules introduced in v1.14.3 had no test coverage — now covered: `helpers/banned_words` (21 tests on phrase detection, word-boundary matching, code-block exemption), `server/utils/seen_models` (10 tests on TTL eviction at the 24h boundary, cross-session isolation, get/set round-trips), `server/middleware/errors` (14 tests on Pydantic `ValidationError` compression and `is-instance[...]` / `chain[...]` branch-marker stripping). Suite grows 233 → 278 passing.
+
+### Decisions Recorded
+- ADR: Feature-package reorganization — flat `api/`/`models/`/`db/stores/`/`mcp/tools_*`/`tools/` collapsed into colocated `memory/{feature}/` packages
+- ADR: Branded string types — `NonEmptyString`, `WorkspaceFilePath`, `TagList` reject raw `str` at ty time while Pydantic keeps runtime validation
+- ADR: `ActivationContextRenderer` class collapse — one class with explicit section ordering replaces module-level `render()` plus a dozen private helpers
+- ADR: `ContextBundle.current_session_id` required — fixes the Python loop-variable-leak that caused `session-save` to overwrite stale rows
+- ADR: Banned words as hook-delivered reminder — ~70-phrase kill list moved from `Charlie.md` to `BannedWordsRule` with a 30-minute re-emit interval on `UserPromptSubmit`
+- ADR: FTS sanitizer returns `str` not `Optional[str]` — hardens against null bytes and stray quotes while simplifying caller truthiness checks
+
+---
+
 ## [v1.14.3] — 2026-04-16
 
 ### Changed
