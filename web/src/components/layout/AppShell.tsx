@@ -10,8 +10,22 @@ import { Sessions } from '../../pages/Sessions'
 import { KnowledgePage } from '../../pages/Knowledge'
 import { SettingsPage } from '../../pages/Settings'
 import { StoryReader } from '../../pages/StoryReader'
+import { WeekReader } from '../../pages/WeekReader'
+import { MonthReader } from '../../pages/MonthReader'
 import { api } from '../../api/client'
 import type { Entity, Knowledge, Session, Story } from '../../types'
+
+interface ActiveWeek {
+  periodStart: string
+  periodEnd: string
+  title?: string
+}
+
+interface ActiveMonth {
+  periodStart: string
+  periodEnd: string
+  title?: string
+}
 
 type DetailItem =
   | { kind: 'entity'; data: Entity }
@@ -46,6 +60,8 @@ export function AppShell() {
   const [detailSource, setDetailSource] = useState<DetailSource>('page')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [activeStory, setActiveStory] = useState<Story | null>(null)
+  const [activeWeek, setActiveWeek] = useState<ActiveWeek | null>(null)
+  const [activeMonth, setActiveMonth] = useState<ActiveMonth | null>(null)
   const [noAnimate, setNoAnimate] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -112,6 +128,8 @@ export function AppShell() {
   const handleNavigate = useCallback((p: Page) => {
     setPage(p)
     setActiveStory(null)
+    setActiveWeek(null)
+    setActiveMonth(null)
     setNoAnimate(true)
     setMobileMenuOpen(false)
     contentRef.current?.scrollTo(0, 0)
@@ -119,9 +137,43 @@ export function AppShell() {
 
   // Browser history for story reader (enables swipe-back on iOS)
   const openStory = useCallback((story: Story) => {
+    // Weekly stories pivot to a dailies-for-this-week view instead of the
+    // weekly rollup content.
+    if (story.tier === 'weekly' && story.period_start && story.period_end) {
+      setNoAnimate(false)
+      setActiveMonth(null)
+      setActiveWeek({
+        periodStart: story.period_start,
+        periodEnd: story.period_end,
+        title: story.title,
+      })
+      history.pushState({ week: true }, '')
+      contentRef.current?.scrollTo(0, 0)
+      return
+    }
+    // Monthly stories pivot to a weeks-of-this-month view.
+    if (story.tier === 'monthly' && story.period_start && story.period_end) {
+      setNoAnimate(false)
+      setActiveWeek(null)
+      setActiveMonth({
+        periodStart: story.period_start,
+        periodEnd: story.period_end,
+        title: story.title,
+      })
+      history.pushState({ month: true }, '')
+      contentRef.current?.scrollTo(0, 0)
+      return
+    }
     setNoAnimate(false)
     setActiveStory(story)
     history.pushState({ story: true }, '')
+    contentRef.current?.scrollTo(0, 0)
+  }, [])
+
+  const openWeek = useCallback((week: ActiveWeek) => {
+    setNoAnimate(false)
+    setActiveWeek(week)
+    history.pushState({ week: true }, '')
     contentRef.current?.scrollTo(0, 0)
   }, [])
 
@@ -131,16 +183,34 @@ export function AppShell() {
     contentRef.current?.scrollTo(0, 0)
   }, [])
 
+  const closeWeek = useCallback(() => {
+    setNoAnimate(true)
+    setActiveWeek(null)
+    contentRef.current?.scrollTo(0, 0)
+  }, [])
+
+  const closeMonth = useCallback(() => {
+    setNoAnimate(true)
+    setActiveMonth(null)
+    contentRef.current?.scrollTo(0, 0)
+  }, [])
+
   useEffect(() => {
     const handler = (e: PopStateEvent) => {
       if (activeStory) {
         e.preventDefault()
         closeStory()
+      } else if (activeWeek) {
+        e.preventDefault()
+        closeWeek()
+      } else if (activeMonth) {
+        e.preventDefault()
+        closeMonth()
       }
     }
     window.addEventListener('popstate', handler)
     return () => window.removeEventListener('popstate', handler)
-  }, [activeStory, closeStory])
+  }, [activeStory, activeWeek, activeMonth, closeStory, closeWeek, closeMonth])
 
   // Tap topbar to scroll to top (iOS status bar tap equivalent)
   const handleTopbarTap = useCallback(() => {
@@ -217,6 +287,14 @@ export function AppShell() {
     history.back()
   }, [])
 
+  const handleWeekBack = useCallback(() => {
+    history.back()
+  }, [])
+
+  const handleMonthBack = useCallback(() => {
+    history.back()
+  }, [])
+
   return (
     <div className="app">
       {mobileMenuOpen && (
@@ -245,9 +323,24 @@ export function AppShell() {
         <div className="content" ref={contentRef}>
           {activeStory ? (
             <StoryReader story={activeStory} onBack={handleStoryBack} />
+          ) : activeWeek ? (
+            <WeekReader
+              periodStart={activeWeek.periodStart}
+              periodEnd={activeWeek.periodEnd}
+              title={activeWeek.title}
+              onBack={handleWeekBack}
+            />
+          ) : activeMonth ? (
+            <MonthReader
+              periodStart={activeMonth.periodStart}
+              periodEnd={activeMonth.periodEnd}
+              title={activeMonth.title}
+              onBack={handleMonthBack}
+              onSelectWeek={openWeek}
+            />
           ) : (
             <div className={noAnimate ? 'no-animate' : ''}>
-              {page === 'dashboard' && <Dashboard onSelectStory={openStory} />}
+              {page === 'dashboard' && <Dashboard onSelectStory={openStory} onSelectWeek={openWeek} />}
               {page === 'memories' && <Memories onSelect={openEntity} onTagClick={searchTag} />}
               {page === 'sessions' && <Sessions onSelect={openSession} />}
               {page === 'knowledge' && <KnowledgePage onSelect={openKnowledge} onTagClick={searchTag} />}

@@ -1,4 +1,5 @@
-import { useStories } from '../hooks/use-stories'
+import { useStories, useStoriesInPeriod } from '../hooks/use-stories'
+import { parseLocalDate, weekBounds, weekRangeLabel } from '../lib/dates'
 import type { Story } from '../types'
 
 const tierColors: Record<string, string> = {
@@ -9,8 +10,15 @@ const tierColors: Record<string, string> = {
   'all-time': '#34D399',
 }
 
+interface WeekHandle {
+  periodStart: string
+  periodEnd: string
+  title?: string
+}
+
 interface DashboardProps {
   onSelectStory: (story: Story) => void
+  onSelectWeek: (week: WeekHandle) => void
 }
 
 function firstSentence(content: string): string {
@@ -96,12 +104,6 @@ function monthLabel(key: string): string {
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
-function parseLocalDate(dateStr: string): Date {
-  // Avoid UTC interpretation by constructing from parts
-  const [y, m, d] = dateStr.split('T')[0].split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
-
 function weekLabel(story: Story): string {
   if (!story.period_start) return story.title
   const start = parseLocalDate(story.period_start)
@@ -119,16 +121,25 @@ interface MonthGroup {
   label: string
   monthly: Story | null
   weeks: Story[]
+  days: Story[]
 }
 
-function groupByMonth(weekly: Story[], monthly: Story[]): MonthGroup[] {
+function groupByMonth(daily: Story[], weekly: Story[], monthly: Story[]): MonthGroup[] {
   const groups = new Map<string, MonthGroup>()
+
+  for (const story of daily) {
+    const mk = monthKey(story.period_start)
+    if (!groups.has(mk)) {
+      groups.set(mk, { key: mk, label: monthLabel(mk), monthly: null, weeks: [], days: []})
+    }
+    groups.get(mk)!.weeks.push(story)
+  }
 
   // Create groups from weekly stories
   for (const story of weekly) {
     const mk = monthKey(story.period_start)
     if (!groups.has(mk)) {
-      groups.set(mk, { key: mk, label: monthLabel(mk), monthly: null, weeks: [] })
+      groups.set(mk, { key: mk, label: monthLabel(mk), monthly: null, weeks: [], days: []})
     }
     groups.get(mk)!.weeks.push(story)
   }
@@ -139,27 +150,46 @@ function groupByMonth(weekly: Story[], monthly: Story[]): MonthGroup[] {
     if (groups.has(mk)) {
       groups.get(mk)!.monthly = story
     } else {
-      groups.set(mk, { key: mk, label: monthLabel(mk), monthly: story, weeks: [] })
+      groups.set(mk, { key: mk, label: monthLabel(mk), monthly: null, weeks: [], days: []})
     }
   }
 
   // Sort groups by date descending
-  return Array.from(groups.values()).sort((a, b) => b.key.localeCompare(a.key))
+  const sorted = Array.from(groups.values()).sort((a, b) => b.key.localeCompare(a.key))
+  // Sort weeks within each group by period_start descending (newest first).
+  for (const group of sorted) {
+    group.weeks.sort((a, b) => (b.period_start || '').localeCompare(a.period_start || ''))
+  }
+  return sorted
 }
 
-export function Dashboard({ onSelectStory }: DashboardProps) {
+export function Dashboard({ onSelectStory, onSelectWeek }: DashboardProps) {
+  const { data: daily, isLoading: loadingDaily } = useStories('daily')
   const { data: weekly, isLoading: loadingWeekly } = useStories('weekly')
   const { data: monthly, isLoading: loadingMonthly } = useStories('monthly')
   const { data: allTime } = useStories('all-time')
   const { data: yearly } = useStories('yearly')
-  const { data: quarterly } = useStories('quarterly')
 
-  const isLoading = loadingWeekly || loadingMonthly
+  // Dailies for this Monday–Sunday window, always queried so the current week
+  // shows inline even before a weekly rollup is generated.
+  const currentWeek = weekBounds()
+  const { data: currentWeekDailies } = useStoriesInPeriod(
+    'daily',
+    currentWeek.start,
+    currentWeek.end,
+  )
+
+  const isLoading = loadingDaily || loadingWeekly || loadingMonthly
 
   // Pick the highest-tier story for the arc header
-  const arcStory = allTime?.[0] || yearly?.[0] || quarterly?.[0] || null
+  const arcStory = allTime?.[0] || yearly?.[0] || null
 
-  const groups = groupByMonth(weekly || [], monthly || [])
+  // Exclude dailies rendered in the This Week section so they don't duplicate
+  // in the chapter timeline below.
+  const currentWeekIds = new Set((currentWeekDailies || []).map((s) => s.id))
+  const dailyForTimeline = (daily || []).filter((s) => !currentWeekIds.has(s.id))
+
+  const groups = groupByMonth(dailyForTimeline, weekly || [], monthly || [])
 
   if (isLoading) {
     return (
@@ -185,8 +215,78 @@ export function Dashboard({ onSelectStory }: DashboardProps) {
   // Groups are sorted newest first — reverse for chapter numbering (oldest = Chapter 1)
   const totalChapters = groups.length
 
+  const hasCurrentWeekDailies = (currentWeekDailies?.length || 0) > 0
+
   return (
     <div className="dashboard">
+      {/* This week — dailies for the current Mon–Sun window, surfaced ahead of
+          the chapter timeline so the week-in-progress is always visible even
+          before a weekly rollup exists. */}
+      {hasCurrentWeekDailies && (
+        <div
+          className="chapter"
+          style={{ marginBottom: 32 }}
+        >
+          <div
+            className="chapter-header chapter-header--has-story"
+            onClick={() =>
+              onSelectWeek({
+                periodStart: currentWeek.start,
+                periodEnd: currentWeek.end,
+                title: `This week · ${weekRangeLabel(currentWeek.start, currentWeek.end)}`,
+              })
+            }
+            style={{ cursor: 'pointer' }}
+          >
+            <div
+              className="chapter-header__accent"
+              style={{ background: tierColors.weekly }}
+            />
+            <div className="chapter-header__content">
+              <div className="chapter-header__label">This Week</div>
+              <div className="chapter-header__title">{weekRangeLabel(currentWeek.start, currentWeek.end)}</div>
+              <span className="chapter-header__read">Open week →</span>
+            </div>
+          </div>
+
+          <div className="chapter-weeks">
+            {[...(currentWeekDailies || [])]
+              .sort((a, b) => (b.period_start || '').localeCompare(a.period_start || ''))
+              .map((story, i, arr) => {
+                const preview = firstSentence(story.content)
+                const dayLabel = story.period_start
+                  ? parseLocalDate(story.period_start).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'short',
+                      day: 'numeric',
+                    })
+                  : story.title
+                return (
+                  <div
+                    className="week-entry"
+                    key={story.id}
+                    onClick={() => onSelectStory(story)}
+                  >
+                    <div className="week-entry__marker-col">
+                      <div
+                        className={`week-entry__dot ${i === 0 ? 'week-entry__dot--current' : ''}`}
+                        style={{ background: tierColors.weekly }}
+                      />
+                      {i < arr.length - 1 && <div className="week-entry__line" />}
+                    </div>
+                    <div className="week-entry__content">
+                      <div className="week-entry__date">{dayLabel}</div>
+                      <div className="week-entry__title">{story.title}</div>
+                      <p className="week-entry__preview">{preview}</p>
+                      <span className="week-entry__read">Read more →</span>
+                    </div>
+                  </div>
+                )
+              })}
+          </div>
+        </div>
+      )}
+
       {/* Chapters with nested weekly entries */}
       <div className="story-timeline">
         {groups.map((group, groupIdx) => {

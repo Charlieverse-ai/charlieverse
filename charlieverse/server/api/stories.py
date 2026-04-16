@@ -44,14 +44,28 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
 
     @mcp.custom_route("/api/stories", methods=["GET"])
     async def api_list_stories(request: Request) -> ModelListResponse | ExceptionResponse:
-        """List stories, optionally filtered by tier."""
+        """List stories, optionally filtered by tier and/or period range.
+
+        Query params:
+        - tier: story tier (session, daily, weekly, monthly, yearly, all-time)
+        - period_start / period_end: inclusive date range (YYYY-MM-DD).
+          When both are provided, stories whose period overlaps the range are
+          returned via StoryStore.find_by_period (timezone-aware matching).
+        - limit: cap on results when no period range is specified (default 50).
+        """
         try:
             stories: StoryStore = rest_stores.stories
             tier_param = request.query_params.get("tier")
+            period_start = request.query_params.get("period_start")
+            period_end = request.query_params.get("period_end")
             limit = int(request.query_params.get("limit", "50"))
 
             tier = StoryTier(tier_param) if tier_param else None
-            story_list = await stories.fetch(tier=tier, limit=limit)
+
+            if period_start and period_end:
+                story_list = await stories.find_by_period(period_start, period_end, tier=tier)
+            else:
+                story_list = await stories.fetch(tier=tier, limit=limit)
             return ModelListResponse(story_list)
         except Exception as e:
             return ExceptionResponse(e)

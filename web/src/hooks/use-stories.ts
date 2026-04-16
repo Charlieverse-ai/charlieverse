@@ -8,6 +8,23 @@ export function useStories(tier?: string) {
   })
 }
 
+/** Stories of a given tier whose period overlaps [periodStart, periodEnd]. */
+export function useStoriesInPeriod(
+  tier: string | undefined,
+  periodStart: string | null,
+  periodEnd: string | null,
+) {
+  return useQuery({
+    queryKey: ['stories', tier, 'period', periodStart, periodEnd],
+    queryFn: () =>
+      api.listStories(tier, {
+        periodStart: periodStart!,
+        periodEnd: periodEnd!,
+      }),
+    enabled: !!periodStart && !!periodEnd,
+  })
+}
+
 export function useStory(id: string | null) {
   return useQuery({
     queryKey: ['story', id],

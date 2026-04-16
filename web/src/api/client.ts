@@ -43,10 +43,16 @@ export const api = {
     ),
 
   // Stories
-  listStories: (tier?: string, limit = 50) => {
+  listStories: (
+    tier?: string,
+    opts: { limit?: number; periodStart?: string; periodEnd?: string } = {},
+  ) => {
     const params = new URLSearchParams()
     if (tier) params.set('tier', tier)
-    params.set('limit', String(limit))
+    if (opts.periodStart) params.set('period_start', opts.periodStart)
+    if (opts.periodEnd) params.set('period_end', opts.periodEnd)
+    if (opts.limit != null) params.set('limit', String(opts.limit))
+    else if (!opts.periodStart) params.set('limit', '50')
     return request<import('../types').Story[]>(`/stories?${params}`)
   },
 
