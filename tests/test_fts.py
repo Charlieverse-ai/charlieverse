@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-import pytest_asyncio
 import aiosqlite
-from hypothesis import given, settings
 import hypothesis.strategies as st
+import pytest_asyncio
+from hypothesis import given, settings
 
 from charlieverse.db.fts import sanitize_fts_query
-
 
 # ---------------------------------------------------------------------------
 # Basic unit tests
@@ -47,12 +45,19 @@ def test_empty_string_returns_empty():
 
 
 def test_special_chars_stripped():
+    """Special chars embedded in a token must not corrupt the wrapped phrase."""
     result = sanitize_fts_query("foo\"bar'baz")
-    assert '"foo"*' in result or '"bar"*' in result or '"baz"*' in result
+    # The token content survives (foo/bar/baz are all present)...
+    assert "foo" in result
+    assert "bar" in result
+    assert "baz" in result
+    # ...and the double quotes are balanced so FTS5 doesn't choke on it.
+    assert result.count('"') % 2 == 0
 
 
 def test_or_joined_multiple_tokens():
     result = sanitize_fts_query("pytest database")
+    assert result is not None
     assert " OR " in result
 
 
@@ -82,12 +87,8 @@ def test_sanitized_query_never_errors_against_real_fts5(raw: str) -> None:
 
     async def _run() -> None:
         async with aiosqlite.connect(":memory:") as db:
-            await db.execute(
-                "CREATE VIRTUAL TABLE test_fts USING fts5(content)"
-            )
-            await db.execute(
-                "INSERT INTO test_fts VALUES('hello world test')"
-            )
+            await db.execute("CREATE VIRTUAL TABLE test_fts USING fts5(content)")
+            await db.execute("INSERT INTO test_fts VALUES('hello world test')")
             await db.commit()
             sanitized = sanitize_fts_query(raw)
             if sanitized:
@@ -122,9 +123,7 @@ async def test_known_query_returns_rows(fts_db) -> None:
     """A well-formed query against our fixture data must return at least one row."""
     sanitized = sanitize_fts_query("hello")
     assert sanitized  # should not be empty for "hello"
-    cursor = await fts_db.execute(
-        "SELECT * FROM test_fts WHERE test_fts MATCH ?", (sanitized,)
-    )
+    cursor = await fts_db.execute("SELECT * FROM test_fts WHERE test_fts MATCH ?", (sanitized,))
     rows = await cursor.fetchall()
     assert len(rows) > 0
 
@@ -134,6 +133,4 @@ async def test_version_string_does_not_error(fts_db) -> None:
     sanitized = sanitize_fts_query("v1.6")
     if sanitized:
         # Should not raise
-        await fts_db.execute(
-            "SELECT * FROM test_fts WHERE test_fts MATCH ?", (sanitized,)
-        )
+        await fts_db.execute("SELECT * FROM test_fts WHERE test_fts MATCH ?", (sanitized,))
