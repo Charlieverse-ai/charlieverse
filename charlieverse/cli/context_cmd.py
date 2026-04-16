@@ -37,7 +37,7 @@ async def _context(session_id: str | None, workspace: str | None, host: str, por
         params["workspace"] = os.getcwd()
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:  # ty:ignore[unresolved-attribute]
+        async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
                 config.server.api_url("sessions/context"),
                 params=params,
@@ -52,7 +52,7 @@ async def _context(session_id: str | None, workspace: str | None, host: str, por
             else:
                 typer.echo(resp.text)
 
-    except httpx.ConnectError as e:  # ty:ignore[unresolved-attribute]
+    except httpx.ConnectError as e:
         typer.echo(f"Can't reach server at {host}:{port}. Is it running?", err=True)
         raise typer.Exit(1) from e
     except Exception as e:

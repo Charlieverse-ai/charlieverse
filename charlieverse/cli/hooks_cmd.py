@@ -106,7 +106,7 @@ async def _post_message(**kwargs) -> None:
     import httpx
 
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:  # ty:ignore[unresolved-attribute]
+        async with httpx.AsyncClient(timeout=2.0) as client:
             await client.post(config.server.api_url("messages"), json=kwargs)
     except Exception:
         pass
@@ -269,7 +269,7 @@ async def _session_start(host: str, port: int, source: str, context: IncomingHoo
     import httpx
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:  # ty:ignore[unresolved-attribute]
+        async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.post(
                 f"http://{host}:{port}/api/sessions/start",
                 json=body,
@@ -332,7 +332,7 @@ async def _prompt_submit(context: IncomingHookContext) -> None:
     try:
         url = config.server.api_url(f"session/{session_id}/prompt_submit")
 
-        async with httpx.AsyncClient(timeout=2.0) as client:  # ty:ignore[unresolved-attribute]
+        async with httpx.AsyncClient(timeout=2.0) as client:
             response = await client.get(url)
             if not isinstance(response, Exception) and response.status_code == 200:
                 metadata = response.json()
@@ -442,7 +442,7 @@ async def _session_end(host: str, port: int, source: str, session_id: SessionId)
     import httpx
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:  # ty:ignore[unresolved-attribute]
+        async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(
                 f"http://{host}:{port}/api/sessions/end",
                 json={"session_id": session_id, "source": source},

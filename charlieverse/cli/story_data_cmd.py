@@ -46,7 +46,7 @@ async def _story_data(target: str, date: str | None, host: str, port: int) -> No
         date = date_shortcuts[date]()
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:  # ty:ignore[unresolved-attribute]
+        async with httpx.AsyncClient(timeout=10.0) as client:
             if target in tier_names:
                 if not date:
                     # Default to today's date for convenience
@@ -58,7 +58,7 @@ async def _story_data(target: str, date: str | None, host: str, port: int) -> No
 
             response.raise_for_status()
             data = response.json()
-    except httpx.HTTPError as e:  # ty:ignore[unresolved-attribute]
+    except httpx.HTTPError as e:
         typer.echo(f"Error fetching story data: {e}", err=True)
         raise typer.Exit(1) from e
 

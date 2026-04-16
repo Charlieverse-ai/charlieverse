@@ -25,7 +25,7 @@ class SearchMemoriesRule(ReminderRule):
         from charlieverse.config import config
 
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:  # ty:ignore[unresolved-attribute]
+            async with httpx.AsyncClient(timeout=2.0) as client:
                 resp = await client.post(
                     config.server.api_url("context/enrich"),
                     json={
