@@ -62,7 +62,11 @@ Base URL: `http://localhost:8765`
 | `DELETE` | `/api/stories/{id}` | Delete a story |
 | `POST` | `/api/stories/cleanup` | Delete stories with empty, short, or stub titles |
 
-**Query params** for `list`: `tier`, `limit` (default 50)
+**Query params** for `list`:
+
+- `tier` — filter by story tier (`session`, `daily`, `weekly`, `monthly`, `yearly`, `all-time`)
+- `period_start` / `period_end` — inclusive date range (`YYYY-MM-DD`). When both are provided, stories whose period overlaps the range are returned via timezone-aware matching.
+- `limit` — cap on results when no period range is specified (default 50)
 
 ---
 
@@ -94,9 +98,9 @@ Tier is one of `daily`, `weekly`, `monthly`, `yearly`, `all-time`. For `daily`, 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/context/enrich` | NLP entity extraction + memory/knowledge/story lookup for a text input |
+| `POST` | `/api/context/enrich` | NLP entity extraction + memory/story lookup for a text input |
 
-Used by the reminders engine on every prompt. Returns found memories/knowledge grouped by extracted entity, plus temporally-relevant stories.
+Used by the reminders engine on every prompt. Returns found memories grouped by extracted entity, plus temporally-relevant stories.
 
 ---
 
