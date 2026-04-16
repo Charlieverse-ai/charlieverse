@@ -12,13 +12,13 @@ These live in `prompts/tools/` and are available as subagents from the main Char
 
 Domain specialist that loads knowledge from the database and transforms into a subject matter expert.
 
-**Ditto pattern:** Called with a `query` (what domain to load) and a `task` (what to do). Searches knowledge via `search_knowledge`, absorbs it, then performs the task with authority. Won't fake expertise — if knowledge doesn't cover the ask, it says so.
+**Ditto pattern:** Called with a `query` (what domain to load) and a `task` (what to do). Searches knowledge, absorbs it, then performs the task with authority. Won't fake expertise — if knowledge doesn't cover the ask, it says so.
 
 ### Researcher
 
 Research agent for finding information across codebases, documentation, and the web.
 
-Used by the `/research` skill and spawned directly when Charlie needs to investigate something. Has access to all tools (Bash, Read, Glob, Grep, WebFetch, WebSearch) plus MCP tools for saving findings.
+Used by the `/research` skill and spawned directly when Charlie needs to investigate something. Returns structured findings — not opinions or recommendations. Runs as a background agent.
 
 ### Trick
 
@@ -30,15 +30,6 @@ Given a skill file path (provided by the parent agent), reads the SKILL.md, abso
 
 Narrative compression agent that turns raw session data into stories.
 
-Generates session, daily, weekly, monthly, yearly, and all-time narratives following brain-friendly writing rules (concrete details over abstractions, sensory language, emotional beats). Peer-reviews stories with a second Storyteller subagent before finalizing to ensure factual accuracy. Returns a JSON payload — the caller handles persistence.
-
-### Linguist
-
-Language analysis agent. Analyzes writing patterns, generates style guides, and produces anti-AI language rules from corpus analysis.
-
-### AgentEngineer
-
-Prompt engineering specialist. Bridges the gap between how humans write prompts and how agents experience them.
+Generates session, daily, weekly, monthly, yearly, and all-time narratives that balance detail with emotion — the who/what/when/where/why plus the texture. Peer-reviews stories with a second Storyteller subagent before finalizing to ensure factual accuracy. Runs as a background agent.
 
 ---
-

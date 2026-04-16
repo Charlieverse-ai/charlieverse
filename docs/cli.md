@@ -18,7 +18,7 @@ Manage the MCP server process.
 ```bash
 charlie server start       # Start the server (daemonized)
 charlie server stop        # Stop the running server
-charlie server status      # Show status (running/stopped, PID, URL)
+charlie server status      # Show status (running/stopped, PID)
 charlie server restart     # Restart the server
 charlie server url         # Print the server URL
 ```
@@ -30,7 +30,6 @@ charlie server url         # Print the server URL
 | `--host` | Bind address | from config |
 | `--port` | Port number | from config |
 | `--foreground` / `-f` | Run in foreground instead of daemonizing | off |
-| `--transport` | Transport type: `http`, `sse`, or `stdio` | `http` |
 
 **Options** for `restart`:
 
@@ -38,7 +37,6 @@ charlie server url         # Print the server URL
 |------|-------------|---------|
 | `--host` | Bind address | from config |
 | `--port` | Port number | from config |
-| `--transport` | Transport type: `http`, `sse`, or `stdio` | `http` |
 
 ---
 
@@ -56,10 +54,12 @@ charlie hooks session-end      # End a session
 
 **Common options:** `--host`, `--port`, `--source`
 
-`session-start` also accepts `--workspace` and `--session-id` (optional — both can be read from stdin JSON instead).
-`session-end` requires `--session-id`.
+`session-start` and `session-end` require `--source` (provider identifier).
+`session-start` also accepts `--section` to render only one section of the activation context.
 
-All hooks skip processing when `agent_id` is present in stdin (subagent context).
+Hook data (session_id, workspace, prompt, etc.) is read from stdin JSON — providers pass it automatically.
+
+All hooks skip processing when `agent_id` is present in stdin (subagent context), or when the agent is not `Charlieverse:Charlie`.
 
 ---
 
@@ -115,12 +115,14 @@ charlie import --messages --recent-days 30
 
 | Flag | Description |
 |------|-------------|
-| `--messages` | Bulk-import messages into the database |
-| `--stories` | Split into weekly files and detect story gaps |
+| `--messages` / `-m` | Bulk-import messages into the database |
+| `--stories` / `-s` | Split into weekly files and detect story gaps (default: on) |
 | `--recent-days N` | Import last N days immediately, background the rest |
-| `--provider NAME` | Filter to one provider (claude, copilot, codex) |
-| `--from-file PATH` | Import from existing JSONL instead of auto-discovering |
-| `--dir PATH` | Scan additional directories |
+| `--provider NAME` / `-p` | Filter to one provider (claude, copilot, codex) |
+| `--from-file PATH` / `-f` | Import from existing JSONL instead of auto-discovering |
+| `--dir PATH` / `-d` | Scan additional directories |
+| `--output PATH` / `-o` | Output JSONL file path |
+| `--split-dir PATH` | Directory for weekly split files |
 
 ---
 
@@ -136,7 +138,7 @@ charlie update             # Update to latest version, reinstall integrations, r
 
 ### `init`
 
-Full setup walkthrough: creates `~/.charlieverse/` directory structure, verifies dependencies (spaCy, jq), starts the server, sets up provider integrations (Claude Code, GitHub Copilot), and optionally imports conversation history.
+Full setup walkthrough: creates `~/.charlieverse/` directory structure, verifies dependencies (web dashboard, jq), starts the server, sets up provider integrations (Claude Code, GitHub Copilot), and optionally imports conversation history.
 
 | Flag | Description | Default |
 |------|-------------|---------|
@@ -154,6 +156,8 @@ Print the activation context — what Charlie sees when a session starts.
 | `--session` / `-s` | Session ID to preview |
 | `--workspace` / `-w` | Workspace path |
 | `--save` / `-S` | Save output to a temp file and print the path |
+| `--host` | Server host |
+| `--port` | Server port |
 
 ### `story-data`
 
@@ -161,7 +165,7 @@ Fetch data used by the Storyteller to generate or update a story. Outputs JSON t
 
 | Argument | Description |
 |----------|-------------|
-| `TARGET` | Session ID or tier name: `daily`, `weekly`, `monthly`, `quarterly`, `yearly` |
+| `TARGET` | Session ID or tier name: `daily`, `weekly`, `monthly`, `yearly` |
 | `DATE` | ISO date for tier rollups (e.g. `2026-03-16`). Accepts shortcuts: `today`, `yesterday`, `this-week`, `this-month` |
 
 ### `doctor`
@@ -179,8 +183,8 @@ Checks: Python version, dependencies, spaCy model, data directory, database inte
 Update Charlieverse to the latest version, reinstall provider integrations, and restart the server in one step.
 
 Detects the install mode automatically:
-- **Dev install** (git repo detected): runs `git pull` and `pip install -e .`
-- **Package install**: runs `uv tool upgrade charlieverse`
+- **Dev install** (git repo detected): reinstalls from the local checkout via `uv tool install -e`
+- **Package install**: runs `uv tool install -U charlieverse`
 
 After upgrading, reinstalls all detected provider integrations (Claude Code, GitHub Copilot) and restarts the server. Prints a reminder to reconnect MCP in Claude Code.
 

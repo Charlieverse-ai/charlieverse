@@ -21,7 +21,7 @@ Uses `charlie-commit` for all commits. Never pushes.
 
 ### `docs`
 
-Generate or update documentation from source code.
+Generate or update public documentation from source code.
 
 **Usage:** `/docs`
 
@@ -29,7 +29,7 @@ Inventories all public interfaces (CLI commands, REST API, MCP tools, bundled sk
 
 ### `adr`
 
-Extract architectural decisions from commits and record them as ADRs.
+Scan commits and diffs for decisions, record them as immutable ADRs in `docs/decisions/`.
 
 **Usage:** `/adr [commit range | "all"]`
 
@@ -37,11 +37,11 @@ Extract architectural decisions from commits and record them as ADRs.
 - Commit range (e.g., `HEAD~5..HEAD`): scans that range
 - `all`: scans full history
 
-Writes immutable ADR files to `docs/decisions/`. Decisions are never edited — amendments create new files.
+Decisions are never edited — amendments create new files.
 
 ### `changelog`
 
-Generate or update `CHANGELOG.md` from git commits.
+Generate or update `CHANGELOG.md` from git commits using semantic versioning.
 
 **Usage:** `/changelog [patch|minor|major]`
 
@@ -53,7 +53,7 @@ Run quality control checks on the codebase.
 
 **Usage:** `/qc [all|types|tests|smoke]`
 
-Stages: type checking (`ty check`), tests (`pytest`), server smoke test (health + REST + MCP), web dashboard check. Reports pass/fail for each stage.
+Stages: type checking, tests, server smoke test, web dashboard check. Reports pass/fail for each stage.
 
 ### `ship`
 
@@ -61,7 +61,7 @@ Commit, docs, changelog, and push in one go.
 
 **Usage:** `/ship [patch|minor|major]`
 
-Runs: qc → commit → docs → adr → changelog → push. The full pipeline for shipping a change.
+Runs the full ship pipeline: test-coverage → qc → [docs + adr] → commit → changelog → push → release.
 
 ### `test-coverage`
 
@@ -79,7 +79,7 @@ These ship with the Charlieverse repo in `prompts/skills/` and are available to 
 
 ### `research`
 
-Research a topic and save findings to knowledge.
+Research a topic and save findings to Charlieverse knowledge.
 
 **Usage:** `/research [topic]`
 
@@ -94,9 +94,23 @@ Run Charlie tricks by name or path.
 
 **Usage:** `/trick [name or path]`
 
-- No args: lists available tricks via `charlie trick list`
-- Name: resolves the trick, spawns Skill agent with it
+- No args: lists available tricks
+- Name: resolves the trick, spawns a Trick subagent with it
 - Supports provider delegation: `/trick [name] [provider]`
+
+---
+
+## Claude Code skills
+
+These ship with the Claude integration in `integrations/claude/skills/`.
+
+### `session-save`
+
+Save or update the current session. Triggered on handoff, save-session, update-session, or start-a-new-chat requests. Calls `update_session` with what happened and what's for next session, then reviews memories/knowledge/stories for updates.
+
+### `charlie-import`
+
+Import conversation history from AI providers (Claude, Copilot, Codex, Cursor) and generate stories from the imported data. Use on first session to bootstrap memory from existing conversations, or anytime the person wants to import history from another provider/machine.
 
 ---
 

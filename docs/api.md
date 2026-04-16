@@ -10,30 +10,30 @@ Base URL: `http://localhost:8765`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/sessions/context` | Get activation context |
-| `POST` | `/api/sessions/start` | Start or resume a session |
-| `POST` | `/api/sessions/heartbeat` | Session heartbeat |
+| `GET` | `/api/sessions/context` | Preview activation context as plain text |
+| `POST` | `/api/sessions/start` | Start or resume a session; returns rendered activation context |
 | `POST` | `/api/sessions/end` | End a session |
-| `GET` | `/api/sessions/list` | List all sessions |
+| `GET` | `/api/sessions/list` | List recent sessions |
 | `GET` | `/api/sessions/{id}` | Get a specific session |
+| `GET` | `/api/session/{session_id}/prompt_submit` | Timing data for the prompt-submit hook (session age, last save, seen memory IDs) |
 
 **Query params** for `context`: `session_id`, `workspace`
-**Query params** for `list`: `limit`
+**Query params** for `list`: `limit` (default 50)
 
 ---
 
-## Entities (Memories)
+## Memories
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/entities` | List entities |
-| `GET` | `/api/entities/{id}` | Get a specific entity |
-| `POST` | `/api/entities` | Create an entity |
-| `PATCH` | `/api/entities/{id}` | Update an entity |
-| `DELETE` | `/api/entities/{id}` | Soft-delete an entity |
-| `POST` | `/api/entities/{id}/pin` | Toggle pin status |
+| `GET` | `/api/memories` | List memories |
+| `GET` | `/api/memories/{id}` | Get a specific memory |
+| `POST` | `/api/memories` | Create a memory |
+| `PATCH` | `/api/memories/{id}` | Update a memory |
+| `DELETE` | `/api/memories/{id}` | Soft-delete a memory |
+| `POST` | `/api/memories/{id}/pin` | Toggle pin status |
 
-**Query params** for `list`: `type`, `limit`
+**Query params** for list: `type`, `limit` (default 100)
 
 ---
 
@@ -43,12 +43,12 @@ Base URL: `http://localhost:8765`
 |--------|------|-------------|
 | `GET` | `/api/knowledge` | List knowledge articles |
 | `GET` | `/api/knowledge/{id}` | Get a specific article |
-| `POST` | `/api/knowledge` | Create or update by topic |
+| `POST` | `/api/knowledge` | Create a knowledge article |
 | `PATCH` | `/api/knowledge/{id}` | Update an article |
 | `DELETE` | `/api/knowledge/{id}` | Soft-delete an article |
 | `POST` | `/api/knowledge/{id}/pin` | Toggle pin status |
 
-**Query params** for `list`: `limit`
+**Query params** for `list`: `limit` (default 50)
 
 ---
 
@@ -60,9 +60,9 @@ Base URL: `http://localhost:8765`
 | `GET` | `/api/stories` | List stories |
 | `GET` | `/api/stories/{id}` | Get a specific story |
 | `DELETE` | `/api/stories/{id}` | Delete a story |
-| `POST` | `/api/stories/cleanup` | Delete stories with empty, short, or test titles |
+| `POST` | `/api/stories/cleanup` | Delete stories with empty, short, or stub titles |
 
-**Query params** for `list`: `tier`, `limit`
+**Query params** for `list`: `tier`, `limit` (default 50)
 
 ---
 
@@ -72,8 +72,9 @@ Used by the Storyteller agent to generate narratives.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/story-data/{session_id}` | Get session data for story generation |
 | `GET` | `/api/story-data/{tier}/{date}` | Get rollup data for a tier on a date |
+
+Tier is one of `daily`, `weekly`, `monthly`, `yearly`, `all-time`. For `daily`, returns raw sessions, messages, memories, and knowledge created that day. For higher tiers, returns the lower-tier stories within the tier's period.
 
 ---
 
@@ -93,7 +94,9 @@ Used by the Storyteller agent to generate narratives.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/context/enrich` | NLP entity extraction + memory lookup for a text input |
+| `POST` | `/api/context/enrich` | NLP entity extraction + memory/knowledge/story lookup for a text input |
+
+Used by the reminders engine on every prompt. Returns found memories/knowledge grouped by extracted entity, plus temporally-relevant stories.
 
 ---
 
@@ -102,7 +105,6 @@ Used by the Storyteller agent to generate narratives.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/health` | Health check |
-| `GET` | `/api/stats` | Dashboard statistics |
-| `POST` | `/api/search` | Unified search (FTS + vector fallback) |
-| `POST` | `/api/rebuild` | Rebuild all FTS + vector indexes |
+| `GET` | `/api/stats` | Dashboard statistics (entity counts by type, session count, knowledge count) |
+| `POST` | `/api/search` | Unified search (FTS5 with vector fallback) across memories and knowledge |
 | `GET` | `/{path}` | Serve web dashboard (SPA catch-all) |

@@ -96,7 +96,7 @@ charlie doctor
 You <-> [Claude / Copilot / Cursor] <-> Charlie (MCP Server) <-> Memory DB
 ```
 
-Charlie runs as a local MCP server. Your AI tool connects to it and gets access to persistent memory tools — `remember_decision`, `recall`, `update_knowledge`, `search_messages`, and more. A hook system injects relevant context into every prompt automatically, so your AI doesn't have to explicitly search for things it should already know.
+Charlie runs as a local MCP server. Your AI tool connects to it and gets access to persistent memory tools — `save_memory`, `search_memories`, `update_article`, `search_conversations`, and more. A hook system injects relevant context into every prompt automatically, so your AI doesn't have to explicitly search for things it should already know.
 
 ### Memory types
 
@@ -108,6 +108,8 @@ Charlie runs as a local MCP server. Your AI tool connects to it and gets access 
 | **People** | Who matters in your world | "Rishi — user #2, tests everything, sends feedback at 2 AM" |
 | **Milestones** | Significant achievements | "First external signup on charlieverse.ai" |
 | **Moments** | The relationship texture | "Emily said 'Charlie talked me off the ledge'" |
+| **Projects** | Things in flight — what they're for, where they stand | "Charlieverse — persistent memory layer, shipping v1.14" |
+| **Events** | Something that happened at a specific time | "AI Engineer Summit talk on Mar 22" |
 | **Knowledge** | Domain expertise articles | Living documents that grow as you work |
 
 All memories get vector embeddings (all-MiniLM-L6-v2) for semantic search, plus FTS5 for keyword search. Pinned items appear in every session's activation context.
@@ -134,27 +136,17 @@ Each tier synthesizes the one below it. Your AI loads today's sessions at full d
 
 | Tool | Purpose |
 |------|---------|
-| `remember_decision` | Store an architecture/design decision with rationale |
-| `remember_solution` | Store a problem-solution pair |
-| `remember_preference` | Store a working style preference |
-| `remember_person` | Store info about someone |
-| `remember_milestone` | Store a significant achievement |
-| `remember_moment` | Store a relationship moment |
-| `remember_project` | Store a project — name, details, what it is |
-| `remember_event` | Store an event — something that happened or is happening |
-| `recall` | Search across all memories (semantic + FTS) |
-| `update_memory` | Edit an existing memory |
-| `forget` | Soft-delete a memory |
+| `save_memory` | Store a memory of any type (decision, solution, preference, person, milestone, moment, project, event) |
+| `update_memory` | Refine an existing memory |
+| `forget_memory` | Soft-delete a memory |
 | `pin` | Pin/unpin (pinned = always in context) |
-| `search_knowledge` | Search the knowledge base |
-| `update_knowledge` | Create or update a knowledge article |
-| `search_messages` | Full-text search past conversations |
-| `session_update` | Save session snapshot |
-| `upsert_story` | Create or update a story |
-| `list_stories` | List stories by tier |
-| `get_story` | Get a story by ID |
-| `delete_story` | Delete a story |
-| `get_story_data` | Get data for story generation |
+| `search_memories` | Search across entities, knowledge, stories, and messages |
+| `search_conversations` | Full-text search past messages |
+| `update_article` | Create or update a knowledge article (upsert on topic) |
+| `activation_context` | Build and return the rendered activation context |
+| `update_session` | Save session snapshot (what happened + for next session) |
+| `save_story` | Create or update a story |
+| `forget_story` | Delete a story |
 
 ---
 
@@ -165,13 +157,14 @@ Each tier synthesizes the one below it. Your AI loads today's sessions at full d
 The server exposes a REST API alongside MCP for the web dashboard and integrations:
 
 ```
-GET/POST/PATCH/DELETE  /api/entities     Memories
+GET/POST/PATCH/DELETE  /api/memories     Memories
 GET/POST/PATCH/DELETE  /api/knowledge    Knowledge articles
 GET/PUT/DELETE         /api/stories      Stories
-GET                    /api/sessions     Session history
-POST                   /api/search       Unified search (FTS + vector)
+GET                    /api/sessions/... Session lifecycle + list
+POST                   /api/search       Unified search (FTS + vector fallback)
+POST                   /api/context/enrich  NLP entity extraction + memory lookup
 GET                    /api/stats        Dashboard statistics
-POST                   /api/rebuild      Rebuild FTS + vector indexes
+GET                    /api/health       Health check
 ```
 
 ---
@@ -229,17 +222,26 @@ Auto-discovers and imports from Claude, GitHub Copilot (including Insiders), and
 ```
 charlieverse/
 ├── charlieverse/           # Python package
-│   ├── server.py           # FastMCP server — MCP tools + REST API
-│   ├── cli/                # Typer CLI (server, hooks, import, init, doctor)
-│   ├── context/            # Activation builder, renderer, reminders engine
+│   ├── cli/                # Typer CLI (server, hooks, import, init, doctor, update)
+│   ├── server/             # FastMCP server — REST API + MCP mount
+│   │   ├── start.py        # Server entrypoint
+│   │   └── api/            # REST routes (entities, knowledge, stories, sessions, ...)
+│   ├── memory/             # Per-feature stores + MCP tools
+│   │   ├── entities/       # Memories (stores, models, mcp.py)
+│   │   ├── knowledge/      # Knowledge articles
+│   │   ├── sessions/       # Sessions
+│   │   ├── stories/        # Stories
+│   │   └── messages/       # Conversation messages
+│   ├── context/            # ActivationBuilder, ActivationContextRenderer, reminders engine
 │   ├── db/                 # SQLite + sqlite-vec + FTS5, migrations
-│   ├── models/             # Pydantic models (Entity, Knowledge, Session, Story)
-│   ├── tools/              # MCP tool implementations
-│   └── embeddings/         # sentence-transformers wrapper
+│   ├── embeddings/         # sentence-transformers wrapper
+│   ├── nlp/                # spaCy entity + temporal extraction
+│   ├── helpers/            # paths, skills, time_utils, tasks
+│   └── types/              # Shared ID, date, list, string types
 ├── web/                    # React dashboard (Vite + Tailwind + TanStack Query)
-├── integrations/           # Provider plugins (Claude, Copilot)
-├── prompts/                # Charlie personality + agent definitions
-├── .charlie/tricks/        # Project tricks (commit, docs, ship, qc, adr, changelog)
+├── integrations/           # Provider plugins (Claude, Copilot, shared)
+├── prompts/                # Charlie personality + agent definitions + bundled skills
+├── .charlie/tricks/        # Project tricks (commit, docs, ship, qc, adr, changelog, test-coverage)
 ├── bin/                    # CLI entry points
 └── setup.sh                # Zero-to-running installer
 ```

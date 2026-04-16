@@ -116,11 +116,7 @@ Fires when the AI finishes responding. Use for logging, notifications, or post-p
 
 Output can be injected back as context for the next turn.
 
-### save-reminder
-
-Fires before context compaction (when the conversation is about to be summarized to free up tokens). Use to remind the AI to save important state.
-
-> The built-in save-reminder already tells Charlie to run `/session-save`. Your scripts can add project-specific reminders.
+> Note: the `save-reminder/` directory is created by `charlie init` for future use, but no provider hook event currently dispatches to it. The built-in reminders engine handles save-session prompts automatically as part of `prompt-submit`.
 
 ---
 
@@ -141,15 +137,10 @@ Scripts within a hook directory run in **parallel** (sorted alphabetically for d
 Check the hooks log:
 
 ```bash
-cat ~/.charlieverse/logs/hooks.log
+tail -f ~/.charlieverse/logs/hooks.log
 ```
 
-Inspect recent hook events:
-
-```bash
-charlie events -n 20 --type session_start
-charlie events -v  # verbose with full metadata
-```
+The hooks log records every hook invocation — stdin data, outputs, and errors — so you can trace what each event saw and returned.
 
 ---
 

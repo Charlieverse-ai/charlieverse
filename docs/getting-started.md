@@ -71,7 +71,7 @@ You <-> [Claude / Copilot / Cursor] <-> Charlie (MCP Server) <-> SQLite DB
 
 Three moving parts:
 
-**MCP Server** (`charlie server start`) — a FastMCP HTTP server running on port 8765. Your AI tool connects to it as an MCP client and gets access to memory tools: `remember_decision`, `recall`, `update_knowledge`, `search_messages`, and others. The server also exposes a REST API used by the web dashboard.
+**MCP Server** (`charlie server start`) — a FastMCP HTTP server running on port 8765. Your AI tool connects to it as an MCP client and gets access to memory tools: `save_memory`, `search_memories`, `update_article`, `search_conversations`, and others. The server also exposes a REST API used by the web dashboard.
 
 **Hooks** — provider lifecycle events (session start, prompt submit, stop, pre-compact) trigger `charlie hooks` commands. These print context to stdout in a format the provider injects into the conversation. The `session-start` hook fetches activation context from the server. The `prompt-submit` hook runs the reminders engine, which surfaces temporal context and memory hints on every prompt.
 
@@ -125,7 +125,7 @@ Open it in a browser while the server is running.
 What it shows:
 
 - **Timeline** — monthly chapters and weekly entries; your conversation history as a narrative
-- **Memories** — all stored entities (decisions, solutions, preferences, people, milestones, moments) with inline editing, pinning, and deletion
+- **Memories** — all stored entities (decisions, solutions, preferences, people, milestones, moments, projects, events) with inline editing, pinning, and deletion
 - **Knowledge** — domain expertise articles
 - **Search** — `Cmd+K` full-text quick find across everything
 - **Stories** — session and rollup stories at each tier

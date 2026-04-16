@@ -77,7 +77,7 @@ If there are no hook entries, re-run the integration:
 ./integrations/claude/install.sh
 ```
 
-This merges the hooks configuration into `~/.claude/settings.json`. The hooks block should reference `charlie hooks session-start`, `prompt-submit`, `stop`, `tool-use`, and `save-reminder`.
+This installs the Charlieverse plugin, which registers the hooks block. It should reference `charlie hooks session-start`, `prompt-submit`, `stop`, and `tool-use`.
 
 ### Wrong paths in hooks config
 
@@ -98,9 +98,9 @@ Hooks intentionally skip when `agent_id` is present in stdin. This is correct be
 
 ```bash
 tail -50 ~/.charlieverse/logs/hooks.log
-charlie events -n 20   # recent hook events
-charlie events --type session_start -v   # verbose session-start events
 ```
+
+Every hook invocation logs its stdin data, output, and errors to `hooks.log` — tail it while reproducing the issue to see what each event received.
 
 ### Copilot hooks format
 
@@ -283,13 +283,11 @@ Migration errors, sqlite-vec extension load failures, and schema mismatches all 
 
 ### Rebuild FTS and vector indexes
 
-FTS5 and vector indexes can be rebuilt without data loss:
+FTS5 and vector indexes are rebuilt automatically on every server start — restart the server if search returns stale or missing results:
 
 ```bash
-curl -X POST http://127.0.0.1:8765/api/rebuild
+charlie server restart
 ```
-
-This is safe to run at any time. Use it if search returns stale or missing results.
 
 ### Database path
 
@@ -322,7 +320,7 @@ Quick status check:
 ```bash
 charlie server status
 charlie config
-charlie events -n 10
+charlie doctor
 ```
 
 Tail all logs:
