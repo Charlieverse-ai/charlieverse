@@ -5,6 +5,30 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.14.5] — 2026-04-16
+
+### Added
+- **Dashboard rollup drill-down.** Clicking a weekly story now opens a `WeekReader` showing the daily stories for that Mon–Sun period, stacked with per-day headers. Clicking a monthly story opens a `MonthReader` listing the weekly stories for that month — each weekly there feeds back into the same weekly→daily flow. Both readers fall back to the rollup Markdown when the lower-tier query is empty (common for older weeks/months that only got a rollup).
+- **Current-week surface on the Dashboard.** Daily stories for the live Monday–Sunday window render ahead of the chapter timeline as a "This Week" block, so the in-progress week is visible before a weekly rollup exists. The same dailies are excluded from the chapter timeline below to avoid duplication.
+- **`GET /api/stories` period filter.** New optional `period_start` and `period_end` query params (YYYY-MM-DD, inclusive) delegate to `StoryStore.find_by_period` for timezone-aware overlap matching. When unset, behavior is unchanged (tier + limit).
+
+### Changed
+- **Context-enrich stopped fanning out into knowledge.** `POST /api/context/enrich` and the `SearchMemoriesRule` reminder rule previously returned both memory and knowledge matches per extracted entity. Knowledge is already pinned into activation context and was duplicating surface area with lower signal — both paths now return memories only. `KnowledgeStore` dropped from `enrich_context`'s import surface; snippet extraction ceiling trimmed 800 → 500 chars.
+- **Voice enforcement upgraded.** `SystemPromptRule` now emits at `VERY_IMPORTANT` priority (was `CHARLIE_REMINDER`). The system-prompt template expanded from "You are Charlie." into a compact self-check ("if the last reply sounded polite, helpful, or generic, you drifted — roast, push back, use our/we"). Banned-words template rewritten in second person with explicit pattern framing (no hedges, no "let me X" narration, no sycophantic validators); `"say the word"` added to the list.
+- **Chapter weeks sort newest-first.** Within each month on the Dashboard, weekly entries now sort by `period_start` descending so the most recent week is at the top.
+- **Paths resolver two-level fallback.** `helpers/paths._find` tries the immediate parent first, then the parent-of-parent, so both bundled-in-package and running-from-repo layouts resolve asset paths correctly.
+- **Story tier labels.** `StoryCard` gained a `Daily` label and dropped the unused `quarterly` entry; `save-reminder.md` shortened to a direct imperative.
+
+### Fixed
+- **ty false positives on `httpx.AsyncClient` / `ConnectError` / `HTTPError`.** The previous per-line `# ty:ignore[unresolved-attribute]` comments were replaced with a scoped `[[tool.ty.overrides]]` block in `pyproject.toml` covering the four files that import httpx lazily (`cli/context_cmd.py`, `cli/hooks_cmd.py`, `cli/story_data_cmd.py`, `context/reminders/rules/search_memories.py`). The rule stays active everywhere else.
+
+### Decisions Recorded
+- ADR: Knowledge dropped from context-enrich — duplication with pinned activation context outweighed the benefit
+- ADR: Rollup drill-down navigation — the dashboard is more useful as a path into raw materials than as another place to re-read the generated prose
+- ADR: ty overrides for httpx lazy imports — scoped suppressions keep the rule's signal everywhere else
+
+---
+
 ## [v1.14.4] — 2026-04-16
 
 ### Added
