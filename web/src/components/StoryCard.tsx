@@ -10,9 +10,9 @@ const tierColors: Record<string, string> = {
 }
 
 const tierLabels: Record<string, string> = {
+  daily: 'Daily',
   weekly: 'Weekly',
   monthly: 'Monthly',
-  quarterly: 'Quarterly',
   yearly: 'Yearly',
   'all-time': 'All Time',
 }

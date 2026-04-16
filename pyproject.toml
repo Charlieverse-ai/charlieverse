@@ -114,3 +114,18 @@ error-on-warning = true
 [tool.ty.src]
 include = ["charlieverse", "tests"]
 exclude = ["**/node_modules", "**/__pycache__", ".venv", ".git", "dist"]
+
+# ty doesn't resolve httpx's re-exported attributes (`AsyncClient`,
+# `ConnectError`, `HTTPError`) through its current stub discovery. Scope the
+# suppression to just the four files that use httpx lazily inside async
+# functions so the rule stays active everywhere else.
+[[tool.ty.overrides]]
+include = [
+    "charlieverse/cli/context_cmd.py",
+    "charlieverse/cli/hooks_cmd.py",
+    "charlieverse/cli/story_data_cmd.py",
+    "charlieverse/context/reminders/rules/search_memories.py",
+]
+
+[tool.ty.overrides.rules]
+unresolved-attribute = "ignore"
