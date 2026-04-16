@@ -1,25 +1,37 @@
-"""CRUD and search tests for MemoryStore."""
+"""CRUD and search tests for EntityStore."""
 
 from __future__ import annotations
 
-from uuid import UUID, uuid4
+from uuid import UUID
 
-import pytest
-
-from charlieverse.models import Entity, EntityType
-
+from charlieverse.memory.entities import (
+    DeleteEntity,
+    EntityId,
+    EntityType,
+    NewEntity,
+    UpdateEntity,
+)
+from charlieverse.memory.sessions import SessionId
+from charlieverse.types.lists import TagList
+from charlieverse.types.strings import NonEmptyString
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_SESSION = UUID(int=0)
+_SESSION = SessionId(UUID(int=0))
 
 
-def _entity(content: str, type: EntityType = EntityType.decision, **kw) -> Entity:
-    return Entity(
+def _tags(*values: str) -> TagList:
+    return TagList([NonEmptyString(v) for v in values])
+
+
+def _new(content: str, type: EntityType = EntityType.decision, **kw) -> NewEntity:
+    raw_tags = kw.pop("tags", ["test"]) or ["test"]
+    return NewEntity(
         type=type,
-        content=content,
+        content=NonEmptyString(content),
+        tags=_tags(*raw_tags),
         created_session_id=_SESSION,
         **kw,
     )
@@ -31,27 +43,27 @@ def _entity(content: str, type: EntityType = EntityType.decision, **kw) -> Entit
 
 
 async def test_create_returns_entity(memory_store):
-    entity = await memory_store.create(_entity("use pytest"))
+    entity = await memory_store.create(_new("use pytest"))
     assert entity.id is not None
-    assert isinstance(entity.id, UUID)
+    assert isinstance(entity.id, EntityId)
 
 
 async def test_create_stores_content(memory_store):
-    e = await memory_store.create(_entity("store this content"))
+    e = await memory_store.create(_new("store this content"))
     fetched = await memory_store.get(e.id)
     assert fetched is not None
     assert fetched.content == "store this content"
 
 
 async def test_create_stores_tags(memory_store):
-    e = await memory_store.create(_entity("tagged entity", tags=["pytest", "testing"]))
+    e = await memory_store.create(_new("tagged entity", tags=["pytest", "testing"]))
     fetched = await memory_store.get(e.id)
     assert fetched is not None
     assert fetched.tags == ["pytest", "testing"]
 
 
 async def test_create_stores_type(memory_store):
-    e = await memory_store.create(_entity("a preference", type=EntityType.preference))
+    e = await memory_store.create(_new("a preference", type=EntityType.preference))
     fetched = await memory_store.get(e.id)
     assert fetched is not None
     assert fetched.type == EntityType.preference
@@ -63,21 +75,21 @@ async def test_create_stores_type(memory_store):
 
 
 async def test_get_nonexistent_returns_none(memory_store):
-    result = await memory_store.get(uuid4())
+    result = await memory_store.get(EntityId())
     assert result is None
 
 
 async def test_list_returns_all_active(memory_store):
-    await memory_store.create(_entity("entity one"))
-    await memory_store.create(_entity("entity two"))
-    results = await memory_store.list()
+    await memory_store.create(_new("entity one"))
+    await memory_store.create(_new("entity two"))
+    results = await memory_store.fetch()
     assert len(results) >= 2
 
 
 async def test_list_filters_by_type(memory_store):
-    await memory_store.create(_entity("decision one", type=EntityType.decision))
-    await memory_store.create(_entity("preference one", type=EntityType.preference))
-    decisions = await memory_store.list(entity_type=EntityType.decision)
+    await memory_store.create(_new("decision one", type=EntityType.decision))
+    await memory_store.create(_new("preference one", type=EntityType.preference))
+    decisions = await memory_store.fetch(entity_type=EntityType.decision)
     for e in decisions:
         assert e.type == EntityType.decision
 
@@ -88,14 +100,14 @@ async def test_list_filters_by_type(memory_store):
 
 
 async def test_search_finds_entity(memory_store):
-    await memory_store.create(_entity("use pytest for testing"))
+    await memory_store.create(_new("use pytest for testing"))
     await memory_store.rebuild_fts()
     results = await memory_store.search("pytest")
     assert any("pytest" in r.content.lower() for r in results)
 
 
 async def test_search_empty_after_stopword_query(memory_store):
-    await memory_store.create(_entity("something interesting"))
+    await memory_store.create(_new("something interesting"))
     await memory_store.rebuild_fts()
     # "the" is a stopword — sanitize_fts_query returns "" — search returns []
     results = await memory_store.search("the")
@@ -108,18 +120,16 @@ async def test_search_empty_after_stopword_query(memory_store):
 
 
 async def test_update_changes_content(memory_store):
-    e = await memory_store.create(_entity("original content"))
-    e.content = "updated content"
-    await memory_store.update(e)
+    e = await memory_store.create(_new("original content"))
+    await memory_store.update(UpdateEntity(id=e.id, content=NonEmptyString("updated content")))
     fetched = await memory_store.get(e.id)
     assert fetched is not None
     assert fetched.content == "updated content"
 
 
 async def test_update_changes_tags(memory_store):
-    e = await memory_store.create(_entity("tag test", tags=["old"]))
-    e.tags = ["new", "tags"]
-    await memory_store.update(e)
+    e = await memory_store.create(_new("tag test", tags=["old"]))
+    await memory_store.update(UpdateEntity(id=e.id, tags=_tags("new", "tags")))
     fetched = await memory_store.get(e.id)
     assert fetched is not None
     assert fetched.tags == ["new", "tags"]
@@ -131,25 +141,25 @@ async def test_update_changes_tags(memory_store):
 
 
 async def test_soft_delete_hides_entity(memory_store):
-    e = await memory_store.create(_entity("delete me"))
-    await memory_store.delete(e.id)
+    e = await memory_store.create(_new("delete me"))
+    await memory_store.delete(DeleteEntity(id=e.id))
     result = await memory_store.get(e.id)
     assert result is None
 
 
 async def test_soft_deleted_excluded_from_search(memory_store):
-    e = await memory_store.create(_entity("unique phrase xyzzy deleted"))
-    await memory_store.delete(e.id)
+    e = await memory_store.create(_new("unique phrase xyzzy deleted"))
+    await memory_store.delete(DeleteEntity(id=e.id))
     await memory_store.rebuild_fts()
     results = await memory_store.search("xyzzy")
     assert len(results) == 0
 
 
 async def test_soft_deleted_excluded_from_list(memory_store):
-    e = await memory_store.create(_entity("list exclusion test"))
-    count_before = len(await memory_store.list())
-    await memory_store.delete(e.id)
-    count_after = len(await memory_store.list())
+    e = await memory_store.create(_new("list exclusion test"))
+    count_before = len(await memory_store.fetch())
+    await memory_store.delete(DeleteEntity(id=e.id))
+    count_after = len(await memory_store.fetch())
     assert count_after == count_before - 1
 
 
@@ -159,7 +169,7 @@ async def test_soft_deleted_excluded_from_list(memory_store):
 
 
 async def test_pin_sets_pinned_true(memory_store):
-    e = await memory_store.create(_entity("pin this"))
+    e = await memory_store.create(_new("pin this"))
     assert not e.pinned
     await memory_store.pin(e.id, True)
     fetched = await memory_store.get(e.id)
@@ -168,7 +178,7 @@ async def test_pin_sets_pinned_true(memory_store):
 
 
 async def test_unpin_sets_pinned_false(memory_store):
-    e = await memory_store.create(_entity("unpin this", pinned=True))
+    e = await memory_store.create(_new("unpin this", pinned=True))
     await memory_store.pin(e.id, False)
     fetched = await memory_store.get(e.id)
     assert fetched is not None
@@ -176,8 +186,8 @@ async def test_unpin_sets_pinned_false(memory_store):
 
 
 async def test_pinned_list_returns_pinned_only(memory_store):
-    await memory_store.create(_entity("not pinned"))
-    ep = await memory_store.create(_entity("pinned one"))
+    await memory_store.create(_new("not pinned"))
+    ep = await memory_store.create(_new("pinned one"))
     await memory_store.pin(ep.id, True)
     pinned = await memory_store.pinned()
     assert all(e.pinned for e in pinned)
@@ -191,31 +201,23 @@ async def test_pinned_list_returns_pinned_only(memory_store):
 
 async def test_list_orders_by_updated_at_desc(memory_store):
     """Entities updated more recently should appear first, regardless of creation order."""
-    e_first = await memory_store.create(_entity("created first"))
-    e_second = await memory_store.create(_entity("created second"))
+    e_first = await memory_store.create(_new("created first"))
+    e_second = await memory_store.create(_new("created second"))
 
-    # Update the older entity so its updated_at is now most recent
-    e_first.content = "created first — updated"
-    await memory_store.update(e_first)
+    await memory_store.update(UpdateEntity(id=e_first.id, content=NonEmptyString("created first — updated")))
 
-    results = await memory_store.list()
+    results = await memory_store.fetch()
     ids = [e.id for e in results]
-    assert ids.index(e_first.id) < ids.index(e_second.id), (
-        "The updated entity should appear before the not-updated one"
-    )
+    assert ids.index(e_first.id) < ids.index(e_second.id), "The updated entity should appear before the not-updated one"
 
 
 async def test_list_filtered_by_type_orders_by_updated_at_desc(memory_store):
     """Type-filtered list also orders by updated_at DESC."""
-    e_old = await memory_store.create(_entity("old moment", type=EntityType.moment))
-    e_new = await memory_store.create(_entity("new moment", type=EntityType.moment))
+    e_old = await memory_store.create(_new("old moment", type=EntityType.moment))
+    e_new = await memory_store.create(_new("new moment", type=EntityType.moment))
 
-    # Update the older one so its updated_at is more recent
-    e_old.content = "old moment — refreshed"
-    await memory_store.update(e_old)
+    await memory_store.update(UpdateEntity(id=e_old.id, content=NonEmptyString("old moment — refreshed")))
 
-    results = await memory_store.list(entity_type=EntityType.moment)
+    results = await memory_store.fetch(entity_type=EntityType.moment)
     ids = [e.id for e in results]
-    assert ids.index(e_old.id) < ids.index(e_new.id), (
-        "The updated moment should appear first when filtering by type"
-    )
+    assert ids.index(e_old.id) < ids.index(e_new.id), "The updated moment should appear first when filtering by type"

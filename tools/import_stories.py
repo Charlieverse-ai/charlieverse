@@ -3,11 +3,12 @@
 import asyncio
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from charlieverse.config import config
+
 import aiosqlite
 
+from charlieverse.config import config
 
 STORIES_DIR = config.path / "import" / "stories"
 DB_PATH = config.database
@@ -38,26 +39,24 @@ def derive_metadata(filepath: Path) -> dict | None:
             "period_end": f"{year}-12-31",
         }
 
-    # Q1.story.md → 2026/Q1.story.md
-    if name.startswith("Q") and len(parts) == 2:
-        year = parts[0]
-        quarter = int(name[1])
-        month_start = (quarter - 1) * 3 + 1
-        month_end = quarter * 3
-        return {
-            "title": f"Q{quarter} {year}",
-            "tier": "quarterly",
-            "period_start": f"{year}-{month_start:02d}-01",
-            "period_end": f"{year}-{month_end:02d}-28",
-        }
-
     # month.story.md → 2025/11/month.story.md
     if name == "month" and len(parts) == 3:
         year = parts[0]
         month = int(parts[1])
         month_names = [
-            "", "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December",
+            "",
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
         ]
         return {
             "title": f"{month_names[month]} {year}",
@@ -73,8 +72,19 @@ def derive_metadata(filepath: Path) -> dict | None:
         month = int(parts[1])
         week_num = int(week_match.group(1))
         month_names = [
-            "", "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December",
+            "",
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
         ]
         # Approximate week start/end
         day_start = max(1, (week_num - 1) * 7 + 1)
@@ -101,9 +111,7 @@ async def main():
     db.row_factory = aiosqlite.Row
 
     # Check if stories table exists
-    cursor = await db.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='stories'"
-    )
+    cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stories'")
     if not await cursor.fetchone():
         print("Stories table doesn't exist. Run the server first to apply migrations.")
         await db.close()
@@ -132,7 +140,7 @@ async def main():
             continue
 
         story_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         await db.execute(
             """INSERT INTO stories (id, title, content, tier, period_start, period_end, tags, created_at, updated_at)

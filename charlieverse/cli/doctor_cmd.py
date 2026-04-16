@@ -11,18 +11,16 @@ import shutil
 import socket
 import sqlite3
 import sys
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Callable
 
 import typer
 from rich.console import Console
-from rich.table import Table
-from rich import box
 
 from charlieverse.config import config
-from charlieverse import paths
+from charlieverse.helpers import paths
 
 console = Console()
 
@@ -30,7 +28,7 @@ console = Console()
 # ── Result types ─────────────────────────────────────────────────────────────
 
 
-class Status(str, Enum):
+class Status(Enum):
     PASS = "pass"
     FAIL = "fail"
     WARN = "warn"
@@ -105,22 +103,23 @@ def check_dependencies() -> list[CheckResult]:
 
 
 def check_spacy_model() -> CheckResult:
-    """Verify en_core_web_sm is installed."""
+    """Verify model is installed."""
+    from charlieverse.nlp.extractor import _load_model
+
     try:
-        import spacy  # noqa: F401
-        spacy.load("en_core_web_sm")
-        return _pass("spaCy model", "en_core_web_sm loaded")
+        _load_model()
+        return _pass("spaCy model", "model loaded")
     except ImportError:
-        return _fail(
-            "spaCy model",
-            "spacy not installed",
-            fix="uv sync",
-        )
+        return _fail("spaCy model", "spacy not installed")
     except OSError:
         return _fail(
             "spaCy model",
-            "en_core_web_sm not found",
-            fix="uv sync  (or: python -m spacy download en_core_web_sm)",
+            "model not found",
+        )
+    except Exception:
+        return _fail(
+            "spaCy model",
+            "model not found",
         )
 
 
@@ -212,12 +211,9 @@ def check_database() -> list[CheckResult]:
 
     # Try a simple read query
     try:
-        conn = sqlite3.connect(str(db_path), timeout=3)
-        cur = conn.execute("PRAGMA integrity_check")
-        integrity = cur.fetchone()[0]
-        schema_ver_row = conn.execute("PRAGMA user_version").fetchone()
-        schema_ver = schema_ver_row[0] if schema_ver_row else 0
-        conn.close()
+        from charlieverse.db.database import check_health
+
+        integrity, schema_ver = check_health(db_path)
         if integrity == "ok":
             results.append(_pass("Database integrity", f"ok (schema v{schema_ver})"))
         else:
@@ -279,7 +275,7 @@ def check_server() -> list[CheckResult]:
 
     if pid_running and port_open:
         results.append(_pass("Server process", f"Running (PID {pid})"))
-        results.append(_pass("Server port", f":{port} open"))
+        results.append(_pass("Server port", f"{port} open"))
     elif pid_running and not port_open:
         results.append(
             _warn(
@@ -293,20 +289,20 @@ def check_server() -> list[CheckResult]:
         results.append(
             _warn(
                 "Server",
-                f"Port :{port} is open but no PID file — may be an orphan process",
+                f"Port {port} is open but no PID file — may be an orphan process",
                 fix="charlie server restart",
             )
         )
 
     # Health endpoint
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     health_url = config.server.api_url("health")
     try:
         with urllib.request.urlopen(health_url, timeout=3) as resp:
             if resp.status == 200:
-                results.append(_pass("Server health", f"{health_url} responded 200"))
+                results.append(_pass("Server health", "Good"))
             else:
                 results.append(
                     _warn(
@@ -381,10 +377,7 @@ def check_providers() -> list[CheckResult]:
             try:
                 settings = json.loads(claude_settings.read_text())
                 enabled_plugins = settings.get("enabledPlugins", {})
-                charlie_enabled = any(
-                    "charlieverse" in k.lower() or "Charlie" in k
-                    for k in enabled_plugins
-                )
+                charlie_enabled = any("charlieverse" in k.lower() or "Charlie" in k for k in enabled_plugins)
                 if charlie_enabled:
                     results.append(_pass("Claude Code config", "Charlieverse plugin enabled in settings.json"))
                 else:
@@ -421,7 +414,7 @@ def check_providers() -> list[CheckResult]:
         if charlie_integration:
             hooks_json = charlie_integration / "hooks" / "hooks.json"
             if hooks_json.exists():
-                results.append(_pass("Claude Code hooks", f"hooks.json present"))
+                results.append(_pass("Claude Code hooks", "hooks.json present"))
             else:
                 results.append(
                     _warn(
@@ -449,9 +442,7 @@ def check_providers() -> list[CheckResult]:
             Path.home() / "Library" / "Application Support" / "Code" / "User" / "settings.json",
             Path.home() / ".config" / "Code" / "User" / "settings.json",
         ]
-        vscode_settings: Path | None = next(
-            (p for p in vscode_settings_candidates if p.exists()), None
-        )
+        vscode_settings: Path | None = next((p for p in vscode_settings_candidates if p.exists()), None)
 
         if vscode_settings is None:
             results.append(
@@ -500,30 +491,30 @@ def check_providers() -> list[CheckResult]:
                     )
                 )
 
-    # ── Cursor ───────────────────────────────────────────────────────────────
-    cursor_bin = shutil.which("cursor")
-    cursor_dir = Path.home() / ".cursor"
-    if cursor_bin or cursor_dir.exists():
-        location = cursor_bin or str(cursor_dir)
-        results.append(
-            _warn(
-                "Provider: Cursor",
-                f"Cursor detected ({location}) — no Charlieverse integration available yet",
-            )
-        )
-    # No result = not detected, which is fine — don't clutter output for uninstalled tools.
+    # # ── Cursor ───────────────────────────────────────────────────────────────
+    # cursor_bin = shutil.which("cursor")
+    # cursor_dir = Path.home() / ".cursor"
+    # if cursor_bin or cursor_dir.exists():
+    #     location = cursor_bin or str(cursor_dir)
+    #     results.append(
+    #         _warn(
+    #             "Provider: Cursor",
+    #             f"Cursor detected ({location}) — no Charlieverse integration available yet",
+    #         )
+    #     )
+    # # No result = not detected, which is fine — don't clutter output for uninstalled tools.
 
-    # ── Codex CLI ────────────────────────────────────────────────────────────
-    codex_bin = shutil.which("codex")
-    codex_dir = Path.home() / ".codex"
-    if codex_bin or codex_dir.exists():
-        location = codex_bin or str(codex_dir)
-        results.append(
-            _warn(
-                "Provider: Codex",
-                f"Codex detected ({location}) — no Charlieverse integration available yet",
-            )
-        )
+    # # ── Codex CLI ────────────────────────────────────────────────────────────
+    # codex_bin = shutil.which("codex")
+    # codex_dir = Path.home() / ".codex"
+    # if codex_bin or codex_dir.exists():
+    #     location = codex_bin or str(codex_dir)
+    #     results.append(
+    #         _warn(
+    #             "Provider: Codex",
+    #             f"Codex detected ({location}) — no Charlieverse integration available yet",
+    #         )
+    #     )
 
     return results
 
@@ -551,7 +542,7 @@ def check_hooks() -> list[CheckResult]:
                         )
                     )
                 else:
-                    results.append(_pass("Claude Code hooks registration", f"SessionStart, UserPromptSubmit, Stop registered"))
+                    results.append(_pass("Claude Code hooks registration", "SessionStart, UserPromptSubmit, Stop registered"))
             except (json.JSONDecodeError, OSError) as exc:
                 results.append(
                     _warn(
@@ -629,8 +620,9 @@ def _run_check(fn: Callable[[], CheckResult | list[CheckResult]]) -> list[CheckR
     """Run a check function and always return a list, catching unexpected exceptions."""
     try:
         result = fn()
-        checks: list[CheckResult] = result if isinstance(result, list) else [result]  # type: ignore[assignment]
-        return checks
+        if isinstance(result, CheckResult):
+            return [result]
+        return result
     except Exception as exc:
         name = getattr(fn, "__name__", "unknown")
         return [_fail(name, f"Unexpected error: {exc}")]
@@ -659,10 +651,6 @@ def doctor(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show all results, including passes"),
 ) -> None:
     """Verify the Charlieverse environment — checks Python, dependencies, database, server, providers, and more."""
-    console.print()
-    console.print("[bold]charlie doctor[/bold]  —  Charlieverse environment check")
-    console.print()
-
     all_results: list[CheckResult] = []
 
     checks: list[tuple[str, Callable]] = [
@@ -678,21 +666,22 @@ def doctor(
     ]
 
     for section_name, fn in checks:
-        results = _run_check(fn)
-        all_results.extend(results)
+        with console.status(f"Checking {section_name}"):
+            results = _run_check(fn)
+            all_results.extend(results)
 
         for r in results:
             if r.status == Status.PASS and not verbose:
                 # Print passes inline without a table row — they are low noise
-                console.print(f"  {_status_icon(r.status)} {r.name}: {r.detail}")
+                console.print(f"{_status_icon(r.status)} [bold]{r.name}[/bold]: {r.detail}")
             elif r.status == Status.WARN:
-                console.print(f"  {_status_icon(r.status)} [yellow]{r.name}[/yellow]: {r.detail}")
+                console.print(f"{_status_icon(r.status)} [yellow]{r.name}[/yellow]: {r.detail}")
                 if r.fix:
-                    console.print(f"     [dim]fix:[/dim] {r.fix}")
+                    console.print(f"    [dim]fix:[/dim] {r.fix}")
             elif r.status == Status.FAIL:
-                console.print(f"  {_status_icon(r.status)} [red bold]{r.name}[/red bold]: {r.detail}")
+                console.print(f"{_status_icon(r.status)} [red bold]{r.name}[/red bold]: {r.detail}")
                 if r.fix:
-                    console.print(f"     [dim]fix:[/dim] [cyan]{r.fix}[/cyan]")
+                    console.print(f"    [dim]fix:[/dim] [cyan]{r.fix}[/cyan]")
 
     # ── Summary ───────────────────────────────────────────────────────────────
     passed = sum(1 for r in all_results if r.status == Status.PASS)

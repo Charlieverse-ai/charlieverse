@@ -1,26 +1,24 @@
-"""Tests for the activation context renderer (charlieverse/context/renderer.py)."""
+"""Tests for the activation context renderer (charlieverse/context/renderer.py).
+
+The renderer exposes a single public class: ActivationContextRenderer. These
+tests exercise the rendered XML output for the structural invariants each
+section promises.
+"""
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from unittest.mock import patch
-from uuid import uuid4
-
-import pytest
+from datetime import UTC, datetime, timedelta
 
 from charlieverse.context.builder import ContextBundle
-from charlieverse.context.renderer import (
-    render,
-    _render_entity,
-    _render_all_time_story,
-    _render_tricks,
-    _parse_period_date,
-    _date_group_key,
-    _session_time,
-)
-from charlieverse.models import ContextMessage, Entity, EntityType, Knowledge, Session, Story
-
+from charlieverse.context.renderer import ActivationContextRenderer
+from charlieverse.memory.entities import Entity, EntityId, EntityType
+from charlieverse.memory.knowledge import Knowledge, KnowledgeId
+from charlieverse.memory.messages import Message, MessageId, MessageRole
+from charlieverse.memory.sessions import Session, SessionId
+from charlieverse.memory.stories import Story, StoryId, StoryTier
+from charlieverse.types.dates import UTCDatetime
+from charlieverse.types.lists import TagList
+from charlieverse.types.strings import NonEmptyString, WorkspaceFilePath
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -29,18 +27,21 @@ from charlieverse.models import ContextMessage, Entity, EntityType, Knowledge, S
 
 def _session(
     what_happened: str = "worked on things",
-    for_next_session: str | None = None,
-    workspace: str | None = None,
+    for_next_session: str = "continue fixing bugs",
+    workspace: str = "/workspace/path",
     updated_at: datetime | None = None,
 ) -> Session:
-    s = Session(
-        what_happened=what_happened,
-        for_next_session=for_next_session,
-        workspace=workspace,
+    now = UTCDatetime(updated_at or datetime.now(UTC))
+    return Session.model_construct(
+        id=SessionId(),
+        what_happened=NonEmptyString(what_happened),
+        for_next_session=NonEmptyString(for_next_session),
+        workspace=WorkspaceFilePath(workspace),
+        tags=TagList([NonEmptyString("tag")]),
+        created_at=now,
+        updated_at=now,
+        deleted_at=None,
     )
-    if updated_at:
-        s = s.model_copy(update={"updated_at": updated_at})
-    return s
 
 
 def _entity(
@@ -48,22 +49,75 @@ def _entity(
     type: EntityType = EntityType.decision,
     updated_at: datetime | None = None,
 ) -> Entity:
-    e = Entity(
+    now = UTCDatetime(updated_at or datetime.now(UTC))
+    return Entity.model_construct(
+        id=EntityId(),
         type=type,
-        content=content,
-        created_session_id=uuid4(),
+        content=NonEmptyString(content),
+        tags=None,
+        pinned=False,
+        created_session_id=SessionId(),
+        updated_session_id=None,
+        created_at=now,
+        updated_at=now,
+        deleted_at=None,
     )
-    if updated_at:
-        e = e.model_copy(update={"updated_at": updated_at})
-    return e
+
+
+def _knowledge(topic: str = "Python", content: str = "Use type hints.") -> Knowledge:
+    now = UTCDatetime(datetime.now(UTC))
+    return Knowledge.model_construct(
+        id=KnowledgeId(),
+        topic=NonEmptyString(topic),
+        content=NonEmptyString(content),
+        tags=None,
+        pinned=False,
+        created_session_id=SessionId(),
+        updated_session_id=None,
+        created_at=now,
+        updated_at=now,
+        deleted_at=None,
+    )
+
+
+def _story(title: str = "Our Story", content: str = "Chapter 1") -> Story:
+    now = UTCDatetime(datetime.now(UTC))
+    return Story.model_construct(
+        id=StoryId(),
+        title=NonEmptyString(title),
+        summary=None,
+        content=NonEmptyString(content),
+        tier=StoryTier.all_time,
+        period_start=None,
+        period_end=None,
+        workspace=None,
+        session_id=None,
+        tags=None,
+        created_at=now,
+        updated_at=now,
+        deleted_at=None,
+    )
+
+
+def _message(role: str = "user", content: str = "hello", offset_seconds: int = 60) -> Message:
+    return Message.model_construct(
+        id=MessageId(),
+        session_id=SessionId(),
+        role=MessageRole(role),
+        content=NonEmptyString(content),
+        created_at=UTCDatetime(datetime.now(UTC) - timedelta(seconds=offset_seconds)),
+    )
 
 
 def _bundle(**kwargs) -> ContextBundle:
-    """Build a minimal ContextBundle. Must have a non-first-run configuration."""
-    base_session = _session()
-    # Provide at least one moment so is_first_run is False.
+    """Build a non-first-run ContextBundle with a session_id and at least one moment."""
+    session_id = kwargs.pop("current_session_id", SessionId())
     moments = kwargs.pop("moments", [_entity("personality moment", type=EntityType.moment)])
-    return ContextBundle(session=base_session, moments=moments, **kwargs)
+    return ContextBundle(current_session_id=session_id, moments=moments, **kwargs)
+
+
+def _render(bundle: ContextBundle) -> str:
+    return ActivationContextRenderer(bundle).render()
 
 
 # ---------------------------------------------------------------------------
@@ -71,55 +125,53 @@ def _bundle(**kwargs) -> ContextBundle:
 # ---------------------------------------------------------------------------
 
 
-def test_most_recent_session_wrapped_in_last_session_tag():
-    now = datetime.now(timezone.utc)
+def test_most_recent_session_has_most_recent_attr():
+    now = datetime.now(UTC)
     recent = _session("most recent work", updated_at=now - timedelta(minutes=5))
     older = _session("older work", updated_at=now - timedelta(hours=2))
     bundle = _bundle(recent_sessions=[recent, older])
-    output = render(bundle)
-    assert "<last_session " in output
-    assert "</last_session>" in output
-
-
-def test_non_recent_sessions_wrapped_in_session_tag():
-    now = datetime.now(timezone.utc)
-    recent = _session("most recent", updated_at=now - timedelta(minutes=5))
-    older = _session("older session", updated_at=now - timedelta(hours=2))
-    bundle = _bundle(recent_sessions=[recent, older])
-    output = render(bundle)
+    output = _render(bundle)
+    assert 'most_recent="true"' in output
     assert "<session " in output
     assert "</session>" in output
 
 
-def test_only_first_session_gets_last_session_tag():
-    now = datetime.now(timezone.utc)
+def test_only_first_session_gets_most_recent_attr():
+    now = datetime.now(UTC)
     s1 = _session("first", updated_at=now - timedelta(minutes=5))
     s2 = _session("second", updated_at=now - timedelta(hours=1))
     s3 = _session("third", updated_at=now - timedelta(hours=2))
     bundle = _bundle(recent_sessions=[s1, s2, s3])
-    output = render(bundle)
-    assert output.count("<last_session ") == 1
-    assert output.count("</last_session>") == 1
-    # Two non-recent sessions
-    assert output.count("<session ") == 2
+    output = _render(bundle)
+    assert output.count('most_recent="true"') == 1
+    assert output.count("<session ") == 3
 
 
 def test_no_our_timeline_wrapper():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = _session("some work", updated_at=now - timedelta(minutes=5))
     bundle = _bundle(recent_sessions=[recent])
-    output = render(bundle)
+    output = _render(bundle)
     assert "<our_timeline>" not in output
     assert "</our_timeline>" not in output
 
 
-def test_single_session_uses_last_session_tag():
-    now = datetime.now(timezone.utc)
+def test_single_session_uses_session_tag():
+    now = datetime.now(UTC)
     only = _session("only session", updated_at=now - timedelta(minutes=10))
     bundle = _bundle(recent_sessions=[only])
-    output = render(bundle)
-    assert "<last_session " in output
-    assert "<session " not in output
+    output = _render(bundle)
+    assert "<session " in output
+    assert 'most_recent="true"' in output
+
+
+def test_sessions_wrapped_in_sessions_tag():
+    now = datetime.now(UTC)
+    recent = _session("recent", updated_at=now - timedelta(minutes=5))
+    bundle = _bundle(recent_sessions=[recent])
+    output = _render(bundle)
+    assert "<sessions>" in output
+    assert "</sessions>" in output
 
 
 # ---------------------------------------------------------------------------
@@ -129,52 +181,8 @@ def test_single_session_uses_last_session_tag():
 
 def test_time_weighting_note_present():
     bundle = _bundle()
-    output = render(bundle)
+    output = _render(bundle)
     assert "Weight information according to relative time" in output
-
-
-def test_sessions_ordering_note_present_when_sessions_exist():
-    now = datetime.now(timezone.utc)
-    recent = _session("recent", updated_at=now - timedelta(minutes=5))
-    bundle = _bundle(recent_sessions=[recent])
-    output = render(bundle)
-    assert "Sessions are ordered from most recent to least" in output
-
-
-# ---------------------------------------------------------------------------
-# _render_entity — moment formatting
-# ---------------------------------------------------------------------------
-
-
-def test_moment_entity_renders_with_bullet_date():
-    moment = _entity("a memory moment", type=EntityType.moment)
-    output = _render_entity(moment)
-    # Should start with "- " (bullet list item)
-    lines = output.strip().splitlines()
-    assert lines[0].startswith("- ")
-
-
-def test_moment_entity_does_not_use_saved_prefix():
-    moment = _entity("another moment", type=EntityType.moment)
-    output = _render_entity(moment)
-    assert "Saved:" not in output
-
-
-def test_non_moment_entity_renders_type_header():
-    entity = _entity("a decision", type=EntityType.decision)
-    output = _render_entity(entity)
-    assert "## Decision" in output
-
-
-def test_non_moment_entity_date_header_has_no_saved_prefix():
-    entity = _entity("some preference", type=EntityType.preference)
-    output = _render_entity(entity)
-    assert "Saved:" not in output
-    # Date line should start with "### " but NOT "### Saved:"
-    lines = output.strip().splitlines()
-    date_lines = [l for l in lines if l.startswith("### ")]
-    assert len(date_lines) == 1
-    assert not date_lines[0].startswith("### Saved:")
 
 
 # ---------------------------------------------------------------------------
@@ -184,167 +192,8 @@ def test_non_moment_entity_date_header_has_no_saved_prefix():
 
 def test_very_important_tag_used_not_important():
     bundle = _bundle()
-    output = render(bundle)
-    # The old tag should not appear; the new one should
-    assert "<important>" not in output
+    output = _render(bundle)
     assert "<very-important>" in output
-
-
-# ---------------------------------------------------------------------------
-# _date_group_key
-# ---------------------------------------------------------------------------
-
-
-def test_date_group_key_today():
-    now = datetime.now().astimezone()
-    assert _date_group_key(now, now) == "Today"
-
-
-def test_date_group_key_yesterday():
-    now = datetime.now().astimezone()
-    yesterday = now - timedelta(days=1)
-    result = _date_group_key(yesterday, now)
-    assert result.startswith("Yesterday")
-
-
-def test_date_group_key_older():
-    now = datetime.now().astimezone()
-    older = now - timedelta(days=5)
-    result = _date_group_key(older, now)
-    # Should be a full date string, not Today/Yesterday
-    assert result not in ("Today", ) and not result.startswith("Yesterday")
-
-
-# ---------------------------------------------------------------------------
-# _session_time
-# ---------------------------------------------------------------------------
-
-
-def test_session_time_just_now():
-    now = datetime.now().astimezone()
-    result = _session_time(now - timedelta(seconds=10), now)
-    assert "just now" in result
-
-
-def test_session_time_minutes_ago():
-    now = datetime.now().astimezone()
-    result = _session_time(now - timedelta(minutes=30), now)
-    assert "minutes ago" in result
-
-
-def test_session_time_hours_ago():
-    now = datetime.now().astimezone()
-    result = _session_time(now - timedelta(hours=3), now)
-    assert "hours ago" in result
-
-
-def test_session_time_yesterday_returns_time_only():
-    now = datetime.now().astimezone()
-    yesterday = now - timedelta(days=1)
-    result = _session_time(yesterday, now)
-    # Should not include "ago" — just a time string
-    assert "ago" not in result
-
-
-def test_session_time_one_minute_ago():
-    now = datetime.now().astimezone()
-    result = _session_time(now - timedelta(seconds=65), now)
-    assert "1 minute ago" in result
-
-
-# ---------------------------------------------------------------------------
-# _render_all_time_story
-# ---------------------------------------------------------------------------
-
-
-def _story(title: str = "Our Story", content: str = "Chapter 1") -> Story:
-    return Story(title=title, content=content)
-
-
-def test_render_all_time_story_contains_content_only():
-    """Title is no longer rendered inside the tag — only content."""
-    story = _story(title="The Long Arc", content="A long journey")
-    output = _render_all_time_story(story)
-    assert "A long journey" in output
-    assert "The Long Arc" not in output
-
-
-def test_render_all_time_story_contains_content():
-    story = _story(content="A long journey together")
-    output = _render_all_time_story(story)
-    assert "A long journey together" in output
-
-
-def test_render_all_time_story_wrapped_in_tag():
-    story = _story()
-    output = _render_all_time_story(story)
-    assert "<our_story_so_far>" in output
-    assert "</our_story_so_far>" in output
-
-
-# ---------------------------------------------------------------------------
-# _parse_period_date
-# ---------------------------------------------------------------------------
-
-
-def test_parse_period_date_iso_string():
-    result = _parse_period_date("2026-03-01T00:00:00+00:00")
-    assert result is not None
-    assert result.year == 2026
-    assert result.month == 3
-
-
-def test_parse_period_date_naive_gets_utc():
-    result = _parse_period_date("2026-01-15T10:30:00")
-    assert result is not None
-    assert result.tzinfo is not None
-
-
-def test_parse_period_date_none_returns_none():
-    assert _parse_period_date(None) is None
-
-
-def test_parse_period_date_empty_string_returns_none():
-    assert _parse_period_date("") is None
-
-
-def test_parse_period_date_invalid_returns_none():
-    assert _parse_period_date("not-a-date") is None
-
-
-# ---------------------------------------------------------------------------
-# _render_tricks
-# ---------------------------------------------------------------------------
-
-
-def test_render_tricks_returns_empty_when_no_tricks():
-    with patch("charlieverse.skills._discover_skills", return_value=[]):
-        result = _render_tricks(workspace=None)
-    assert result == ""
-
-
-def test_render_tricks_returns_empty_on_exception():
-    with patch("charlieverse.skills._discover_skills", side_effect=Exception("boom")):
-        result = _render_tricks(workspace=None)
-    assert result == ""
-
-
-def test_render_tricks_formats_tricks_with_description(tmp_path):
-    skill_path = str(tmp_path / "my-trick" / "SKILL.md")
-    tricks = [{"name": "my-trick", "description": "does cool things", "path": skill_path}]
-    with patch("charlieverse.skills._discover_skills", return_value=tricks):
-        result = _render_tricks(workspace=None)
-    assert "<tricks>" in result
-    assert "my-trick" in result
-    assert "does cool things" in result
-
-
-def test_render_tricks_formats_tricks_without_description(tmp_path):
-    skill_path = str(tmp_path / "bare-trick" / "SKILL.md")
-    tricks = [{"name": "bare-trick", "description": "", "path": skill_path}]
-    with patch("charlieverse.skills._discover_skills", return_value=tricks):
-        result = _render_tricks(workspace=None)
-    assert "bare-trick" in result
 
 
 # ---------------------------------------------------------------------------
@@ -352,35 +201,25 @@ def test_render_tricks_formats_tricks_without_description(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _knowledge(topic: str = "Python", content: str = "Use type hints.") -> Knowledge:
-    return Knowledge(
-        topic=topic,
-        content=content,
-        created_session_id=uuid4(),
-    )
-
-
 def test_render_includes_pinned_entities():
     pinned = _entity("pinned fact", type=EntityType.decision)
     pinned = pinned.model_copy(update={"pinned": True})
     bundle = _bundle(pinned_entities=[pinned])
-    output = render(bundle)
-    assert "<pinned>" in output
+    output = _render(bundle)
     assert "pinned fact" in output
 
 
 def test_render_includes_moments():
     moment = _entity("felt connected", type=EntityType.moment)
     bundle = _bundle(moments=[moment])
-    output = render(bundle)
-    assert "<moments>" in output
+    output = _render(bundle)
     assert "felt connected" in output
 
 
 def test_render_includes_pinned_knowledge():
     knowledge = _knowledge(topic="Architecture", content="Use clean layering.")
     bundle = _bundle(pinned_knowledge=[knowledge])
-    output = render(bundle)
+    output = _render(bundle)
     assert "<knowledge>" in output
     assert "Architecture" in output
     assert "Use clean layering." in output
@@ -389,7 +228,7 @@ def test_render_includes_pinned_knowledge():
 def test_render_includes_session_entities():
     entity = _entity("recent decision", type=EntityType.decision)
     bundle = _bundle(session_entities=[entity])
-    output = render(bundle)
+    output = _render(bundle)
     assert "<related_memories>" in output
     assert "recent decision" in output
 
@@ -397,7 +236,7 @@ def test_render_includes_session_entities():
 def test_render_includes_related_entities():
     entity = _entity("related memory", type=EntityType.solution)
     bundle = _bundle(related_entities=[entity])
-    output = render(bundle)
+    output = _render(bundle)
     assert "<related_memories>" in output
     assert "related memory" in output
 
@@ -405,37 +244,35 @@ def test_render_includes_related_entities():
 def test_render_includes_all_time_story():
     story = _story(title="All Time Story", content="Our shared history.")
     bundle = _bundle(all_time_story=story)
-    output = render(bundle)
+    output = _render(bundle)
     assert "<our_story_so_far>" in output
     assert "Our shared history." in output
 
 
 # ---------------------------------------------------------------------------
-# _render_first_run (is_first_run path)
+# First run path
 # ---------------------------------------------------------------------------
 
 
-def test_render_first_run_contains_activation_output():
+def test_render_first_run_contains_session_id():
     """An empty bundle triggers the first-run path."""
-    session = _session()
-    bundle = ContextBundle(session=session)
+    bundle = ContextBundle(current_session_id=SessionId())
     assert bundle.is_first_run
-    output = render(bundle)
-    assert "<activation_output>" in output
+    output = _render(bundle)
+    assert "<session_id>" in output
 
 
 def test_render_first_run_contains_birthday_tag():
-    session = _session()
-    bundle = ContextBundle(session=session)
-    output = render(bundle)
+    bundle = ContextBundle(current_session_id=SessionId())
+    output = _render(bundle)
     assert "<its_your_birthday>" in output
 
 
-def test_render_first_run_contains_session_id():
-    session = _session()
-    bundle = ContextBundle(session=session)
-    output = render(bundle)
-    assert str(session.id) in output
+def test_render_first_run_session_id_value_present():
+    session_id = SessionId()
+    bundle = ContextBundle(current_session_id=session_id)
+    output = _render(bundle)
+    assert session_id in output
 
 
 # ---------------------------------------------------------------------------
@@ -444,22 +281,22 @@ def test_render_first_run_contains_session_id():
 
 
 def test_is_first_run_true_when_empty():
-    bundle = ContextBundle(session=_session())
+    bundle = ContextBundle(current_session_id=SessionId())
     assert bundle.is_first_run is True
 
 
 def test_is_first_run_false_with_moments():
-    bundle = ContextBundle(session=_session(), moments=[_entity()])
+    bundle = ContextBundle(current_session_id=SessionId(), moments=[_entity()])
     assert bundle.is_first_run is False
 
 
 def test_is_first_run_false_with_recent_sessions():
-    bundle = ContextBundle(session=_session(), recent_sessions=[_session()])
+    bundle = ContextBundle(current_session_id=SessionId(), recent_sessions=[_session()])
     assert bundle.is_first_run is False
 
 
 def test_is_first_run_false_with_all_time_story():
-    bundle = ContextBundle(session=_session(), all_time_story=_story())
+    bundle = ContextBundle(current_session_id=SessionId(), all_time_story=_story())
     assert bundle.is_first_run is False
 
 
@@ -469,55 +306,54 @@ def test_seen_ids_includes_all_entity_groups():
     session_entity = _entity("session", type=EntityType.solution)
     related = _entity("related", type=EntityType.preference)
     bundle = ContextBundle(
-        session=_session(),
+        current_session_id=SessionId(),
         moments=[moment],
         pinned_entities=[pinned],
         session_entities=[session_entity],
         related_entities=[related],
     )
     ids = bundle.seen_ids
-    assert str(moment.id) in ids
-    assert str(pinned.id) in ids
-    assert str(session_entity.id) in ids
-    assert str(related.id) in ids
+    assert moment.id in ids
+    assert pinned.id in ids
+    assert session_entity.id in ids
+    assert related.id in ids
 
 
 def test_seen_ids_includes_knowledge():
     knowledge = _knowledge()
     bundle = ContextBundle(
-        session=_session(),
+        current_session_id=SessionId(),
         moments=[_entity()],
         pinned_knowledge=[knowledge],
     )
-    assert str(knowledge.id) in bundle.seen_ids
+    assert knowledge.id in bundle.seen_ids
 
 
 def test_seen_ids_includes_all_time_story():
     story = _story()
     bundle = ContextBundle(
-        session=_session(),
+        current_session_id=SessionId(),
         moments=[_entity()],
         all_time_story=story,
     )
-    assert str(story.id) in bundle.seen_ids
+    assert story.id in bundle.seen_ids
 
 
 # ---------------------------------------------------------------------------
-# workspace_directory tag
+# workspace_directory tag — removed from renderer output
 # ---------------------------------------------------------------------------
 
 
-def test_render_includes_workspace_directory_tag():
-    bundle = _bundle(workspace="/projects/myapp")
-    output = render(bundle)
-    assert "<workspace_directory>/projects/myapp</workspace_directory>" in output
+def test_render_does_not_include_workspace_directory_tag():
+    bundle = _bundle(workspace=WorkspaceFilePath("/projects/myapp"))
+    output = _render(bundle)
+    assert "<workspace_directory>" not in output
 
 
-def test_render_workspace_directory_none_renders_none():
+def test_render_workspace_none_does_not_crash():
     bundle = _bundle(workspace=None)
-    output = render(bundle)
-    # The tag is still present but contains None
-    assert "<workspace_directory>None</workspace_directory>" in output
+    output = _render(bundle)
+    assert "<session_id>" in output
 
 
 # ---------------------------------------------------------------------------
@@ -525,68 +361,39 @@ def test_render_workspace_directory_none_renders_none():
 # ---------------------------------------------------------------------------
 
 
-def _context_message(role: str = "user", content: str = "hello", offset_seconds: int = 60) -> ContextMessage:
-    return ContextMessage(
-        role=role,
-        content=content,
-        created_at=datetime.now(timezone.utc) - timedelta(seconds=offset_seconds),
-    )
-
-
-def test_render_includes_recent_messages_tag_when_present():
-    now = datetime.now(timezone.utc)
-    recent = _session("most recent work", updated_at=now - timedelta(minutes=5))
+def test_render_recent_messages_wrapped_in_tag():
     msgs = [
-        _context_message("user", "what are we working on?", 120),
-        _context_message("assistant", "we are building features", 60),
+        _message("user", "what are we working on?", 120),
+        _message("assistant", "we are building features", 60),
     ]
-    bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
-    output = render(bundle)
+    bundle = _bundle(recent_messages=msgs)
+    output = _render(bundle)
     assert "<recent_messages>" in output
     assert "</recent_messages>" in output
 
 
 def test_render_recent_messages_shows_user_content():
-    now = datetime.now(timezone.utc)
-    recent = _session("recent work", updated_at=now - timedelta(minutes=5))
-    msgs = [_context_message("user", "tell me about the changes", 60)]
-    bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
-    output = render(bundle)
+    msgs = [_message("user", "tell me about the changes", 60)]
+    bundle = _bundle(recent_messages=msgs)
+    output = _render(bundle)
     assert "tell me about the changes" in output
 
 
 def test_render_recent_messages_shows_assistant_content():
-    now = datetime.now(timezone.utc)
-    recent = _session("recent work", updated_at=now - timedelta(minutes=5))
-    msgs = [_context_message("assistant", "here is what i found", 60)]
-    bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
-    output = render(bundle)
+    msgs = [_message("assistant", "here is what i found", 60)]
+    bundle = _bundle(recent_messages=msgs)
+    output = _render(bundle)
     assert "here is what i found" in output
-
-
-def test_render_recent_messages_truncates_long_content():
-    now = datetime.now(timezone.utc)
-    recent = _session("recent work", updated_at=now - timedelta(minutes=5))
-    long_content = "x" * 600
-    msgs = [_context_message("assistant", long_content, 60)]
-    bundle = _bundle(recent_sessions=[recent], recent_messages=msgs)
-    output = render(bundle)
-    # Truncated at 200 chars + "…"
-    assert "x" * 200 + "…" in output
 
 
 def test_render_recent_messages_does_not_appear_when_empty():
     bundle = _bundle(recent_messages=[])
-    output = render(bundle)
+    output = _render(bundle)
     assert "<recent_messages>" not in output
 
 
-def test_render_recent_messages_only_in_last_session():
-    now = datetime.now(timezone.utc)
-    recent = _session("most recent", updated_at=now - timedelta(minutes=5))
-    older = _session("older", updated_at=now - timedelta(hours=2))
-    msgs = [_context_message("user", "context message", 60)]
-    bundle = _bundle(recent_sessions=[recent, older], recent_messages=msgs)
-    output = render(bundle)
-    # recent_messages should appear exactly once (inside last_session)
-    assert output.count("<recent_messages>") == 1
+def test_render_recent_messages_user_labeled_as_me():
+    msgs = [_message("user", "context message", 60)]
+    bundle = _bundle(recent_messages=msgs)
+    output = _render(bundle)
+    assert "<me " in output

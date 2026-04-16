@@ -7,7 +7,6 @@ const tiers: { value: StoryTier | null; label: string }[] = [
   { value: null, label: 'All' },
   { value: 'all-time', label: 'All Time' },
   { value: 'yearly', label: 'Yearly' },
-  { value: 'quarterly', label: 'Quarterly' },
   { value: 'monthly', label: 'Monthly' },
   { value: 'weekly', label: 'Weekly' },
   { value: 'daily', label: 'Daily' },

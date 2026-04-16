@@ -1,39 +1,27 @@
 ---
 name: session-save
-description: Save the current session and optionally generate story rollups.
+description: Save or update the current session. Use this skill when asked to handoff, save session, update session, start a new chat, etc. Always call this before usingn the `update_session` MCP tool directly.
 ---
+If skipping a step, no need to explain that you did, just skip it.
 
-## What this skill does
+1. Update the session:
+Call `update_session` with:
+  - `what_happened`: 
+  - `for_next_session`: A list of TODO's for the next section
+  - `tags`: Keywords for the session content
+  - `workspace`: The current workspace path if applicable
 
-Saves the current session and optionally generates/updates story rollups (daily, weekly, monthly).
+2. Create / Update Memories
+Review the session and determine if there are any memories/knowledge articles that should be created, updated, forgotten, or merged with other memories. If you're unsure, then ask. 
 
-## Steps
+It's okay if there aren't any, don't create memories just because.
 
-### 1. Save the session
+3. Update Stories
+Skip this step unless this session is nearing the end of the day/working sessions.
 
-Call `session_update` with:
-- `what_happened`: A concise summary of what happened this session
-- `for_next_session`: What the next session should pick up on
-- `tags`: Relevant tags
-- `workspace`: The current workspace path if applicable
+- Save the output of this command to a temporary file: `V_CLI story-data daily`
+- Then read the output 100%
+- Craft the story (take into account your personality and how your human and you talk to each other. Humor is always welcome, especially when it comes to hilarious titles)
+- Then `save_story`
 
-### 2. Check if a daily story needs updating
-
-Call `get_story_data` with target `"daily"` to see if there are session-tier stories for today that could be rolled up into a daily.
-
-If there are enough session stories (2+), or it's been a while since the last daily, spawn a **Storyteller** subagent with the data and have it generate a daily story. Save the result with `upsert_story`.
-
-### 3. Cascade
-
-Always attempt weekly and monthly rollups after saving. The server falls back to raw sessions when lower-tier stories don't exist, so cascading always has data to work with.
-
-- Call `get_story_data` with target `"weekly"`. If it returns stories or sessions, spawn a **Storyteller** subagent to generate a weekly story. Save with `upsert_story`.
-- Call `get_story_data` with target `"monthly"`. Same process.
-
-If a tier returns no data at all (empty stories AND no fallback sessions), skip it.
-
-Note: The response may include a `"fallback": "sessions"` field when raw sessions are used instead of lower-tier stories. The Storyteller handles both formats — stories have title/summary/content, sessions have what_happened/for_next_session.
-
-### 4. Done
-
-Report what was saved. No curl, no REST — everything goes through MCP tools.
+Repeat this for weekly (if later in the week), monthly (later in the month), yearly (later in the year), and all-time tiers (anytime you do a non-daily)

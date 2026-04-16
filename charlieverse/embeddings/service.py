@@ -6,6 +6,10 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
+from charlieverse.db.fts import clean_text
+from charlieverse.memory.sessions import Session
+from charlieverse.types.lists import TagList
+
 if TYPE_CHECKING:
     from sentence_transformers import SentenceTransformer
 
@@ -17,13 +21,18 @@ _executor = ThreadPoolExecutor(max_workers=1)
 _model: SentenceTransformer | None = None
 
 
+def prewarm_embeddings():
+    _get_model()
+
+
 def _get_model() -> SentenceTransformer:
     """Lazy-load the embedding model on first use."""
     global _model
     if _model is None:
         from sentence_transformers import SentenceTransformer
 
-        _model = SentenceTransformer(MODEL_NAME, device="cpu")
+        _model = SentenceTransformer(MODEL_NAME, device="cpu", local_files_only=True)
+
     return _model
 
 
@@ -47,7 +56,7 @@ async def encode_one(text: str) -> list[float]:
     return results[0]
 
 
-def prepare_entity_text(content: str, tags: list[str] | None = None) -> str:
+def prepare_entity_text(content: str, tags: TagList | None = None) -> str:
     """Prepare entity text for embedding generation."""
     parts = [content]
     if tags:
@@ -55,7 +64,7 @@ def prepare_entity_text(content: str, tags: list[str] | None = None) -> str:
     return " ".join(parts)
 
 
-def prepare_knowledge_text(topic: str, content: str, tags: list[str] | None = None) -> str:
+def prepare_knowledge_text(topic: str, content: str, tags: TagList | None = None) -> str:
     """Prepare knowledge text for embedding generation."""
     parts = [topic, content]
     if tags:
@@ -63,14 +72,6 @@ def prepare_knowledge_text(topic: str, content: str, tags: list[str] | None = No
     return " ".join(parts)
 
 
-def prepare_session_text(
-    what_happened: str | None = None,
-    for_next_session: str | None = None,
-) -> str:
+def prepare_session_text(session: Session) -> str | None:
     """Prepare session text for embedding generation."""
-    parts = []
-    if what_happened:
-        parts.append(what_happened)
-    if for_next_session:
-        parts.append(for_next_session)
-    return " ".join(parts) if parts else ""
+    return clean_text(f"{session.what_happened} {session.for_next_session}")

@@ -36,7 +36,7 @@ from __future__ import annotations
 import json
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -52,7 +52,7 @@ def _parse_timestamp(ts: str | None) -> datetime | None:
             return datetime.fromisoformat(ts)
         # Epoch ms
         if isinstance(ts, (int, float)):
-            return datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+            return datetime.fromtimestamp(ts / 1000, tz=UTC)
     except (ValueError, OSError):
         return None
     return None

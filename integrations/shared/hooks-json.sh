@@ -52,17 +52,6 @@ cat <<JSON
         ],
         "matcher": ""
       }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "command": "$(hook save-reminder)",
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      }
     ]
   }
 }

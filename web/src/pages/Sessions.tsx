@@ -9,7 +9,6 @@ interface SessionsProps {
 
 export function Sessions({ onSelect }: SessionsProps) {
   const { data: sessions, isLoading } = useSessions()
-
   const grouped = sessions ? groupByDate(sessions) : []
 
   return (

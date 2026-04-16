@@ -1,3 +1,3 @@
-"""Charlieverse — persistent AI companion layer."""
+"""Charlieverse."""
 
 __version__ = "1.7.2"

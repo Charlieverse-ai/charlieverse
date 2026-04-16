@@ -18,7 +18,7 @@ DEFAULT_PORT = config.server.port
 
 
 def story_data(
-    target: str = typer.Argument(help="Session ID or tier name (daily, weekly, monthly, quarterly, yearly)"),
+    target: str = typer.Argument(help="Session ID or tier name (daily, weekly, monthly, yearly)"),
     date: str | None = typer.Argument(None, help="Date for tier rollups (ISO format, e.g. 2026-03-16)"),
     host: str = typer.Option(DEFAULT_HOST, help="Server host"),
     port: int = typer.Option(DEFAULT_PORT, help="Server port"),
@@ -28,10 +28,11 @@ def story_data(
 
 
 async def _story_data(target: str, date: str | None, host: str, port: int) -> None:
-    import httpx
     from datetime import date as date_type
 
-    tier_names = {"daily", "weekly", "monthly", "quarterly", "yearly"}
+    import httpx
+
+    tier_names = {"daily", "weekly", "monthly", "yearly"}
 
     # Resolve date shortcuts
     date_shortcuts = {
@@ -45,7 +46,7 @@ async def _story_data(target: str, date: str | None, host: str, port: int) -> No
         date = date_shortcuts[date]()
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:  # ty:ignore[unresolved-attribute]
             if target in tier_names:
                 if not date:
                     # Default to today's date for convenience
@@ -57,9 +58,9 @@ async def _story_data(target: str, date: str | None, host: str, port: int) -> No
 
             response.raise_for_status()
             data = response.json()
-    except httpx.HTTPError as e:
+    except httpx.HTTPError as e:  # ty:ignore[unresolved-attribute]
         typer.echo(f"Error fetching story data: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     # Output JSON to stdout for skill consumption
     typer.echo(json.dumps(data, indent=2))

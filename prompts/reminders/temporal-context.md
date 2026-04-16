@@ -1,2 +1,2 @@
 now: ${CURRENT_DATETIME}
-session_start: ${RELATIVE_TIME_SINCE_SESSION_START}
+time since session start: ${RELATIVE_TIME_SINCE_SESSION_START}, last save: ${TIME_SINCE_SAVE}

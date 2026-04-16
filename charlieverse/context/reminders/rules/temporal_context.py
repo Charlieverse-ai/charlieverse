@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from charlieverse.context.reminders.rules.base import ReminderRule
-from charlieverse.context.reminders.types import HookContext, ReminderResult, ReminderTag
-from charlieverse.context.time_utils import format_datetime, relative_time
+from charlieverse.context.reminders.types import (
+    HookContext,
+    ReminderResult,
+    ReminderTag,
+)
+from charlieverse.helpers.time_utils import format_datetime, relative_time_seconds
 
 
 class TemporalContextRule(ReminderRule):
@@ -15,13 +17,13 @@ class TemporalContextRule(ReminderRule):
     async def evaluate(self, ctx: HookContext) -> ReminderResult | None:
         vars: dict[str, str] = {
             "CURRENT_DATETIME": format_datetime(ctx.timestamp),
-            "RELATIVE_TIME_SINCE_SESSION_START": "Just started."
+            "TIME_SINCE_SAVE": "never",
         }
 
-        session_start = ctx.metadata.get("session_start")
-        if session_start:
-            if isinstance(session_start, str):
-                session_start = datetime.fromisoformat(session_start)
-            vars["RELATIVE_TIME_SINCE_SESSION_START"] = relative_time(session_start, ctx.timestamp)
-            
+        vars["RELATIVE_TIME_SINCE_SESSION_START"] = relative_time_seconds(int(ctx.metadata.get("session_start") or 0))
+
+        session_save = ctx.metadata.get("last_save")
+        if session_save:
+            vars["TIME_SINCE_SAVE"] = relative_time_seconds(int(session_save))
+
         return self.result(self.template.render("temporal-context", vars))

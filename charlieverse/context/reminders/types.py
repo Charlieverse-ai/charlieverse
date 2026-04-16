@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from enum import Enum
+
+from charlieverse.memory.sessions import SessionId
+from charlieverse.types.dates import UTCDatetime, utc_now
+
 
 class ReminderTag(Enum):
     """XML tag used to wrap reminder content in additionalContext."""
@@ -32,8 +35,8 @@ class HookContext:
     """
 
     event: str  # "UserPromptSubmit", "PreToolUse", "PostToolUse", etc.
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    session_id: str | None = None
+    timestamp: UTCDatetime = field(default_factory=utc_now)
+    session_id: SessionId | None = None
     message: str | None = None
     tool_name: str | None = None
     tool_input: dict | None = None

@@ -4,10 +4,7 @@ import { api } from '../api/client'
 export function useStories(tier?: string) {
   return useQuery({
     queryKey: ['stories', tier],
-    queryFn: async () => {
-      const res = await api.listStories(tier)
-      return res.stories
-    },
+    queryFn: () => api.listStories(tier),
   })
 }
 

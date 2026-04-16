@@ -8,16 +8,15 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import typer
 
 from charlieverse.config import config
-from charlieverse import paths
-
+from charlieverse.helpers import paths
 
 # ── Formatting helpers ────────────────────────────────────────────────────────
+
 
 def _ok(msg: str) -> None:
     typer.echo(typer.style("✔", fg=typer.colors.GREEN) + f" {msg}")
@@ -62,6 +61,7 @@ def _ask_choice(prompt: str, options: list[str]) -> int:
 
 # ── Steps ─────────────────────────────────────────────────────────────────────
 
+
 def _setup_directories(root: Path) -> None:
     """Create the ~/.charlieverse directory structure."""
     _step("🏗️  Setting up directories")
@@ -94,16 +94,6 @@ def _verify_dependencies() -> None:
     """Check that required dependencies are working."""
     _step("🔍 Verifying dependencies")
 
-    # spaCy model
-    try:
-        import spacy
-        spacy.load("en_core_web_sm")
-        _ok("spaCy model verified")
-    except (OSError, ImportError):
-        _step("  Installing spaCy model en_core_web_sm...")
-        from spacy.cli.download import download
-        download("en_core_web_sm")
-
     # Web dashboard
     dist = paths.web_dist()
     if dist and (dist / "index.html").exists():
@@ -123,17 +113,15 @@ def _start_server() -> None:
     """Start the Charlie server."""
     _step("🚀 Starting Charlie server")
 
-    charlie = shutil.which("charlie")
-    if not charlie:
-        # We're running as charlie, so use sys.executable
-        charlie_cmd = [sys.executable, "-m", "charlieverse.cli", "server", "status"]
-    else:
-        charlie_cmd = ["charlie", "server", "status"]
+    charlie_cmd = ["uv", "run", "charlie", "server"]
+
+    status_cmd = [*charlie_cmd, "status"]
+    start_cmd = [*charlie_cmd, "start"]
 
     # Check if already running
     try:
         result = subprocess.run(
-            charlie_cmd,
+            status_cmd,
             capture_output=True,
             text=True,
             timeout=5,
@@ -145,13 +133,11 @@ def _start_server() -> None:
         pass
 
     # Start it — the server forks to background, so don't capture output
-    start_cmd = charlie_cmd[:-1] + ["start"]
     try:
-        subprocess.run(start_cmd, timeout=30)
-        time.sleep(2)
+        subprocess.run(start_cmd)
 
         # Verify
-        result = subprocess.run(charlie_cmd, capture_output=True, text=True, timeout=5)
+        result = subprocess.run(status_cmd, capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
             _ok(f"Server started at {config.server.base_url()}")
         else:
@@ -237,12 +223,13 @@ def _import_history() -> None:
 
     # Check for existing extracted data
     if existing_jsonl.exists() and existing_jsonl.stat().st_size > 0:
-        line_count = sum(1 for _ in open(existing_jsonl))
-        _ok(f"Found existing import file ({line_count} entries)")
+        with open(existing_jsonl) as file:
+            line_count = sum(1 for _ in file)
+            _ok(f"Found existing import file ({line_count} entries)")
 
-        if _ask_yes_no("Import from this file?"):
-            _run_import(["--from-file", str(existing_jsonl), "--messages"])
-            return
+            if _ask_yes_no("Import from this file?"):
+                _run_import(["--from-file", str(existing_jsonl), "--messages"])
+                return
 
     if not _ask_yes_no("Import conversation history?"):
         _info("Skipped — you can run this later: charlie import --messages")
@@ -261,14 +248,14 @@ def _import_history() -> None:
     elif choice == 3:
         provider_flags = ["--provider", "codex"]
 
-    _run_import(["--messages"] + provider_flags)
+    _run_import(["--messages", *provider_flags])
 
 
 def _run_import(flags: list[str]) -> None:
     """Run the import command."""
     _info("Importing recent conversations...")
     try:
-        cmd = [sys.executable, "-m", "charlieverse.cli", "import"] + flags
+        cmd = [sys.executable, "-m", "charlieverse.cli", "import", *flags]
         result = subprocess.run(cmd, timeout=300)
         if result.returncode == 0:
             _ok("Recent history imported")
@@ -303,6 +290,7 @@ def _summary() -> None:
 
 # ── Command ───────────────────────────────────────────────────────────────────
 
+
 def init(
     path: str = typer.Option(
         str(config.path),
@@ -310,7 +298,8 @@ def init(
     ),
     quick: bool = typer.Option(
         False,
-        "--quick", "-q",
+        "--quick",
+        "-q",
         help="Skip interactive prompts (directories + deps only)",
     ),
 ) -> None:

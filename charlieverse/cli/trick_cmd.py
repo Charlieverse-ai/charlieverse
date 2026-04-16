@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from charlieverse.config import config
-from charlieverse.skills import _discover_skills, _find_skill, _parse_frontmatter, _skill_dirs, _source_label
+from charlieverse.helpers.skills import (
+    _discover_skills,
+    _find_skill,
+    _parse_frontmatter,
+    _source_label,
+)
 
 console = Console()
 
@@ -20,6 +24,7 @@ app = typer.Typer(
     invoke_without_command=True,
 )
 
+
 @app.callback(invoke_without_command=True)
 def default(ctx: typer.Context):
     """List all available skills by default."""
@@ -27,6 +32,7 @@ def default(ctx: typer.Context):
         # Check if there's an unrecognized argument that might be a skill name
         # Typer doesn't support this natively, so we show help
         ctx.get_help()
+
 
 def _estimate_tokens(text: str) -> int:
     """Rough token estimate (~4 chars per token)."""
@@ -86,38 +92,8 @@ def list_skills(
             if len(skill["description"]) > max_desc:
                 desc += "…"
 
-            console.print(f"  - [cyan]{skill['name']}[/cyan]: [dim]{desc or "None"}[/dim]")
+            console.print(f"  - [cyan]{skill['name']}[/cyan]: [dim]{desc or 'None'}[/dim]")
         console.print()
-
-
-def _source_label(path_str: str) -> tuple[str, str]:
-    """Return (source, style) for a skill path."""
-    if str(config.path) in path_str:
-        return "user", "green"
-    elif "/integrations/" in path_str:
-        return "integration", "yellow"
-    elif "/prompts/skills/" in path_str:
-        return "bundled", "cyan"
-    # Provider-specific paths
-    elif "/.claude/" in path_str:
-        return "claude", "magenta"
-    elif "/.copilot/" in path_str:
-        return "copilot", "blue"
-    elif "/.cursor/" in path_str:
-        return "cursor", "blue"
-    elif "/.codex/" in path_str:
-        return "codex", "blue"
-    elif "/.codeium/" in path_str or "/windsurf/" in path_str:
-        return "windsurf", "blue"
-    elif "/.gemini/" in path_str:
-        return "gemini", "blue"
-    elif "/.agents/" in path_str:
-        return "shared", "dim"
-    elif "/.charlie/" in path_str:
-        return "project", "green"
-    elif "/.github/" in path_str:
-        return "github", "dim"
-    return "other", "dim"
 
 
 @app.command("info")
@@ -127,7 +103,6 @@ def info_skill(
     """Show metadata for a trick without printing the full contents."""
     from rich.markup import escape
     from rich.panel import Panel
-    from rich.columns import Columns
     from rich.text import Text
     from rich.tree import Tree
 
@@ -165,11 +140,7 @@ def info_skill(
     parts.append(meta)
 
     # Files tree (skip if just SKILL.md)
-    files = sorted(
-        f.relative_to(skill_dir)
-        for f in skill_dir.rglob("*")
-        if f.is_file() and f.name != ".DS_Store"
-    )
+    files = sorted(f.relative_to(skill_dir) for f in skill_dir.rglob("*") if f.is_file() and f.name != ".DS_Store")
     if len(files) > 1:
         parts.append(Text(""))
         tree = Tree(f"[bold]{skill_dir.name}/[/bold]", guide_style="dim")
@@ -188,6 +159,7 @@ def info_skill(
 
     # Wrap in a panel
     from rich.console import Group
+
     panel = Panel(
         Group(*parts),
         title=f"[bold cyan]{fm.get('name', name)}[/bold cyan]",
@@ -198,10 +170,7 @@ def info_skill(
 
 
 @app.command("find")
-def find_skill_cmd(
-    name: str = typer.Argument(help="Skill name to find"),
-    source: str | None = typer.Option(None, "--source", help="Provider Source")
-) -> None:
+def find_skill_cmd(name: str = typer.Argument(help="Skill name to find"), source: str | None = typer.Option(None, "--source", help="Provider Source")) -> None:
     """Print the path to a skill's SKILL.md."""
     path = _find_skill(name)
     if not path:
@@ -212,10 +181,7 @@ def find_skill_cmd(
 
 
 @app.command()
-def read(
-    name: str = typer.Argument(help="Skill name to display"), 
-    source: str | None = typer.Option(None, "--source", help="Provider Source")
-) -> None:
+def read(name: str = typer.Argument(help="Skill name to display"), source: str | None = typer.Option(None, "--source", help="Provider Source")) -> None:
     """Print the contents of a skill's SKILL.md."""
     path = _find_skill(name)
     if not path:

@@ -7,7 +7,11 @@ from collections import defaultdict
 
 from charlieverse.context.reminders.rules import register_rules
 from charlieverse.context.reminders.rules.base import ReminderRule
-from charlieverse.context.reminders.types import HookContext, ReminderResult, ReminderTag
+from charlieverse.context.reminders.types import (
+    HookContext,
+    ReminderResult,
+    ReminderTag,
+)
 
 
 class RemindersEngine:
@@ -30,10 +34,7 @@ class RemindersEngine:
             *(rule.evaluate(ctx) for rule in self.rules),
             return_exceptions=True,
         )
-        results: list[ReminderResult] = [
-            r for r in raw_results
-            if not isinstance(r, BaseException) and r is not None
-        ]
+        results: list[ReminderResult] = [r for r in raw_results if not isinstance(r, BaseException) and r is not None]
         return results
 
     def format(self, results: list[ReminderResult]) -> str:

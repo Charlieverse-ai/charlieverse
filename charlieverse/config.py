@@ -6,12 +6,11 @@ Override via ~/.charlieverse/config.yaml or config.local.yaml (gitignored).
 
 from __future__ import annotations
 
+import socket
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
-import socket
-
 
 _DEFAULT_PATH = Path.home() / ".charlieverse"
 

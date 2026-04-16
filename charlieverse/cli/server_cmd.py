@@ -1,14 +1,19 @@
 """Server commands — `charlie server start|stop|status|restart`."""
 
 from __future__ import annotations
-from typing import cast
 
+import asyncio
 import os
 import signal
 import sys
+from contextlib import suppress
+
 import typer
+from rich.console import Console
 
 from charlieverse.config import config
+
+console = Console()
 
 app = typer.Typer(
     name="server",
@@ -66,27 +71,29 @@ def _wait_for_port_free(port: int, timeout: float = 15) -> None:
     # Timeout — proceed anyway and let start() fail with a clear error
 
 
-def _wait_for_health(timeout: float = 30, interval: float = 1) -> bool:
+def _wait_for_health(timeout: float = 60, interval: float = 0.5) -> bool:
     """Poll the health endpoint until the server responds or timeout."""
     import time
-    import urllib.request
     import urllib.error
+    import urllib.request
 
-    url = config.server.api_url("health")
+    # Always use loopback — this is a local process checking its own server.
+    # config.server.api_url() resolves the LAN IP via DNS which is flaky on macOS.
+    url = f"http://127.0.0.1:{config.server.port}/api/health"
     deadline = time.monotonic() + timeout
 
-    # Delay the polling for a few seconds to allow the initial server setup to complete
-    time.sleep(5)
+    # Bypass system proxy (Proxyman, Charles, etc.) — this is a loopback check.
+    no_proxy_handler = urllib.request.ProxyHandler({})
+    opener = urllib.request.build_opener(no_proxy_handler)
 
     while time.monotonic() < deadline:
-        # Check process is still alive first
         if not _is_running():
             return False
         try:
-            with urllib.request.urlopen(url, timeout=2) as resp:
+            with opener.open(url, timeout=1) as resp:
                 if resp.status == 200:
                     return True
-        except (urllib.error.URLError, OSError, TimeoutError) as e:
+        except (urllib.error.URLError, OSError, TimeoutError):
             pass
         time.sleep(interval)
     return False
@@ -111,11 +118,14 @@ def _kill_port_holder(port: int) -> bool:
     terminating unrelated services that happen to use the same port.
     """
     import subprocess
+
     try:
         # Get PIDs and their command names for the port
         result = subprocess.run(
             ["lsof", "-ti", f":{port}"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         pids = [int(p.strip()) for p in result.stdout.strip().split("\n") if p.strip()]
         killed = False
@@ -124,7 +134,9 @@ def _kill_port_holder(port: int) -> bool:
                 # Verify the process belongs to us before killing
                 cmd_result = subprocess.run(
                     ["ps", "-p", str(pid), "-o", "command="],
-                    capture_output=True, text=True, timeout=2,
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
                 )
                 cmdline = cmd_result.stdout.strip().lower()
                 if "charlieverse" not in cmdline and "charlie" not in cmdline:
@@ -143,56 +155,45 @@ def start(
     host: str = typer.Option(DEFAULT_HOST, help="Host to bind to"),
     port: int = typer.Option(DEFAULT_PORT, help="Port to listen on"),
     foreground: bool = typer.Option(False, "-f", "--foreground", help="Run in foreground"),
-    transport: str = typer.Option("http", help="Transport: http, sse, or stdio"),
 ) -> None:
     """Start the Charlieverse server."""
+    console.log("Starting server...")
     if _is_running():
-        typer.echo(f"Charlieverse is already running (PID {_read_pid()})")
+        console.log(f"Charlieverse is already running (PID {_read_pid()})")
         return
-    
-    # Kill any orphan process holding the port (stale PID file scenarios)
-    import socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sock.settimeout(1)
-        sock.connect(("127.0.0.1", port))
-        sock.close()
-        # Port is occupied by something we don't know about — kill it
-        if _kill_port_holder(port):
-            typer.echo(f"Killed orphan process on port {port}")
-            _wait_for_port_free(port)
-    except (ConnectionRefusedError, OSError):
-        pass  # Port is free
 
-    if not foreground and transport != "stdio":
+    # Kill any orphan process holding the port (stale PID file scenarios)
+    if _kill_port_holder(port):
+        console.log(f"Killed orphan process on port {port}")
+        _wait_for_port_free(port)
+
+    if not foreground:
         # Fork to background
         try:
             pid = os.fork()
         except OSError as e:
-            typer.echo(f"Failed to fork: {e}", err=True)
-            raise typer.Exit(1)
+            console.log(f"Failed to fork: {e}")
+            raise typer.Exit(1) from e
 
         if pid > 0:
             # Parent — wait for child to write PID, then poll health
             import time
+
             for _ in range(20):
-                child_pid = _read_pid()
-                if child_pid and child_pid != pid:
+                if _read_pid() is not None:
                     break
                 time.sleep(0.2)
 
             if _wait_for_health():
-                typer.echo(f"Charlieverse started (PID {_read_pid()})")
-                typer.echo(f"Listening on {config.server.base_url()}")
+                console.log(f"Charlieverse started (PID {_read_pid()})")
+                console.log(f"Listening on {config.server.base_url()}")
             else:
-                typer.echo("Failed to start Charlieverse", err=True)
+                console.log("Failed to start Charlieverse")
                 # Clean up the child process if it's still around
                 child_pid = _read_pid()
                 if child_pid:
-                    try:
+                    with suppress(OSError):
                         os.kill(child_pid, signal.SIGTERM)
-                    except OSError:
-                        pass
                     _clear_pid()
                 if LOG_FILE.exists():
                     lines = LOG_FILE.read_text().strip().splitlines()
@@ -220,12 +221,9 @@ def start(
     signal.signal(signal.SIGTERM, handle_signal)
     signal.signal(signal.SIGINT, handle_signal)
 
-    from charlieverse.server import mcp, McpTransport
+    from charlieverse.server.start import start_server
 
-    if foreground:
-        typer.echo(f"Starting Charlieverse on {config.server.mcp_url()}")
-
-    mcp.run(transport=cast(McpTransport, transport), host=host, port=port, show_banner=False)
+    asyncio.run(start_server(host=host, port=port))
 
 
 @app.command("stop")
@@ -258,19 +256,15 @@ def status() -> None:
 def restart(
     host: str = typer.Option(DEFAULT_HOST, help="Host to bind to"),
     port: int = typer.Option(DEFAULT_PORT, help="Port to listen on"),
-    transport: str = typer.Option("http", help="Transport: http, sse, or stdio"),
 ) -> None:
     """Restart the Charlieverse server."""
-    pid = _read_pid()
     stop()
     # Wait for the port to be free (not just the process to die)
     _wait_for_port_free(port)
-    start(host=host, port=port, foreground=False, transport=transport)
+    start(host=host, port=port, foreground=False)
+
 
 @app.command("url")
-def url(
-    host: str = typer.Option(DEFAULT_HOST, help="Host to bind to"),
-    port: int = typer.Option(DEFAULT_PORT, help="Port to listen on")
-) -> None:
+def url(host: str = typer.Option(DEFAULT_HOST, help="Host to bind to"), port: int = typer.Option(DEFAULT_PORT, help="Port to listen on")) -> None:
     """Print the server URL."""
     typer.echo(f"http://{host}:{port}")

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from string import Template
 
-from charlieverse import paths
+from charlieverse.helpers import paths
 
 REMINDERS_DIR = (paths.prompts() or Path(__file__).parent.parent.parent / "prompts") / "reminders"
 

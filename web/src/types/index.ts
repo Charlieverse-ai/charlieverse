@@ -13,8 +13,8 @@ export interface Entity {
 
 export interface Session {
   id: string
-  what_happened: string | null
-  for_next_session: string | null
+  what_happened: string
+  for_next_session: string
   tags: string[] | null
   workspace: string | null
   created_at: string

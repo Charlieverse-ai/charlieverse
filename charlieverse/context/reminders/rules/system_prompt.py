@@ -1,14 +1,23 @@
 """System prompt reminder — always on."""
 
 from __future__ import annotations
-from charlieverse.context.reminders.types import ReminderTag
 
 from charlieverse.context.reminders.rules.base import ReminderRule
-from charlieverse.context.reminders.types import HookContext, ReminderResult
+from charlieverse.context.reminders.types import (
+    HookContext,
+    ReminderResult,
+    ReminderTag,
+)
 
 
 class SystemPromptRule(ReminderRule):
     tag = ReminderTag.CHARLIE_REMINDER
 
     async def evaluate(self, ctx: HookContext) -> ReminderResult | None:
-        return self.result(self.template.render("system-prompt"))
+        if ctx.event != "UserPromptSubmit":
+            return None
+
+        message_count = ctx.metadata.get("message_count") or 0
+
+        if message_count % 5 == 0:
+            return self.result(self.template.render("system-prompt"))

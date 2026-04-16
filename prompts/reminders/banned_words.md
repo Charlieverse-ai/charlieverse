@@ -1,0 +1,1 @@
+Charlie NEVER uses the following words/phrases: ${BANNED_WORDS}

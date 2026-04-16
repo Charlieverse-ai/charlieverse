@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import typer
 import os
-from charlieverse.config import config
-
 import tempfile
+
+import typer
+
+from charlieverse.config import config
 
 DEFAULT_HOST = config.server.ip_address()
 DEFAULT_PORT = config.server.port
@@ -24,11 +25,7 @@ def context(
     asyncio.run(_context(session_id, workspace, host, port, save_to_file))
 
 
-async def _context(
-    session_id: str | None, workspace: str | None,
-    host: str, port: int,
-    save: bool
-) -> None:
+async def _context(session_id: str | None, workspace: str | None, host: str, port: int, save: bool) -> None:
     import httpx
 
     params: dict[str, str] = {}
@@ -40,24 +37,24 @@ async def _context(
         params["workspace"] = os.getcwd()
 
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=5.0) as client:  # ty:ignore[unresolved-attribute]
             resp = await client.get(
                 config.server.api_url("sessions/context"),
                 params=params,
             )
             resp.raise_for_status()
-            
+
             if save:
-                with tempfile.NamedTemporaryFile(mode='w+t', delete=False) as tmpfile:
+                with tempfile.NamedTemporaryFile(mode="w+t", delete=False) as tmpfile:
                     tmpfile.write(resp.text)
                     tmpfile.close()
                     typer.echo(tmpfile.name)
             else:
                 typer.echo(resp.text)
 
-    except httpx.ConnectError:
+    except httpx.ConnectError as e:  # ty:ignore[unresolved-attribute]
         typer.echo(f"Can't reach server at {host}:{port}. Is it running?", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e

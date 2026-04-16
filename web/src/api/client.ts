@@ -15,22 +15,22 @@ export const api = {
     const params = new URLSearchParams()
     if (type) params.set('type', type)
     params.set('limit', String(limit))
-    return request<{ entities: import('../types').Entity[] }>(`/entities?${params}`)
+    return request<import('../types').Entity[]>(`/memories?${params}`)
   },
 
   getEntity: (id: string) =>
-    request<import('../types').Entity>(`/entities/${id}`),
+    request<import('../types').Entity>(`/memories/${id}`),
 
   // Sessions
   listSessions: (limit = 50) =>
-    request<{ sessions: import('../types').Session[] }>(`/sessions/list?limit=${limit}`),
+    request<import('../types').Session[]>(`/sessions/list?limit=${limit}`),
 
   getSession: (id: string) =>
     request<import('../types').Session>(`/sessions/${id}`),
 
   // Knowledge
   listKnowledge: (limit = 50) =>
-    request<{ articles: import('../types').Knowledge[] }>(`/knowledge?limit=${limit}`),
+    request<import('../types').Knowledge[]>(`/knowledge?limit=${limit}`),
 
   getKnowledge: (id: string) =>
     request<import('../types').Knowledge>(`/knowledge/${id}`),
@@ -47,7 +47,7 @@ export const api = {
     const params = new URLSearchParams()
     if (tier) params.set('tier', tier)
     params.set('limit', String(limit))
-    return request<{ stories: import('../types').Story[] }>(`/stories?${params}`)
+    return request<import('../types').Story[]>(`/stories?${params}`)
   },
 
   getStory: (id: string) =>
@@ -58,16 +58,16 @@ export const api = {
 
   // Mutations — Entities
   createEntity: (data: { type: string; content: string; tags?: string[]; pinned?: boolean }) =>
-    request<import('../types').Entity>('/entities', { method: 'POST', body: JSON.stringify(data) }),
+    request<import('../types').Entity>('/memories', { method: 'POST', body: JSON.stringify(data) }),
 
   updateEntity: (id: string, data: { content?: string; tags?: string[]; pinned?: boolean }) =>
-    request<import('../types').Entity>(`/entities/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    request<import('../types').Entity>(`/memories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   deleteEntity: (id: string) =>
-    request<{ deleted: boolean }>(`/entities/${id}`, { method: 'DELETE' }),
+    request<{ deleted: boolean }>(`/memories/${id}`, { method: 'DELETE' }),
 
   pinEntity: (id: string, pinned: boolean) =>
-    request<import('../types').Entity>(`/entities/${id}/pin`, { method: 'POST', body: JSON.stringify({ pinned }) }),
+    request<import('../types').Entity>(`/memories/${id}/pin`, { method: 'POST', body: JSON.stringify({ pinned }) }),
 
   // Mutations — Knowledge
   createKnowledge: (data: { topic: string; content: string; tags?: string[]; pinned?: boolean }) =>

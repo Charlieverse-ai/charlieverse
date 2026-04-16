@@ -2,15 +2,28 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
+from pathlib import Path
 
-import spacy
+from spacy.language import Language
 
-_nlp: spacy.language.Language | None = None
+from charlieverse.config import config
+from charlieverse.db.fts import clean_text
+from charlieverse.types.dates import UTCDatetime, utc_now
+
+logger = logging.getLogger(__name__)
+
+
+_nlp: Language | None = None
+
+_MODEL_NAME = "en_core_web_sm"
+_MODEL_VERSION = "3.8.0"
+_MODEL_URL = f"https://github.com/explosion/spacy-models/releases/download/{_MODEL_NAME}-{_MODEL_VERSION}/{_MODEL_NAME}-{_MODEL_VERSION}-py3-none-any.whl"
 
 # Entity labels worth extracting for memory search
-_RELEVANT_LABELS = {"PERSON", "ORG", "PRODUCT", "GPE", "EVENT", "WORK_OF_ART", "FAC", "NORP"}
+_RELEVANT_LABELS = {"PERSON", "ORG", "PRODUCT", "GPE", "EVENT", "WORK_OF_ART", "FAC", "NORP", "DATE", "LOC", "TIME", "MISC", "PROD", "DRV", "PER"}
 
 # Temporal expressions that imply date ranges
 _RANGE_KEYWORDS = {
@@ -26,45 +39,106 @@ class TemporalRef:
     """A resolved temporal reference with a date range."""
 
     text: str
-    start: datetime
-    end: datetime
+    start: UTCDatetime
+    end: UTCDatetime
 
 
-def _get_nlp() -> spacy.language.Language | None:
-    """Lazy-load the spaCy model. Returns None if model not installed."""
+def _model_dir() -> Path:
+    """Persistent model directory outside uv's environment."""
+    return config.path / "models"
+
+
+def _model_path() -> Path:
+    """Path to the extracted spaCy model."""
+    return _model_dir() / _MODEL_NAME / f"{_MODEL_NAME}-{_MODEL_VERSION}"
+
+
+def _ensure_model() -> Path:
+    """Download and extract the spaCy model if not already present."""
+    path = _model_path()
+    if path.exists() and (path / "meta.json").exists():
+        return path
+
+    import io
+    import urllib.request
+    import zipfile
+
+    logger.info("Downloading spaCy model %s-%s...", _MODEL_NAME, _MODEL_VERSION)
+    dest = _model_dir()
+    dest.mkdir(parents=True, exist_ok=True)
+
+    # Download the wheel (it's a zip)
+    with urllib.request.urlopen(_MODEL_URL) as resp:
+        data = resp.read()
+
+    # Extract only the model package (skip dist-info)
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        for member in zf.namelist():
+            if member.startswith(f"{_MODEL_NAME}/"):
+                zf.extract(member, dest)
+
+    if not path.exists():
+        raise RuntimeError(f"Model extraction failed: {path} not found")
+
+    logger.info("spaCy model installed to %s", path)
+    return path
+
+
+def _load_model() -> Language:
+    from spacy import load
+
+    path = _ensure_model()
+    return load(path)
+
+
+def prewarm_nlp():
+    logger.info("Loading Vector Models")
+    global _nlp
+    _nlp = _load_model()
+    logger.info("Vector Models Loaded")
+
+
+def _get_nlp() -> Language | None:
+    """Lazy-load the spaCy model. Returns None if unavailable."""
     global _nlp
     if _nlp is None:
         try:
-            _nlp = spacy.load("en_core_web_sm")
-        except OSError:
+            _nlp = _load_model()
+        except Exception:
+            logger.exception("Failed to load spaCy model")
             return None
     return _nlp
 
 
-def _resolve_date_range(text: str, now: datetime | None = None) -> TemporalRef | None:
-    """Resolve a temporal expression to a date range.
+def _resolve_date_range(text: str, now: UTCDatetime | None = None) -> TemporalRef | None:
+    """Resolve a temporal expression to a UTC date range.
 
     Uses dateparser for the anchor point, then infers range width
     from keywords in the expression (week, month, year, etc.).
     """
     import dateparser
 
-    now = now or datetime.now()
-    parsed = dateparser.parse(text, settings={"RELATIVE_BASE": now})
+    anchor = now or utc_now()
+    parsed = dateparser.parse(text, settings={"RELATIVE_BASE": anchor})
     if not parsed:
         return None
+
+    # dateparser returns a tz-aware datetime in the same zone as RELATIVE_BASE.
+    # Normalize to UTC for consistent comparisons.
+    from datetime import UTC
+
+    parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
     # Determine range width from the expression
     text_lower = text.lower()
     range_days = 1  # default: single day (e.g. "yesterday")
 
-    # Check for month names — if the expression is a month, cover the whole month
     import calendar
+
     month_names = [m.lower() for m in calendar.month_name[1:]] + [m.lower() for m in calendar.month_abbr[1:]]
     is_month = any(m in text_lower for m in month_names if m)
 
     if is_month:
-        # Use the first day of that month through the last day
         start = parsed.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         last_day = calendar.monthrange(start.year, start.month)[1]
         end = start.replace(day=last_day) + timedelta(days=1)
@@ -78,30 +152,30 @@ def _resolve_date_range(text: str, now: datetime | None = None) -> TemporalRef |
         end = start + timedelta(days=range_days)
 
     # Clamp end to now if it's in the future
-    if end > now:
-        end = now
+    if end > anchor:
+        end = anchor
 
-    return TemporalRef(text=text, start=start, end=end)
+    return TemporalRef(text=text, start=UTCDatetime(start), end=UTCDatetime(end))
 
 
-def extract_entities(text: str, max_length: int = 1000) -> list[str]:
+def extract_entities(text: str) -> list[str]:
     """Extract named entities and key noun phrases from text.
 
     Args:
         text: Input text to analyze.
-        max_length: Truncate text to this length before processing (speed guard).
 
     Returns:
         Deduplicated list of extracted terms, ordered by appearance.
     """
-    if not text or not text.strip():
+    content = clean_text(text)
+    if not content:
         return []
 
     nlp = _get_nlp()
     if nlp is None:
         return []
 
-    doc = nlp(text[:max_length])
+    doc = nlp(content)
 
     seen: set[str] = set()
     terms: list[str] = []
@@ -114,33 +188,27 @@ def extract_entities(text: str, max_length: int = 1000) -> list[str]:
             if lower not in seen and len(normalized) > 1:
                 seen.add(lower)
                 terms.append(normalized)
-
-    # Proper nouns that spaCy didn't catch as entities
-    for token in doc:
-        if token.pos_ == "PROPN" and token.text.lower() not in seen and len(token.text) > 1:
-            seen.add(token.text.lower())
-            terms.append(token.text)
-
     return terms
 
 
-def extract_temporal_refs(text: str, max_length: int = 1000) -> list[TemporalRef]:
+def extract_temporal_refs(text: str) -> list[TemporalRef]:
     """Extract and resolve temporal references from text.
 
     Returns resolved date ranges for expressions like "last week",
     "yesterday", "in February", etc. Returns empty list if none found.
     """
-    if not text or not text.strip():
+    content = clean_text(text)
+    if not content:
         return []
 
     nlp = _get_nlp()
     if nlp is None:
         return []
 
-    doc = nlp(text[:max_length])
+    doc = nlp(content)
 
     refs: list[TemporalRef] = []
-    now = datetime.now()
+    now = utc_now()
 
     for ent in doc.ents:
         if ent.label_ == "DATE":
