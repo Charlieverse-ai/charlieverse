@@ -5,6 +5,23 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.14.3] — 2026-04-16
+
+### Changed
+- **Architectural refactor** — flat `api/` + `models/` + `db/stores/` + `mcp/tools_*` + `tools/` layout collapsed into colocated feature packages under `charlieverse/memory/{entities,knowledge,sessions,stories,messages}/` (each owning its `models.py` + `store.py` + `mcp.py`). REST handlers moved to `charlieverse/server/api/` alongside typed response classes in `charlieverse/server/responses/`. Shared helpers (paths, tasks, skills, time_utils, banned_words) consolidated under `charlieverse/helpers/`. Type-only symbols moved under `charlieverse/types/`. No change to the public CLI/MCP/REST surface.
+- **Branded string types** — introduced `NonEmptyString`, `WorkspaceFilePath`, and `TagList` so the compiler rejects raw `str` where validated content is expected. Applied across models, stores, MCP tools, and the renderer.
+- **Activation context renderer** — `ActivationContextRenderer` is now the single public surface. Prior module-level `render()` and private helpers collapsed into methods on the class.
+- **Banned words as hook-delivered reminder** — voice kill list moved from the permanent system prompt to a first-turn reminder rule (`charlieverse/context/reminders/rules/banned_words.py` + `prompts/reminders/banned_words.md`), freeing permanent prompt space.
+- `Charlie.md`, `Storyteller.md`, and the `session-save` skill refreshed.
+
+### Fixed
+- **Wrong-session overwrites in `session-save`** — `ContextBundle.current_session_id` is now a required field instead of being implicitly read from a loop-scoped `session` variable that leaked the last iteration value. The renderer was handing out the wrong UUID in activation context, which caused `session-save` to update stale rows (manifesting as mixed-format datetimes in the sessions table).
+- **FTS5 sanitizer crashes** — `sanitize_fts_query` now strips null bytes and stray double quotes before wrapping tokens in phrase quotes, eliminating "unterminated string" SQLite errors on hostile input. Return type tightened to `str` (empty string instead of `Optional[str]`).
+- **`httpx.AsyncClient` ty false positives** — suppressed with `# ty:ignore[unresolved-attribute]` on the four sites where httpx is imported lazily; verified that the attributes exist at runtime (httpx 0.28.1).
+- **Test suite realignment** — `test_memory_tools` and `test_renderer` rebuilt against the new module paths and `save_memory` / `ActivationContextRenderer` surface. Store tests use branded-type helpers. `test_time_utils` assertions updated to match the current `"5 days"` / `"1 hour"` / `"2 weeks"` format (no `"ago"` suffix).
+
+---
+
 ## [v1.14.2] — 2026-04-01
 
 ### Added
