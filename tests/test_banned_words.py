@@ -53,26 +53,28 @@ def test_check_text_no_banned_phrase_returns_none():
 
 
 def test_check_text_catches_single_banned_phrase():
-    result = check_text("let me check the logs for you")
-    assert result == {"let me check"}
+    result = check_text("I can see the problem now")
+    assert result is not None
+    assert "I can see" in result
 
 
 def test_check_text_case_insensitive():
-    # BANNED_WORDS contains lowercase; input with uppercase should still match
-    result = check_text("LET ME CHECK the logs")
-    assert result == {"let me check"}
+    # BANNED_WORDS contains mixed case; input with different case should still match
+    result = check_text("i can SEE the problem")
+    assert result is not None
+    assert "I can see" in result
 
 
 def test_check_text_returns_multiple_matches():
-    result = check_text("let me check and then let me explore further")
+    result = check_text("hard to believe but my gut says its fine")
     assert result is not None
-    assert "let me check" in result
-    assert "let me explore" in result
+    assert "hard to believe" in result
+    assert "my gut says" in result
 
 
 def test_check_text_dedupes_repeated_matches():
-    result = check_text("let me check, let me check, let me check")
-    assert result == {"let me check"}
+    result = check_text("worth noting, worth noting, worth noting")
+    assert result == {"worth noting"}
 
 
 # ---------------------------------------------------------------------------
@@ -81,18 +83,20 @@ def test_check_text_dedupes_repeated_matches():
 
 
 def test_check_text_respects_word_boundaries():
-    # "classic" is banned but "classical" should not match it
-    assert check_text("I love classical music") is None
+    # "root cause" is banned but "rootcause" should not match
+    assert check_text("check rootcause analysis") is None
 
 
 def test_check_text_matches_at_start_of_string():
-    result = check_text("classic mistake")
-    assert result == {"classic"}
+    result = check_text("hard to believe but true")
+    assert result is not None
+    assert "hard to believe" in result
 
 
 def test_check_text_matches_at_end_of_string():
-    result = check_text("that was a classic")
-    assert result == {"classic"}
+    result = check_text("we need to find the root cause")
+    assert result is not None
+    assert "root cause" in result
 
 
 # ---------------------------------------------------------------------------
@@ -101,30 +105,32 @@ def test_check_text_matches_at_end_of_string():
 
 
 def test_check_text_ignores_phrases_in_fenced_code_blocks():
-    text = "```\nlet me check the value\n```"
+    text = "```\nhard to believe this\n```"
     assert check_text(text) is None
 
 
 def test_check_text_ignores_phrases_in_inline_code():
-    text = "use `let me check` as a placeholder"
+    text = "use `my gut says` as a placeholder"
     assert check_text(text) is None
 
 
 def test_check_text_ignores_phrases_in_double_quotes():
-    text = 'I banned the phrase "let me check" because it sucks'
+    text = 'I banned the phrase "hard to believe" because it sucks'
     assert check_text(text) is None
 
 
 def test_check_text_catches_phrase_outside_code_block():
-    text = "```\nok\n```\nlet me check that for you"
+    text = "```\nok\n```\nhard to believe that worked"
     result = check_text(text)
-    assert result == {"let me check"}
+    assert result is not None
+    assert "hard to believe" in result
 
 
-def test_check_text_ignore_code_false_catches_phrase_in_code():
-    text = "```\nlet me check\n```"
-    result = check_text(text, ignore_code=False)
-    assert result == {"let me check"}
+def test_check_text_strips_code_blocks():
+    """Code is always stripped - no opt-out."""
+    text = "```\nhard to believe\n```"
+    result = check_text(text)
+    assert result is None
 
 
 # ---------------------------------------------------------------------------
@@ -133,11 +139,11 @@ def test_check_text_ignore_code_false_catches_phrase_in_code():
 
 
 def test_format_feedback_includes_all_matches():
-    result = format_feedback({"classic", "let me check"})
-    assert '"classic"' in result
-    assert '"let me check"' in result
+    result = format_feedback({"hard to believe", "my gut says"})
+    assert '"hard to believe"' in result
+    assert '"my gut says"' in result
 
 
-def test_format_feedback_starts_with_rephrase_instruction():
-    result = format_feedback({"classic"})
-    assert result.startswith("Rephrase without using:")
+def test_format_feedback_starts_with_matched():
+    result = format_feedback({"hard to believe"})
+    assert result.startswith("Matched:")

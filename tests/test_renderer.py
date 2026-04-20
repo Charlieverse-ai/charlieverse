@@ -241,14 +241,6 @@ def test_render_includes_related_entities():
     assert "related memory" in output
 
 
-def test_render_includes_all_time_story():
-    story = _story(title="All Time Story", content="Our shared history.")
-    bundle = _bundle(all_time_story=story)
-    output = _render(bundle)
-    assert "<our_story_so_far>" in output
-    assert "Our shared history." in output
-
-
 # ---------------------------------------------------------------------------
 # First run path
 # ---------------------------------------------------------------------------
@@ -295,11 +287,6 @@ def test_is_first_run_false_with_recent_sessions():
     assert bundle.is_first_run is False
 
 
-def test_is_first_run_false_with_all_time_story():
-    bundle = ContextBundle(current_session_id=SessionId(), all_time_story=_story())
-    assert bundle.is_first_run is False
-
-
 def test_seen_ids_includes_all_entity_groups():
     moment = _entity("moment", type=EntityType.moment)
     pinned = _entity("pinned", type=EntityType.decision)
@@ -319,24 +306,15 @@ def test_seen_ids_includes_all_entity_groups():
     assert related.id in ids
 
 
-def test_seen_ids_includes_knowledge():
+def test_seen_ids_excludes_knowledge():
+    """seen_ids only covers entity groups — knowledge is not part of the dedup set."""
     knowledge = _knowledge()
     bundle = ContextBundle(
         current_session_id=SessionId(),
         moments=[_entity()],
         pinned_knowledge=[knowledge],
     )
-    assert knowledge.id in bundle.seen_ids
-
-
-def test_seen_ids_includes_all_time_story():
-    story = _story()
-    bundle = ContextBundle(
-        current_session_id=SessionId(),
-        moments=[_entity()],
-        all_time_story=story,
-    )
-    assert story.id in bundle.seen_ids
+    assert knowledge.id not in bundle.seen_ids
 
 
 # ---------------------------------------------------------------------------

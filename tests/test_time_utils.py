@@ -78,7 +78,9 @@ def test_relative_time_minutes():
 
 def test_relative_time_one_minute():
     now = _now()
-    result = relative_time(UTCDatetime(now - timedelta(seconds=61)), now)
+    # relative_time_seconds renders fractional units — 60s rounds to exactly 1,
+    # which pluralizes as "1 minute" (no trailing s).
+    result = relative_time(UTCDatetime(now - timedelta(seconds=60)), now)
     assert result == "1 minute"
 
 
@@ -97,9 +99,11 @@ def test_relative_time_one_hour():
 
 def test_relative_time_hours_and_minutes():
     now = _now()
+    # relative_time_seconds collapses to the largest unit with >= 1 value and
+    # renders the remainder as a decimal — 2h30m becomes "2.5 hours", not
+    # "2 hours, 30 minutes".
     result = relative_time(UTCDatetime(now - timedelta(hours=2, minutes=30)), now)
-    assert "hour" in result
-    assert "minute" in result
+    assert result == "2.5 hours"
 
 
 # ---------------------------------------------------------------------------

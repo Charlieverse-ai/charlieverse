@@ -177,7 +177,7 @@ def _output_context(context: str, hook_event: str) -> None:
             "hookSpecificOutput": {
                 "hookEventName": hook_event,
                 "additionalContext": f"{context}",
-            }
+            },
         }
     )
     _log(f"{hook_event}.result", msg=output)

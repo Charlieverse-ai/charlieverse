@@ -5,7 +5,6 @@
     "env": {
         "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"
     },
-    "outputStyle": "Charlieverse:Charlie",
     "agent": "Charlieverse:Charlie",
     "attribution": {
         "commit": "Charlie 🐕 <charlie@charlieverse.ai>",
