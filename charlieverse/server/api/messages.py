@@ -52,18 +52,25 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
             return ExceptionResponse(e)
 
     @mcp.custom_route("/api/messages/latest", methods=["GET"])
-    async def api_latest_message(request: Request) -> ModelResponse | EmptyResponse:
+    async def api_latest_message(request: Request) -> ModelResponse | EmptyResponse | ExceptionResponse:
         """Get the most recent message for a session, optionally filtered by role."""
-        messages: MessageStore = rest_stores.messages
-        session_id_param = SessionId.or_none(request.query_params.get("session_id"))
-        role_param = MessageRole(request.query_params.get("role"))
+        try:
+            messages: MessageStore = rest_stores.messages
+            session_id = SessionId.or_none(request.query_params.get("session_id"))
+            if not session_id:
+                return EmptyResponse()
 
-        message = await messages.latest(
-            session_id=session_id_param,
-            role=role_param,
-        )
+            role_raw = request.query_params.get("role")
+            role_param: MessageRole | None = MessageRole(role_raw) if role_raw else None
 
-        return ModelResponse(message) if message else EmptyResponse()
+            session = await rest_stores.sessions.get(session_id)
+            if not session:
+                return EmptyResponse()
+
+            message = await messages.latest(session, role=role_param)
+            return ModelResponse(message) if message else EmptyResponse()
+        except Exception as e:
+            return ExceptionResponse(e)
 
     @mcp.custom_route("/api/messages/search", methods=["POST"])
     async def api_search_messages(request: Request) -> ModelListResponse:

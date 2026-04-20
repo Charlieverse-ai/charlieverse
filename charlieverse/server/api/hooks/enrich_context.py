@@ -2,133 +2,70 @@ from __future__ import annotations
 
 from fastmcp import FastMCP
 from starlette.requests import Request
-from starlette.responses import JSONResponse
 
-from charlieverse.db.fts import clean_text
-from charlieverse.embeddings import encode_one
-from charlieverse.memory.entities import EntityStore
-from charlieverse.memory.entities.mcp import _rank_by_relevance_and_recency
+from charlieverse.helpers.text import clean_stopwords, clean_text, extract_stuff
+from charlieverse.memory.entities import EntityId, EntityStore
+from charlieverse.memory.messages import MessageRole
+from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.stores import Stores
-from charlieverse.memory.stories import StoryStore
-from charlieverse.types.id import ModelId
+from charlieverse.server.responses import EmptyResponse, ModelListResponse
+from charlieverse.server.responses.summaries import EntitySummary
+from charlieverse.server.utils.seen_models import process_enriched_topics, set_seen_ids
 
 
 def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
     """Register hook REST endpoints on the given FastMCP instance."""
     # Lazy import to avoid circular dependency (hooks → server → mcp → tools → server)
-    from charlieverse.server.utils.seen_models import get_seen_ids, set_seen_ids
+    from charlieverse.nlp import extract_keywords
+    from charlieverse.server.utils.seen_models import get_seen_ids
 
     @mcp.custom_route("/api/context/enrich", methods=["POST"])
-    async def api_context_enrich(request: Request) -> JSONResponse:
+    async def api_context_enrich(request: Request) -> EmptyResponse | ModelListResponse:
         """Extract entities from text and search memories for matches.
 
         Used by the reminders engine to inject relevant context on each prompt.
         Returns found memories grouped by entity, plus entities with no matches.
         """
         body = await request.json()
-        text = clean_text(body.get("text", ""))
+        text = body.get("text")
+        session_id = SessionId.or_none(body.get("session_id"))
+        seen_ids: set[EntityId] = set(body.get("seen_ids") or [])
 
-        if not text:
-            return JSONResponse({"entities": [], "found": [], "not_found": [], "stories": []})
+        if not text or not session_id:
+            return EmptyResponse()
 
-        seen_ids: set[ModelId] = set(body.get("seen_ids", []))
-        session_id = body.get("session_id")
+        session = await rest_stores.sessions.get(session_id)
+        if not session:
+            return EmptyResponse()
 
-        if session_id:
-            seen_ids |= get_seen_ids(session_id)
+        last_charlie = await rest_stores.messages.latest(session, role=MessageRole.charlie)
+        if last_charlie:
+            text += f" {last_charlie.content}"
 
-        from charlieverse.nlp import extract_entities, extract_temporal_refs
+        keywords = [
+            *extract_keywords(clean_text(text)),
+            *extract_stuff(text),
+        ]
+        keywords = process_enriched_topics(session_id, clean_stopwords(keywords))
 
-        entities = extract_entities(text)
-        temporal_refs = extract_temporal_refs(text)
+        if not keywords:
+            return EmptyResponse()
 
+        seen_ids |= get_seen_ids(session_id)
         memories: EntityStore = rest_stores.memories
 
-        found: list[dict] = []
-        not_found: list[str] = []
-
-        for entity in entities:
-            memory_results = _rank_by_relevance_and_recency(await memories.search(entity, limit=3, include_pinned=False), set(), set())
-
-            new_memories = [m for m in memory_results if m.id not in seen_ids]
-
-            if new_memories:
-                found.append(
-                    {
-                        "entity": entity,
-                        "memories": [
-                            {
-                                "id": m.id,
-                                "type": m.type.value,
-                                "content": m.content[:200],
-                                "tags": m.tags,
-                            }
-                            for m in new_memories
-                        ],
-                    }
-                )
-            else:
-                not_found.append(entity)
-
-        stories_result: list[dict] = []
-        story_store: StoryStore = rest_stores.stories
-
-        if text and len(text.strip()) > 5:
-            from charlieverse.nlp.snippets import extract_snippet
-
-            try:
-                query_embedding = await encode_one(text)
-
-                def _story_entry(story, query_emb, ref_text=None):
-                    snippet = extract_snippet(story.content, query_emb)
-                    entry = {
-                        "id": story.id,
-                        "title": story.title,
-                        "tier": story.tier.value,
-                        "content": snippet,
-                        "period_start": story.period_start,
-                        "period_end": story.period_end,
-                    }
-                    return entry
-
-                if temporal_refs:
-                    for ref in temporal_refs:
-                        matching = await story_store.search_by_vector(
-                            embedding=query_embedding,
-                            period_start=ref.start.isoformat(),
-                            period_end=ref.end.isoformat(),
-                            limit=3,
-                        )
-                        for story in matching:
-                            if story.id not in seen_ids:
-                                seen_ids.add(story.id)
-                                stories_result.append(_story_entry(story, query_embedding, ref.text))
-                else:
-                    matching = await story_store.search_by_vector(
-                        embedding=query_embedding,
-                        limit=3,
-                    )
-                    for story in matching:
-                        if story.id not in seen_ids:
-                            stories_result.append(_story_entry(story, query_embedding))
-            except Exception:
-                pass
-
-        if session_id:
-            prompt_ids: set[ModelId] = set()
-            for entry in found:
-                prompt_ids.update(m["id"] for m in entry.get("memories", []))
-            prompt_ids.update(s["id"] for s in stories_result)
-            if prompt_ids:
-                existing = get_seen_ids(session_id)
-                existing.update(prompt_ids)
-                set_seen_ids(session_id, existing)
-
-        return JSONResponse(
-            {
-                "memories": entities,
-                "found": found,
-                "not_found": not_found,
-                "stories": stories_result,
-            }
+        # Let sanitize_fts_query build the FTS5 query shape. Passing our own
+        # pre-quoted tokens gets them re-wrapped as "tok*"* which breaks
+        # prefix matching.
+        results = await memories.search(
+            " ".join(keywords),
+            limit=3,
+            include_pinned=False,
+            ignoring=list(seen_ids),
+            excluding_session_id=session_id,
         )
+
+        seen_ids |= {memory.id for memory in results}
+        set_seen_ids(session_id, seen_ids)
+
+        return ModelListResponse([EntitySummary.from_memory(memory, False) for memory in results])

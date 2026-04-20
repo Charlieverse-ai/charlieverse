@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import StrEnum
 from typing import Self
 
@@ -51,4 +53,22 @@ class Message(BaseModel):
 
 
 class LatestMessage(Message):
-    message_count: int
+    message_count: MessageCounts
+
+
+class MessageCounts(BaseModel):
+    total: MessageCount
+    since_last_save: MessageCount
+
+    @classmethod
+    def zero(cls) -> Self:
+        return cls(total=MessageCount.zero(), since_last_save=MessageCount.zero())
+
+
+class MessageCount(BaseModel):
+    messages: int
+    turns: int
+
+    @classmethod
+    def zero(cls) -> Self:
+        return cls(messages=0, turns=0)

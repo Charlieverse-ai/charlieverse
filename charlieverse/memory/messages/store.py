@@ -7,11 +7,11 @@ import re
 from aiosqlite import Connection
 
 from charlieverse.db.fts import sanitize_fts_query
-from charlieverse.memory.sessions import SessionId
+from charlieverse.memory.sessions import Session, SessionId
 from charlieverse.types.dates import UTCDatetime
 from charlieverse.types.strings import NonEmptyString
 
-from .models import LatestMessage, Message, MessageId, MessageRole
+from .models import LatestMessage, Message, MessageCount, MessageCounts, MessageId, MessageRole
 
 logger = logging.getLogger(__name__)
 
@@ -158,15 +158,15 @@ class MessageStore:
 
     async def latest(
         self,
-        session_id: SessionId | None = None,
+        session: Session,
         role: MessageRole | str | None = None,
     ) -> LatestMessage | None:
         """Return the most recent message, optionally filtered by session and/or role."""
-        query = "SELECT * FROM messages WHERE 1=1"
+        query = "SELECT * FROM messages WHERE session_id = ?"
         params: list = []
-        if session_id:
-            query += " AND session_id = ?"
-            params.append(session_id)
+
+        params.append(session.id)
+
         if role:
             query += " AND role = ?"
             params.append(role.value if isinstance(role, MessageRole) else role)
@@ -174,7 +174,7 @@ class MessageStore:
 
         async with self.db.execute(query, params) as cursor:
             row = await cursor.fetchone()
-            count = await self.total(session_id)
+            count = await self.session_total(session)
             if row:
                 message = LatestMessage.from_row(row)
                 message.message_count = count
@@ -192,12 +192,41 @@ class MessageStore:
         after = await self.total()
         return after - before
 
-    async def total(self, session_id: SessionId | None = None) -> int:
+    async def session_total(self, session: Session) -> MessageCounts:
+        query = """
+             SELECT
+                COALESCE(SUM(CASE WHEN role IS NOT prev_role THEN 1 ELSE 0 END) / 2, 0)
+                AS turn_count,
+                COUNT(*)
+                AS total_messages,
+                COALESCE(SUM(CASE WHEN role IS NOT prev_role AND DATETIME(created_at) >= DATETIME(?) THEN 1 ELSE 0 END) / 2, 0)
+                AS turns_since_save,
+                COALESCE(SUM(CASE WHEN DATETIME(created_at) >= DATETIME(?) THEN 1 ELSE 0 END), 0)
+                AS messages_since_save
+            FROM (
+                SELECT role, created_at,
+                    LAG(role) OVER (ORDER BY created_at, rowid) AS prev_role
+                FROM messages
+                WHERE session_id = ?
+                )
+        """
+
+        since = session.updated_at.isoformat()
+        cursor = await self.db.execute(query, [since, since, session.id])
+
+        row = await cursor.fetchone()
+        if not row:
+            return MessageCounts.zero()
+
+        return MessageCounts(
+            total=MessageCount(messages=row["total_messages"], turns=row["turn_count"]),
+            since_last_save=MessageCount(messages=row["messages_since_save"], turns=row["turns_since_save"]),
+        )
+
+    async def total(self) -> int:
         """Total rows in messages table."""
-        if session_id:
-            cursor = await self.db.execute("SELECT COUNT(*) FROM messages WHERE session_id = ?", [session_id])
-        else:
-            cursor = await self.db.execute("SELECT COUNT(*) FROM messages")
+
+        cursor = await self.db.execute("SELECT COUNT(*) FROM messages")
         row = await cursor.fetchone()
         return row[0] if row else 0
 

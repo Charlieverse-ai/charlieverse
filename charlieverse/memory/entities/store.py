@@ -110,12 +110,12 @@ class EntityStore:
         """List active entities, optionally filtered by type."""
         if entity_type:
             cursor = await self.db.execute(
-                "SELECT * FROM entities WHERE type = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?",
+                "SELECT * FROM entities WHERE type = ? AND deleted_at IS NULL ORDER BY DATETIME(updated_at) DESC LIMIT ?",
                 (entity_type.value, limit),
             )
         else:
             cursor = await self.db.execute(
-                "SELECT * FROM entities WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?",
+                "SELECT * FROM entities WHERE deleted_at IS NULL ORDER BY DATETIME(updated_at) DESC LIMIT ?",
                 (limit,),
             )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
@@ -196,7 +196,15 @@ class EntityStore:
     # Search
     # ------------------------------------------------------------------
 
-    async def search(self, query: str, include_pinned: bool = True, limit: int = 10) -> list[Entity]:
+    async def search(
+        self,
+        query: str,
+        include_pinned: bool = True,
+        ignoring: list[EntityId] | None = None,
+        excluding_session_id: SessionId | None = None,
+        excluding_types: set[EntityType] | None = None,
+        limit: int = 10,
+    ) -> list[Entity]:
         """Full-text search across entities using FTS5 + BM25 ranking."""
         from charlieverse.db.fts import sanitize_fts_query
 
@@ -204,23 +212,44 @@ class EntityStore:
         if not fts_query:
             return []
 
+        if not ignoring:
+            ignoring = []
+
+        if not excluding_types:
+            excluding_types = set()
+
+        ignoring_placeholders = ",".join(["?"] * len(ignoring))
+        type_placeholders = ",".join(["?"] * len(excluding_types))
+
+        # `IS NOT ?` is the NULL-safe form: entities with a NULL session_id
+        # still pass the filter, which is what we want (no session tag shouldn't
+        # get excluded by a session filter).
+        session_clause = "AND e.created_session_id IS NOT ? AND e.updated_session_id IS NOT ?" if excluding_session_id else ""
+        session_params = [excluding_session_id, excluding_session_id] if excluding_session_id else []
+
         cursor = await self.db.execute(
             f"""SELECT e.* FROM entities e
                JOIN entities_fts fts ON e.rowid = fts.rowid
                WHERE entities_fts MATCH ?
                AND e.deleted_at IS NULL
                {"AND pinned = false" if not include_pinned else ""}
+               {f"AND e.id NOT IN ({ignoring_placeholders})" if ignoring else ""}
+               {f"AND e.type NOT IN ({type_placeholders})" if excluding_types else ""}
+               {session_clause}
                ORDER BY RANK
                LIMIT ?""",
-            (fts_query, limit),
+            [fts_query, *ignoring, *[t.value for t in excluding_types], *session_params, limit],
         )
+
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 
     async def search_by_vector(
         self,
         embedding: list[float],
+        include_pinned: bool = True,
         limit: int = 10,
         ignoring: list[EntityId] | None = None,
+        excluding_session_id: SessionId | None = None,
     ) -> list[Entity]:
         """Semantic search using sqlite-vec cosine similarity."""
         from sqlite_vec import serialize_float32
@@ -228,7 +257,10 @@ class EntityStore:
         if not ignoring:
             ignoring = []
 
-        ignoring_placeholders = ",".join("?" * len(ignoring)) if ignoring else ""
+        ignoring_placeholders = ",".join(["?"] * len(ignoring))
+
+        session_clause = "AND e.created_session_id IS NOT ? AND e.updated_session_id IS NOT ?" if excluding_session_id else ""
+        session_params = [excluding_session_id, excluding_session_id] if excluding_session_id else []
 
         cursor = await self.db.execute(
             f"""SELECT e.*, v.distance FROM entities e
@@ -237,9 +269,11 @@ class EntityStore:
                AND v.k = ?
                AND e.deleted_at IS NULL
                {f"AND e.id NOT IN ({ignoring_placeholders})" if ignoring else ""}
+               {"AND e.pinned = false" if not include_pinned else ""}
+               {session_clause}
                ORDER BY v.distance
                LIMIT ?""",
-            [serialize_float32(embedding), limit * 3, *ignoring, limit],
+            [serialize_float32(embedding), limit * 3, *ignoring, *session_params, limit],
         )
         return [Entity.from_row(row) for row in await cursor.fetchall()]
 

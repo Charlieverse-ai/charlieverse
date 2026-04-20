@@ -17,7 +17,14 @@ from charlieverse.memory.entities import DeleteEntity, Entity, EntityId, EntityS
 from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.stores import Stores
 from charlieverse.server.responses.permalink import PermalinkResponse
-from charlieverse.server.responses.summaries import EntitySummary, KnowledgeSummary, StorySummary
+from charlieverse.server.responses.summaries import (
+    MAX_KNOWLEDGE_CONTENT,
+    MAX_STORY_CONTENT,
+    EntitySummary,
+    KnowledgeSummary,
+    StorySummary,
+    truncate,
+)
 from charlieverse.types.dates import utc_now
 from charlieverse.types.id import ModelId
 from charlieverse.types.lists import TagList
@@ -26,72 +33,40 @@ from charlieverse.types.strings import NonEmptyString
 server = FastMCP(name="Memories")
 
 
-# Max characters per item in recall results to prevent overwhelming responses.
-_MAX_ENTITY_CONTENT = 500
-_MAX_KNOWLEDGE_CONTENT = 500
-_MAX_STORY_CONTENT = 300
-_MAX_MESSAGE_CONTENT = 300
-
-
-def _truncate(text: str, max_len: int, *, plaintext: bool = True) -> tuple[str, bool]:
-    """Truncate text to max_len, appending '…' if trimmed. Returns (text, was_truncated).
-
-    If plaintext=True (default), strips markdown formatting first for denser content.
-    """
-    from charlieverse.nlp.markdown import strip_markdown
-
-    s = strip_markdown(text) if plaintext else text
-    if len(s) <= max_len:
-        return s, False
-    return s[:max_len] + "…", True
+class RankedEntity(Entity):
+    score: float
 
 
 def _rank_by_relevance_and_recency(
     entities: list[Entity],
-    fts_ids: set[ModelId],
-    vec_ids: set[ModelId],
     recency_weight: float = 0.4,
 ) -> list[Entity]:
-    """Re-rank entities by combined relevance and recency.
+    """Re-rank entities by recency with a constant floor.
 
-    Relevance: 1.0 if found by both FTS+vector, 0.5 if found by one.
-    Recency: exponential decay based on days since updated_at.
-    Final score = (1 - recency_weight) * relevance + recency_weight * recency.
+    Relevance tracking (FTS-vs-vector overlap) was dropped because filtering
+    on a min score cut relevant-but-older items. The score here is effectively
+    `(1 - recency_weight) + recency_weight * recency` — a floor plus a recency
+    bump. Half-life 14 days.
     """
+    if not entities:
+        return []
+
     import math
 
     now = utc_now()
 
-    def score(e: Entity) -> float:
-        uid = e.id
-        in_fts = uid in fts_ids
-        in_vec = uid in vec_ids
-        relevance = 1.0 if in_fts and in_vec else 0.5
+    def score(e: Entity) -> RankedEntity:
+        age = (now - e.updated_at).total_seconds()
+        recency = math.exp(-0.693 * age / (14 * 86400))  # ln(2) ≈ 0.693
 
-        # Recency: half-life of 14 days (2 weeks old = 0.5, 4 weeks = 0.25)
-        days_old = max((now - e.updated_at).total_seconds() / 86400, 0)
-        recency = math.exp(-0.693 * days_old / 14)  # ln(2) ≈ 0.693
+        return RankedEntity.model_construct(
+            **e.model_dump(),
+            score=(1 - recency_weight) + recency_weight * recency,
+        )
 
-        return (1 - recency_weight) * relevance + recency_weight * recency
+    ranked = [score(entity) for entity in entities]
 
-    r = sorted(entities, key=score, reverse=True)
-    ee = [entity for entity in r if score(entity) > 0.35]
-
-    return ee
-    # return [entity for entity in r if entity is not None]
-
-
-def _to_summary(e: Entity) -> EntitySummary:
-    from charlieverse.helpers.time_utils import relative_date
-
-    content, truncated = _truncate(e.content, _MAX_ENTITY_CONTENT)
-    return EntitySummary(
-        id=e.id,
-        type=e.type.value,
-        content=content,
-        age=relative_date(e.created_at),
-        truncated=truncated,
-    )
+    return sorted(ranked, key=lambda e: e.score, reverse=True)
 
 
 async def _fire_and_forget_embedding(memories: EntityStore, entity: Entity) -> None:
@@ -381,9 +356,7 @@ async def search_memories(
         pass
 
     # Merge and deduplicate entities, tracking which sources found each
-    fts_ids: set[ModelId] = {e.id for e in entities}
-    vec_ids: set[ModelId] = {e.id for e in vector_entities}
-    seen_ids: set[ModelId] = set()
+    seen_ids: set[EntityId] = set()
 
     merged_entities: list[Entity] = []
     for e in entities + vector_entities:
@@ -392,10 +365,8 @@ async def search_memories(
             merged_entities.append(e)
 
     # Re-sort by combined relevance + recency score
-    merged_entities = _rank_by_relevance_and_recency(
+    ranked_entities = _rank_by_relevance_and_recency(
         merged_entities,
-        fts_ids,
-        vec_ids,
     )
 
     # Search stories
@@ -412,7 +383,7 @@ async def search_memories(
     # Build knowledge summaries with truncation tracking
     knowledge_summaries = []
     for k in knowledge_results:
-        content, truncated = _truncate(k.content, _MAX_KNOWLEDGE_CONTENT)
+        content, truncated = truncate(k.content, MAX_KNOWLEDGE_CONTENT)
         knowledge_summaries.append(
             KnowledgeSummary(
                 id=k.id,
@@ -427,7 +398,7 @@ async def search_memories(
         if s.summary:
             summary_text, truncated = s.summary, False
         else:
-            summary_text, truncated = _truncate(s.content, _MAX_STORY_CONTENT)
+            summary_text, truncated = truncate(s.content, MAX_STORY_CONTENT)
         story_summaries.append(
             StorySummary(
                 id=s.id,
@@ -439,7 +410,7 @@ async def search_memories(
         )
 
     result: list[BaseModel] = [
-        *[_to_summary(e) for e in merged_entities[:limit]],
+        *[EntitySummary.from_memory(e) for e in ranked_entities[:limit]],
         *knowledge_summaries,
         *story_summaries,
         *messages,
