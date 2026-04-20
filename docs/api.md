@@ -15,7 +15,7 @@ Base URL: `http://localhost:8765`
 | `POST` | `/api/sessions/end` | End a session |
 | `GET` | `/api/sessions/list` | List recent sessions |
 | `GET` | `/api/sessions/{id}` | Get a specific session |
-| `GET` | `/api/session/{session_id}/prompt_submit` | Timing data for the prompt-submit hook (session age, last save, seen memory IDs) |
+| `GET` | `/api/session/{session_id}/prompt_submit` | Context snapshot for the prompt-submit hook (session age, last save, message counts, last assistant message, seen memory IDs) |
 
 **Query params** for `context`: `session_id`, `workspace`
 **Query params** for `list`: `limit` (default 50)
