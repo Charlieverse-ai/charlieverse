@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 
 from charlieverse.context.reminders.template import ReminderTemplate
@@ -10,6 +11,9 @@ from charlieverse.context.reminders.types import (
     ReminderResult,
     ReminderTag,
 )
+from charlieverse.server.responses.prompt_submit_delta import PromptSubmitContext
+
+logger = logging.getLogger(__name__)
 
 
 class ReminderRule(ABC):
@@ -23,6 +27,7 @@ class ReminderRule(ABC):
     """
 
     tag: ReminderTag = ReminderTag.VERY_IMPORTANT
+    events: list[str] | None = None
 
     def __init__(self, template: ReminderTemplate) -> None:
         self.template = template
@@ -39,3 +44,16 @@ class ReminderRule(ABC):
     def result(self, content: str) -> ReminderResult:
         """Convenience: wrap content with this rule's tag."""
         return ReminderResult(content=content, tag=self.tag)
+
+
+class PromptSubmitReminder(ReminderRule):
+    def __init__(self, template: ReminderTemplate) -> None:
+        super().__init__(template)
+        self.events = ["UserPromptSubmit"]
+
+    def context(self, ctx: HookContext) -> PromptSubmitContext | None:
+        try:
+            return PromptSubmitContext.model_validate(ctx.metadata)
+        except Exception:
+            logger.exception("PromptSubmitContext validation failed; metadata=%r", ctx.metadata)
+            return None

@@ -1,28 +1,28 @@
-"""System prompt reminder — always on."""
+"""Periodic banned-words reminder — fires every 20 total turns as a baseline drip."""
 
 from __future__ import annotations
 
-from charlieverse.context.reminders.rules.base import ReminderRule
+from charlieverse.context.reminders.rules.base import PromptSubmitReminder
 from charlieverse.context.reminders.types import (
     HookContext,
     ReminderResult,
     ReminderTag,
 )
 
-REMINDER_INTERVAL_SECONDS = 1800  # 30 mins
+# How often the baseline reminder fires (in total session turns).
+# Offset from SaveSessionRule's 15-turn cadence so they don't pile up.
+PERIODIC_INTERVAL = 20
 
 
-class BannedWordsRule(ReminderRule):
+class BannedWordsRule(PromptSubmitReminder):
     tag = ReminderTag.VERY_IMPORTANT
 
     async def evaluate(self, ctx: HookContext) -> ReminderResult | None:
-        if ctx.event != "UserPromptSubmit":
+        context = self.context(ctx)
+        if not context:
             return None
-        seconds_since_session_start = ctx.metadata.get("session_start")
-        seconds_since_last_save = ctx.metadata.get("last_save")
-
-        time_since = int(seconds_since_last_save or seconds_since_session_start or 0)
-        if time_since < REMINDER_INTERVAL_SECONDS:
+        turns = context.message_count.total.turns
+        if turns <= 0 or turns % PERIODIC_INTERVAL != 0:
             return None
 
         from charlieverse.helpers.banned_words import banned_word_string

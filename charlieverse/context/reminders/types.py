@@ -14,6 +14,7 @@ class ReminderTag(Enum):
 
     VERY_IMPORTANT = "very-important"
     CHARLIE_REMINDER = "charlie-reminder"
+    SESSION_SAVE_REMINDER = "annoy-charlie"
     MEMORY_HINT = "memory-hint"
     TEMPORAL_CONTEXT = "temporal-context"
 

@@ -31,11 +31,17 @@ class RemindersEngine:
         Rules are evaluated concurrently. Failures are silently skipped.
         """
         raw_results = await asyncio.gather(
-            *(rule.evaluate(ctx) for rule in self.rules),
+            *(rule.evaluate(ctx) for rule in self.rules if self._should_process(rule, ctx)),
             return_exceptions=True,
         )
         results: list[ReminderResult] = [r for r in raw_results if not isinstance(r, BaseException) and r is not None]
         return results
+
+    def _should_process(self, rule: ReminderRule, ctx: HookContext) -> bool:
+        if rule.events:
+            return ctx.event in rule.events
+
+        return True
 
     def format(self, results: list[ReminderResult]) -> str:
         """Group results by tag, wrap each group in a single XML block."""

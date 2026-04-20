@@ -2,21 +2,22 @@
 
 from __future__ import annotations
 
-from charlieverse.context.reminders.rules.base import ReminderRule
+from typing import Literal
+
+from charlieverse.context.reminders.rules.base import PromptSubmitReminder
 from charlieverse.context.reminders.types import (
     HookContext,
     ReminderResult,
     ReminderTag,
 )
+from charlieverse.helpers.text import strip_markdown
+from charlieverse.server.responses.summaries import EntitySummary
 
 
-class SearchMemoriesRule(ReminderRule):
-    tag = ReminderTag.MEMORY_HINT
+class SearchMemoriesRule(PromptSubmitReminder):
+    tag: Literal[ReminderTag.MEMORY_HINT] = ReminderTag.MEMORY_HINT
 
     async def evaluate(self, ctx: HookContext) -> ReminderResult | None:
-        if ctx.event != "UserPromptSubmit":
-            return None
-
         if not ctx.message or len(ctx.message.strip()) < 5:
             return None
 
@@ -38,30 +39,17 @@ class SearchMemoriesRule(ReminderRule):
                     return None
 
                 data = resp.json()
+                if not data or not isinstance(data, list):
+                    return None
+
+                parts: list[str] = []
+                for e in data:
+                    memory = EntitySummary.model_construct(**e)
+                    tag = str(memory.type)
+                    content = strip_markdown(memory.content.strip())
+
+                    parts.append(f'<{tag} date="{memory.age}">{content}</{tag}>')
+
+                return self.result("\n".join(parts))
         except Exception:
             return None
-
-        found = data.get("found", [])
-        stories = data.get("stories", [])
-
-        if not found and not stories:
-            return None
-
-        parts: list[str] = []
-
-        # Inject found memories as context
-        if found:
-            for group in found:
-                for mem in group.get("memories", []):
-                    parts.append(f"[{mem['type']}] {mem['content']}")
-
-        # Inject matching stories for temporal references
-        if stories:
-            for story in stories:
-                period = f"{story['period_start']} to {story['period_end']}"
-                parts.append(f"[story: {story['title']}] ({story['tier']}, {period}) {story['content']}")
-
-        if not parts:
-            return None
-
-        return self.result("\n".join(parts))

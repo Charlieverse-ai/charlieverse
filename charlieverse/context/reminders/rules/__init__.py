@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from charlieverse.context.reminders.rules.banned_words import BannedWordsRule
+from charlieverse.context.reminders.rules.banned_words_detector import BannedWordsDetectorRule
 from charlieverse.context.reminders.rules.base import ReminderRule
 from charlieverse.context.reminders.rules.save_session import SaveSessionRule
 from charlieverse.context.reminders.rules.search_memories import SearchMemoriesRule
 from charlieverse.context.reminders.rules.system_prompt import SystemPromptRule
 from charlieverse.context.reminders.rules.temporal_context import TemporalContextRule
-from charlieverse.context.reminders.rules.temporal_gap import TemporalGapRule
 from charlieverse.context.reminders.template import ReminderTemplate
 
 
@@ -18,8 +18,8 @@ def register_rules(template: ReminderTemplate | None = None) -> list[ReminderRul
     return [
         TemporalContextRule(t),
         SystemPromptRule(t),
-        TemporalGapRule(t),
         SaveSessionRule(t),
         SearchMemoriesRule(t),
+        BannedWordsDetectorRule(t),
         BannedWordsRule(t),
     ]

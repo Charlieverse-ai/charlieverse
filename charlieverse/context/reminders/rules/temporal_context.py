@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from charlieverse.context.reminders.rules.base import ReminderRule
+from charlieverse.context.reminders.rules.base import PromptSubmitReminder
 from charlieverse.context.reminders.types import (
     HookContext,
     ReminderResult,
@@ -11,19 +11,31 @@ from charlieverse.context.reminders.types import (
 from charlieverse.helpers.time_utils import format_datetime, relative_time_seconds
 
 
-class TemporalContextRule(ReminderRule):
+class TemporalContextRule(PromptSubmitReminder):
     tag = ReminderTag.TEMPORAL_CONTEXT
 
     async def evaluate(self, ctx: HookContext) -> ReminderResult | None:
-        vars: dict[str, str] = {
+        context = self.context(ctx)
+        if not context:
+            return None
+
+        if context.message_count.total.messages < 5:
+            return None
+
+        template_vars: dict[str, str] = {
             "CURRENT_DATETIME": format_datetime(ctx.timestamp),
-            "TIME_SINCE_SAVE": "never",
+            "SAVE": "You have NOT saved yet this session!!",
+            "TIME_SINCE_LAST_MESSAGE": "_no idea_",
         }
 
-        vars["RELATIVE_TIME_SINCE_SESSION_START"] = relative_time_seconds(int(ctx.metadata.get("session_start") or 0))
+        last_message = context.last_user_message
+        if last_message:
+            template_vars["TIME_SINCE_LAST_MESSAGE"] = relative_time_seconds(last_message)
 
-        session_save = ctx.metadata.get("last_save")
+        session_save = context.last_save
         if session_save:
-            vars["TIME_SINCE_SAVE"] = relative_time_seconds(int(session_save))
+            template_vars["SAVE"] = (
+                f"It's been {relative_time_seconds(session_save)}, {context.message_count.since_last_save.messages} messages, and {context.message_count.since_last_save.turns} turns since you last saved."
+            )
 
-        return self.result(self.template.render("temporal-context", vars))
+        return self.result(self.template.render("temporal-context", template_vars))
