@@ -6,10 +6,10 @@ from pathlib import Path
 
 from charlieverse.context.builder import ContextBundle
 from charlieverse.helpers import paths
+from charlieverse.helpers.text import strip_markdown
 from charlieverse.helpers.time_utils import relative_date
 from charlieverse.memory.entities import Entity, EntityType
 from charlieverse.memory.sessions import Session
-from charlieverse.nlp.markdown import strip_markdown
 
 PROMPTS_DIR = paths.prompts() or Path(__file__).resolve().parent.parent / "prompts"
 
@@ -37,7 +37,6 @@ class ActivationContextRenderer:
                 self._render_pinned_memories,
                 self._render_pinned_knowledge,
                 self._render_related,
-                self._render_story,
             ]
 
         for section in sections:
@@ -118,10 +117,6 @@ class ActivationContextRenderer:
             self.append("<related_memories>")
             self.append_entities([*self.bundle.session_entities, *self.bundle.related_entities])
             self.append("</related_memories>")
-
-    def _render_story(self) -> None:
-        if self.bundle.all_time_story:
-            self.append(self.bundle.all_time_story.content, "our_story_so_far")
 
     def _render_messages(self) -> None:
         messages = self.bundle.recent_messages

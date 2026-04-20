@@ -1,1 +1,0 @@
-since last message: ${TIME_SINCE}
