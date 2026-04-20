@@ -10,8 +10,8 @@ from pathlib import Path
 from spacy.language import Language
 
 from charlieverse.config import config
-from charlieverse.db.fts import clean_text
 from charlieverse.types.dates import UTCDatetime, utc_now
+from charlieverse.types.strings import CleanedText
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,7 @@ def _resolve_date_range(text: str, now: UTCDatetime | None = None) -> TemporalRe
     return TemporalRef(text=text, start=UTCDatetime(start), end=UTCDatetime(end))
 
 
-def extract_entities(text: str) -> list[str]:
+def extract_keywords(text: CleanedText | None) -> list[str]:
     """Extract named entities and key noun phrases from text.
 
     Args:
@@ -167,10 +167,10 @@ def extract_entities(text: str) -> list[str]:
     Returns:
         Deduplicated list of extracted terms, ordered by appearance.
     """
-    content = clean_text(text)
-    if not content:
+    if not text:
         return []
 
+    content = str(text)
     nlp = _get_nlp()
     if nlp is None:
         return []
@@ -180,7 +180,6 @@ def extract_entities(text: str) -> list[str]:
     seen: set[str] = set()
     terms: list[str] = []
 
-    # Named entities (people, orgs, products, etc.)
     for ent in doc.ents:
         if ent.label_ in _RELEVANT_LABELS:
             normalized = ent.text.strip()
@@ -191,21 +190,20 @@ def extract_entities(text: str) -> list[str]:
     return terms
 
 
-def extract_temporal_refs(text: str) -> list[TemporalRef]:
+def extract_temporal_refs(text: CleanedText | None) -> list[TemporalRef]:
     """Extract and resolve temporal references from text.
 
     Returns resolved date ranges for expressions like "last week",
     "yesterday", "in February", etc. Returns empty list if none found.
     """
-    content = clean_text(text)
-    if not content:
+    if not text:
         return []
 
     nlp = _get_nlp()
     if nlp is None:
         return []
 
-    doc = nlp(content)
+    doc = nlp(str(text))
 
     refs: list[TemporalRef] = []
     now = utc_now()

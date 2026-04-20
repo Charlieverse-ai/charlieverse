@@ -8,6 +8,7 @@ naive datetimes.
 from __future__ import annotations
 
 from charlieverse.types.dates import LocalDatetime, UTCDatetime, to_local, utc_now
+from charlieverse.types.time import Seconds
 
 
 def format_datetime(dt: UTCDatetime) -> str:
@@ -65,25 +66,34 @@ def relative_time(start: UTCDatetime, now: UTCDatetime | None = None) -> str:
     return relative_time_seconds(total_seconds)
 
 
-def relative_time_seconds(total_seconds: int) -> str:
-    """Format the delta between two UTC instants as a human-readable duration.
+def relative_time_seconds(total_seconds: float | Seconds) -> str:
+    """Format a duration in seconds as a human-readable fractional unit.
 
-    e.g. "just now", "12 minutes", "2 hours, 35 minutes"
+    e.g. "45 seconds", "1.5 minutes", "6.01 hours".
+    Uses the largest unit where the value is >= 1 and renders it to at
+    most two decimal places, stripping trailing zeros.
     """
-    if total_seconds < 60:
-        return f"{total_seconds} seconds"
+    secs = float(total_seconds)
 
-    minutes = total_seconds // 60
-    hours = minutes // 60
+    if secs < 60:
+        return _fmt_unit(secs, "second")
 
-    if hours == 0:
-        return f"{minutes} minute{'s' if minutes != 1 else ''}"
+    minutes = secs / 60
+    if minutes < 60:
+        return _fmt_unit(minutes, "minute")
 
-    remaining_mins = minutes % 60
-    if remaining_mins == 0:
-        return f"{hours} hour{'s' if hours != 1 else ''}"
+    hours = minutes / 60
+    return _fmt_unit(hours, "hour")
 
-    return f"{hours} hour{'s' if hours != 1 else ''}, {remaining_mins} minute{'s' if remaining_mins != 1 else ''}"
+
+def _fmt_unit(value: float, unit: str) -> str:
+    """Format a float with at most 2 decimal places, stripping trailing
+    zeros, and pluralize the unit based on the rounded value."""
+    rounded = round(value, 2)
+    # %g strips trailing zeros: 1.0 -> "1", 1.50 -> "1.5", 6.01 -> "6.01"
+    display = f"{rounded:g}"
+    suffix = "" if rounded == 1 else "s"
+    return f"{display} {unit}{suffix}"
 
 
 def relative_date(date: UTCDatetime, now: UTCDatetime | None = None) -> str:

@@ -181,5 +181,6 @@ STOP_WORDS = _STOP_WORDS.union(
         "yolo",
         "youre",
         "yw",
+        "sec",
     }
 )

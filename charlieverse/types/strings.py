@@ -60,3 +60,7 @@ class WorkspaceFilePath(NonEmptyString):
     @property
     def display_path(self) -> str:
         return self.replace(os.path.expanduser("~"), "~", 1)
+
+
+class CleanedText(NonEmptyString):
+    pass
