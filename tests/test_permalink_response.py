@@ -1,21 +1,21 @@
-"""Tests for PermalinkResponse — locks the structured_content contract.
+"""Tests for PermalinkResponse — locks the contract used by MCP write-tools.
 
 The MCP write-tools (update_session, save_memory, save_story, update_article,
-forget_memory, pin) all return PermalinkResponse. FastMCP auto-generates an
-outputSchema from the return type annotation, and MCP clients (Claude Code in
-particular) reject responses that have a declared outputSchema but no
-structured_content. PermalinkResponse must always set structured_content to a
-non-None dict so the validator passes and the writes don't appear to error.
+forget_memory, pin) all return PermalinkResponse. PermalinkResponse must be a
+plain Pydantic model — NOT a fastmcp ToolResult subclass — so FastMCP can
+derive an outputSchema describing just the structured payload (kind, id, url).
 
-Bug fixed April 25 2026 (logged in BACKLOG.md as "MCP write-tools throw
-output-validation errors despite writes landing"). These tests prevent
-regression.
+When PermalinkResponse extended ToolResult, the auto-generated outputSchema
+leaked transport-envelope fields (content / structured_content / meta) and
+clients rejected responses where those fields were missing or shaped wrong.
+That bug fired on every save_memory and update_session call during the
+April 24-25 Fiona deliverable session saves. These tests prevent regression.
 """
 
 from __future__ import annotations
 
 import pytest
-from mcp.types import TextContent
+from pydantic import BaseModel
 
 from charlieverse.server.responses.permalink import PermalinkResponse
 from charlieverse.types.id import ModelId
@@ -23,34 +23,37 @@ from charlieverse.types.id import ModelId
 _FIXED_ID = ModelId("550e8400-e29b-41d4-a716-446655440000")
 
 
-def test_permalink_response_sets_structured_content() -> None:
-    """The MCP outputSchema validator requires structured_content to be a dict, not None."""
+def test_permalink_response_is_a_plain_pydantic_model() -> None:
+    """PermalinkResponse must NOT extend ToolResult — that leaks envelope fields into the schema."""
+    from fastmcp.tools import ToolResult
+
+    assert issubclass(PermalinkResponse, BaseModel)
+    assert not issubclass(PermalinkResponse, ToolResult)
+
+
+def test_permalink_response_positional_constructor_for_back_compat() -> None:
+    """Existing call sites use PermalinkResponse(kind, id) — preserve that shape."""
     result = PermalinkResponse("sessions", _FIXED_ID)
-    assert result.structured_content is not None
-    assert isinstance(result.structured_content, dict)
+    assert result.kind == "sessions"
+    assert result.id == str(_FIXED_ID)
+    assert result.url.endswith(f"sessions/{_FIXED_ID}")
 
 
-def test_permalink_response_structured_content_includes_kind_id_url() -> None:
-    """Clients should be able to read the kind, id, and url from the structured payload."""
-    result = PermalinkResponse("memories", _FIXED_ID)
-    sc = result.structured_content
-    assert sc is not None
-    assert sc["kind"] == "memories"
-    assert sc["id"] == str(_FIXED_ID)
-    assert "url" in sc
-    assert sc["url"].endswith(f"memories/{_FIXED_ID}")
+def test_permalink_response_for_entity_classmethod() -> None:
+    """Explicit factory method for callers that prefer named args."""
+    result = PermalinkResponse.for_entity("memories", _FIXED_ID)
+    assert result.kind == "memories"
+    assert result.id == str(_FIXED_ID)
+    assert result.url.endswith(f"memories/{_FIXED_ID}")
 
 
-def test_permalink_response_text_content_matches_url() -> None:
-    """The TextContent block should carry the same URL as the structured payload."""
-    result = PermalinkResponse("story", _FIXED_ID)
-    assert result.content is not None
-    assert len(result.content) == 1
-    text_block = result.content[0]
-    assert isinstance(text_block, TextContent)
-    sc = result.structured_content
-    assert sc is not None
-    assert text_block.text == sc["url"]
+def test_permalink_response_dumps_to_dict_with_kind_id_url() -> None:
+    """The model_dump payload is what FastMCP sends as structured_content."""
+    result = PermalinkResponse("knowledge", _FIXED_ID)
+    payload = result.model_dump()
+    assert set(payload.keys()) == {"kind", "id", "url"}
+    assert payload["kind"] == "knowledge"
+    assert payload["id"] == str(_FIXED_ID)
 
 
 @pytest.mark.parametrize(
@@ -60,5 +63,6 @@ def test_permalink_response_text_content_matches_url() -> None:
 def test_permalink_response_supports_all_write_tool_kinds(kind: str) -> None:
     """Every kind the MCP write-tools emit should produce a valid PermalinkResponse."""
     result = PermalinkResponse(kind, _FIXED_ID)
-    assert result.structured_content is not None
-    assert result.structured_content["kind"] == kind
+    assert result.kind == kind
+    assert result.url.startswith("http")
+    assert result.url.endswith(f"{kind}/{_FIXED_ID}")
