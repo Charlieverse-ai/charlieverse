@@ -3,9 +3,8 @@ from __future__ import annotations
 from fastmcp import FastMCP
 from starlette.requests import Request
 
-from charlieverse.helpers.text import clean_stopwords, clean_text, extract_stuff
+from charlieverse.helpers.text import clean_stopwords, clean_text, extract_stuff, is_ignored
 from charlieverse.memory.entities import EntityId, EntityStore
-from charlieverse.memory.messages import MessageRole
 from charlieverse.memory.sessions import SessionId
 from charlieverse.memory.stores import Stores
 from charlieverse.server.responses import EmptyResponse, ModelListResponse
@@ -31,21 +30,24 @@ def register_routes(mcp: FastMCP, rest_stores: Stores) -> None:
         session_id = SessionId.or_none(body.get("session_id"))
         seen_ids: set[EntityId] = set(body.get("seen_ids") or [])
 
-        if not text or not session_id:
+        if not text or not session_id or is_ignored(text):
+            return EmptyResponse()
+
+        # Ignore longer texts
+        if len(text) > 1000:
             return EmptyResponse()
 
         session = await rest_stores.sessions.get(session_id)
         if not session:
             return EmptyResponse()
 
-        last_charlie = await rest_stores.messages.latest(session, role=MessageRole.charlie)
-        if last_charlie:
-            text += f" {last_charlie.content}"
-
         keywords = [
-            *extract_keywords(clean_text(text)),
             *extract_stuff(text),
+            *extract_keywords(clean_text(text)),
         ]
+
+        # Limit for longer texts
+        keywords = keywords[:10]
         keywords = process_enriched_topics(session_id, clean_stopwords(keywords))
 
         if not keywords:

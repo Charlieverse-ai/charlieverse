@@ -23,7 +23,7 @@ _MODEL_VERSION = "3.8.0"
 _MODEL_URL = f"https://github.com/explosion/spacy-models/releases/download/{_MODEL_NAME}-{_MODEL_VERSION}/{_MODEL_NAME}-{_MODEL_VERSION}-py3-none-any.whl"
 
 # Entity labels worth extracting for memory search
-_RELEVANT_LABELS = {"PERSON", "ORG", "PRODUCT", "GPE", "EVENT", "WORK_OF_ART", "FAC", "NORP", "DATE", "LOC", "TIME", "MISC", "PROD", "DRV", "PER"}
+_RELEVANT_LABELS = {"PERSON", "PRODUCT", "GPE", "EVENT", "WORK_OF_ART", "FAC", "NORP", "LOC", "TIME", "MISC", "PROD", "DRV", "PER"}
 
 # Temporal expressions that imply date ranges
 _RANGE_KEYWORDS = {
@@ -182,11 +182,13 @@ def extract_keywords(text: CleanedText | None) -> list[str]:
 
     for ent in doc.ents:
         if ent.label_ in _RELEVANT_LABELS:
-            normalized = ent.text.strip()
-            lower = normalized.lower()
-            if lower not in seen and len(normalized) > 1:
-                seen.add(lower)
-                terms.append(normalized)
+            # split mutli word matches up into single word
+            words = ent.text.strip().split(" ")
+            for normalized in words:
+                lower = normalized.lower()
+                if lower not in seen and len(normalized) > 1:
+                    seen.add(lower)
+                    terms.append(normalized)
     return terms
 
 
