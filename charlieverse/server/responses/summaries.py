@@ -58,11 +58,12 @@ class EntitySummary(BaseModel):
 
     @classmethod
     def from_memory(cls, memory: Entity, should_truncate: bool = True) -> Self:
+        content = strip_markdown(memory.content)
+        truncated = False
         if should_truncate:
-            content, truncated = truncate(memory.content, MAX_ENTITY_CONTENT)
+            content, truncated = truncate(content, MAX_ENTITY_CONTENT)
         else:
             content = memory.content
-            truncated = False
 
         return cls.model_construct(
             id=memory.id,
