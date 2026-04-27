@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from charlieverse.helpers.text import strip_markdown, strip_noise, strip_punctuation
 from charlieverse.types.strings import CleanedText
@@ -238,7 +239,15 @@ if __name__ == "__main__":
         print(banned_word_string())
         exit(0)
 
-    result = check_text("\n".join(sys.argv[1:]))
+    path = Path(sys.argv[1])
+    # Simple file check
+    if path.exists():
+        if path.is_dir():
+            print("Path provided is a directory not a file")
+            exit(2)
+        result = check_text(path.read_text())
+    else:
+        result = check_text("\n".join(sys.argv[1:]))
 
     if result:
         print(format_feedback(result))
