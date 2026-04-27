@@ -94,13 +94,15 @@ class ActivationContextRenderer:
     def append_entity(self, entity: Entity):
         important = entity.pinned or entity.type == EntityType.moment
 
-        tag = f"{entity.type}" if important else entity.type
-        attrs = f'date="{relative_date(entity.updated_at)}"'
+        tag = f"pinned-{entity.type}" if important else entity.type
+        attrs = f'date="{relative_date(entity.updated_at)}" id="{entity.id}"'
 
         self.append(strip_markdown(entity.content.strip()), tag=tag, attrs=attrs)
 
     def _render_pinned_memories(self) -> None:
+        self.append("<pinned>")
         self.append_entities(self.bundle.pinned_entities)
+        self.append("</pinned>")
 
     def _render_pinned_knowledge(self) -> None:
         if not self.bundle.pinned_knowledge:
@@ -128,8 +130,9 @@ class ActivationContextRenderer:
             label = "me" if msg.role == "user" else "charlie"
             # Truncate long assistant messages to keep context lean
             content = strip_markdown(msg.content.strip())
-            # if len(content) > 200:
-            # content = content[:200] + "…"
+            max_message_display = 300
+            if len(content) > max_message_display:
+                content = content[:max_message_display] + "…"
             age = relative_date(msg.created_at)
             self.append(f'<{label} date="{age}">{content}</{label}>')
 

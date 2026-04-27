@@ -375,3 +375,90 @@ def test_render_recent_messages_user_labeled_as_me():
     bundle = _bundle(recent_messages=msgs)
     output = _render(bundle)
     assert "<me " in output
+
+
+# ---------------------------------------------------------------------------
+# Message truncation at 300 characters
+# ---------------------------------------------------------------------------
+
+
+def test_render_recent_messages_long_message_truncated():
+    long_content = "x" * 400
+    msgs = [_message("user", long_content, 60)]
+    bundle = _bundle(recent_messages=msgs)
+    output = _render(bundle)
+    # The raw 400-char content should not appear verbatim
+    assert long_content not in output
+    # The truncation marker should be present
+    assert "…" in output
+
+
+def test_render_recent_messages_short_message_not_truncated():
+    short_content = "short message under limit"
+    msgs = [_message("user", short_content, 60)]
+    bundle = _bundle(recent_messages=msgs)
+    output = _render(bundle)
+    assert short_content in output
+    assert "…" not in output
+
+
+def test_render_recent_messages_exact_limit_not_truncated():
+    content = "a" * 300
+    msgs = [_message("user", content, 60)]
+    bundle = _bundle(recent_messages=msgs)
+    output = _render(bundle)
+    assert content in output
+    assert "…" not in output
+
+
+# ---------------------------------------------------------------------------
+# Pinned entities — <pinned> wrapper and pinned-{type} tag names
+# ---------------------------------------------------------------------------
+
+
+def test_render_pinned_entities_wrapped_in_pinned_tag():
+    pinned = _entity("pinned decision", type=EntityType.decision)
+    pinned = pinned.model_copy(update={"pinned": True})
+    bundle = _bundle(pinned_entities=[pinned])
+    output = _render(bundle)
+    assert "<pinned>" in output
+    assert "</pinned>" in output
+
+
+def test_render_pinned_entity_uses_pinned_type_tag():
+    pinned = _entity("pinned fact", type=EntityType.decision)
+    pinned = pinned.model_copy(update={"pinned": True})
+    bundle = _bundle(pinned_entities=[pinned])
+    output = _render(bundle)
+    assert "<pinned-decision " in output
+
+
+def test_render_pinned_tag_emitted_even_with_no_pinned_entities():
+    """_render_pinned_memories always emits <pinned> wrapper regardless of content."""
+    bundle = _bundle(pinned_entities=[])
+    output = _render(bundle)
+    assert "<pinned>" in output
+    assert "</pinned>" in output
+
+
+def test_render_entity_includes_id_attribute():
+    entity = _entity("something memorable", type=EntityType.preference)
+    bundle = _bundle(related_entities=[entity])
+    output = _render(bundle)
+    assert f'id="{entity.id}"' in output
+
+
+def test_render_non_pinned_entity_uses_plain_type_tag():
+    entity = _entity("regular decision", type=EntityType.decision)
+    bundle = _bundle(related_entities=[entity])
+    output = _render(bundle)
+    assert "<decision " in output
+    assert "<pinned-decision" not in output
+
+
+def test_render_moment_entity_uses_pinned_moment_tag():
+    """Moments are treated as important even when not pinned, so they get pinned-moment tag."""
+    moment = _entity("a moment", type=EntityType.moment)
+    bundle = _bundle(moments=[moment], related_entities=[moment])
+    output = _render(bundle)
+    assert "<pinned-moment " in output

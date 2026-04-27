@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from charlieverse.embeddings import encode_one
 from charlieverse.helpers.banned_words import BANNED_WORDS
-from charlieverse.memory.entities import Entity, EntityId, EntityType
+from charlieverse.memory.entities import Entity, EntityId
 from charlieverse.memory.entities.mcp import _rank_by_relevance_and_recency
 from charlieverse.memory.knowledge import Knowledge
 from charlieverse.memory.messages import Message
@@ -69,12 +69,12 @@ class ActivationBuilder:
         seen_ids: set[EntityId] = set()
 
         # Fetch recent sessions
-        recent_sessions = await self.stores.sessions.recent(limit=5)
+        recent_sessions = await self.stores.sessions.recent(limit=3)
 
         # Fetch moments — personality entities, always global
-        moments = await self.stores.memories.fetch(entity_type=EntityType.moment, limit=50)
-        moments = _rank_by_relevance_and_recency(moments)
-        [seen_ids.add(memory.id) for memory in moments]
+        # moments = await self.stores.memories.fetch(entity_type=EntityType.moment, limit=10)
+        # moments = _rank_by_relevance_and_recency(moments)
+        # [seen_ids.add(memory.id) for memory in moments]
 
         # Fetch pinned entities
         pinned_entities = await self.stores.memories.pinned()
@@ -116,15 +116,17 @@ class ActivationBuilder:
 
         banned = sorted(BANNED_WORDS)
 
+        entities = [*session_entities, *related_entities]
+
         return ContextBundle(
             banned_words=banned,
             current_session_id=session_id,
-            moments=moments,
+            moments=[],
             pinned_entities=pinned_entities,
             pinned_knowledge=pinned_knowledge,
             recent_messages=recent_messages,
             recent_sessions=recent_sessions,
-            related_entities=related_entities,
-            session_entities=session_entities,
+            related_entities=entities[:10],
+            session_entities=[],
             workspace=workspace,
         )
