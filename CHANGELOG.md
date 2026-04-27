@@ -5,6 +5,49 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). This project us
 
 ---
 
+## [v1.14.7] — 2026-04-27
+
+### Added
+- **Escalating session-save reminder.** `SaveSessionRule` now fires after 15 turns since the last save and escalates in tone each ignored turn — polite nudge at turn 0 through snarky dog-explosion humor through a tombstone epitaph at turn 14. A one-time celebration fires after each successful save. Replaces the flat 30-minute wall-clock trigger.
+- **Reactive banned-words detector.** New `BannedWordsDetectorRule` fires with `VERY_IMPORTANT` priority when the previous assistant turn contained a banned phrase, rendering specific matches via the new `banned-words-violation.md` template. Previously only a proactive general reminder existed.
+- **`charlieverse/helpers/text.py` shared text-cleaning module.** Consolidates `strip_noise`, `is_ignored`, `clean_text`, `strip_markdown`, `strip_punctuation`, and `extract_stuff` from scattered locations into a single canonical helpers module. `nlp/markdown.py` is now a re-export shim.
+- **`PromptSubmitContext` model.** New response model (`server/responses/prompt_submit_delta.py`) for the `GET /api/session/{id}/prompt_submit` endpoint — includes message counts, last assistant message content and age, seen memory IDs, and session timing.
+- **`Seconds` branded float type** (`types/time.py`) for type-safe duration values throughout the server layer.
+- **`typo-check` trick.** New Charlie trick for scanning prose, docstrings, and docs for typos, grammar, punctuation/capitalization, and banned-phrase voice slips before shipping.
+- **`banned_words` CLI accepts a file path.** The `python -m charlieverse.helpers.banned_words` entry point now accepts a file path as its first argument and reads the file contents, rather than always joining all argv tokens as raw text.
+- **Test coverage for new and changed modules.** Tests added across `test_text_helpers.py`, `test_save_session_escalation.py`, and `test_renderer.py` (message truncation, pinned wrapper, pinned-type tags, entity id attribute).
+
+### Changed
+- **`relative_time_seconds` returns fractional units.** "2.5 hours" instead of "2 hours, 30 minutes". Accepts `float | Seconds`. Pluralization based on rounded value.
+- **Entity ranker drops FTS/vector dual-source relevance scoring.** The min-score filter was cutting relevant-but-older memories. Ranking now uses a constant floor plus recency decay (half-life 14 days) — all results surface, ordered by recency.
+- **`truncate()` and `MAX_*` constants moved to `summaries.py`** and shared across the MCP layer instead of being private to `mcp.py`.
+- **`extract_entities` renamed to `extract_keywords`**, accepts pre-cleaned `CleanedText` directly — callers are responsible for pre-cleaning.
+- **`SearchMemoriesRule` renders XML-tagged entity elements** instead of plain text lines: `<{type} date="{age}">{content}</{type}>`.
+- **`TemporalGapRule` removed.** Superseded by `TemporalContextRule`.
+- **`annoy-charlie.md` template** replaces `save-reminder.md` and `temporal-gap.md` for session-save nags.
+- **Activation context drops auto-loaded moments.** Moments no longer fetch on every session-start; they must be explicitly pinned to appear in activation context. Reduces token overhead on cold-start sessions.
+- **Activation context: `<pinned>` wrapper and `pinned-{type}` tags.** Pinned entities and moments now render inside a `<pinned>` block with `pinned-{type}` tag names (e.g., `<pinned-decision>`). Each entity element includes an `id` attribute.
+- **Recent messages truncated at 300 characters.** Long messages in the activation context `<recent_messages>` block are now capped at 300 chars with an ellipsis instead of rendering in full.
+- **Recent sessions limit reduced from 5 to 3.** Trims activation context size for sessions with long history.
+- **NLP enrichment: multi-word entities split into tokens.** "Emily Laguna" becomes `["Emily", "Laguna"]` for broader memory recall. `ORG` and `DATE` entity labels removed as too noisy.
+- **Context enrichment guards long texts.** `POST /api/context/enrich` returns early for texts over 1,000 characters, and keywords are capped at 10 per call.
+- **`EntitySummary.from_memory` strips markdown before truncating.** Prevents truncation mid-markdown-syntax; plain text length is what counts.
+- **`PermalinkResponse` reshaped from `ToolResult` to plain Pydantic model.** Removes the MCP output-validation errors that were surfacing when write tools returned `ToolResult` directly.
+- **MCP write tools populate `structured_content`.** Fixes output-validation errors in FastMCP's strict mode; write-tool responses now include both `content` and `structured_content` fields.
+- **`session-save` skill tightened.** `what_happened` is now a single paragraph (4 sentences max), prohibiting long file paths, duplicate memory content, and file/line counts. `for_next_session` items must be short and directly actionable.
+- **Memory content cap clarified in `Charlie.md`.** 300 characters or less; longer content will be truncated. Pinning guidance updated to suggest rather than gatekeep.
+
+### Decisions Recorded
+- ADR: Save session reminder switched to escalating turn-based nag
+- ADR: Text helpers extracted to shared module
+- ADR: Reactive banned-words detector added as separate reminder rule
+- ADR: Memory recall response flattened from grouped to entity list
+- ADR: relative_time_seconds returns fractional units
+- ADR: Moments dropped from activation context — auto-loading all moments added noise without reliable signal
+- ADR: Multi-word NLP entities split into tokens for broader memory recall
+
+---
+
 ## [v1.14.6] — 2026-04-20
 
 ### Added
