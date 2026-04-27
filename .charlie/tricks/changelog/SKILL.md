@@ -85,10 +85,10 @@ Only include changes that affect functionality, behavior, or developer experienc
 
 ### 5. Commit the changelog
 
-Update the version in pyproject.toml
+Update the version in pyproject.toml and uv.lock
+Then commit all the files for the version bump.
 
 ```bash
-git add CHANGELOG.md
 charlie-commit -m "Update CHANGELOG for vX.Y.Z
 
 Charlie 🐕 <charlie@charlieverse.ai>"
